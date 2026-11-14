@@ -95,7 +95,8 @@ describe('importStravaArchive: sample Strava export', () => {
     await runImport(makeSampleExport(), (status) => statuses.push(status));
 
     expect(statuses[0]).toEqual({ stage: 'reading-archive' });
-    expect(statuses.at(-1)).toEqual({ stage: 'parsing-activities', processed: 6, total: 6 });
+    expect(statuses.at(-2)).toEqual({ stage: 'parsing-activities', processed: 6, total: 6 });
+    expect(statuses.at(-1)).toEqual({ stage: 'indexing' });
   });
 
   it('ignores a duplicated activity row', async () => {

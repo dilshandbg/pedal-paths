@@ -3,7 +3,13 @@ import {
   runImportInWorker,
   type ArchiveImporter,
 } from '@/features/activities/workers/runImportInWorker';
-import type { CyclingActivity, ImportIssue, ImportResult, ImportStatus } from '@/types';
+import type {
+  CyclingActivity,
+  ImportIssue,
+  ImportResult,
+  ImportStatus,
+  SegmentIndex,
+} from '@/types';
 
 /** The currently loaded Strava export. Only one dataset is loaded at a time (BR-16). */
 export interface LoadedDataset {
@@ -11,6 +17,8 @@ export interface LoadedDataset {
   readonly activities: readonly CyclingActivity[];
   readonly issues: readonly ImportIssue[];
   readonly excludedNonRideCount: number;
+  /** Precomputed heat map road segments for these activities (ADR-0006). */
+  readonly segmentIndex: SegmentIndex;
 }
 
 export interface ActivitiesState {
@@ -62,6 +70,7 @@ export const useActivitiesStore = create<ActivitiesState>()((set) => ({
           activities: result.activities,
           issues: result.issues,
           excludedNonRideCount: result.excludedNonRideCount,
+          segmentIndex: result.segmentIndex,
         },
         status: { stage: 'done' },
         pendingFileName: null,
@@ -75,4 +84,6 @@ export const useActivitiesStore = create<ActivitiesState>()((set) => ({
 
 /** Whether an import is currently running. */
 export const selectIsImporting = (state: ActivitiesState): boolean =>
-  state.status.stage === 'reading-archive' || state.status.stage === 'parsing-activities';
+  state.status.stage === 'reading-archive' ||
+  state.status.stage === 'parsing-activities' ||
+  state.status.stage === 'indexing';

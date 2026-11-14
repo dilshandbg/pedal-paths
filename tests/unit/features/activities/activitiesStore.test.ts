@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { useActivitiesStore } from '@/features/activities/store/activitiesStore';
 import type { ArchiveImporter } from '@/features/activities/workers/runImportInWorker';
+import { buildSegmentIndex } from '@/features/heatmap/services/buildSegmentIndex';
 import type { CyclingActivity, ImportResult } from '@/types';
 
 const activity = (activityId: string): CyclingActivity => ({
@@ -14,12 +15,16 @@ const activity = (activityId: string): CyclingActivity => ({
   gpsTrack: [],
 });
 
-const success = (...ids: string[]): ImportResult => ({
-  ok: true,
-  activities: ids.map(activity),
-  issues: [],
-  excludedNonRideCount: 0,
-});
+const success = (...ids: string[]): ImportResult => {
+  const activities = ids.map(activity);
+  return {
+    ok: true,
+    activities,
+    issues: [],
+    excludedNonRideCount: 0,
+    segmentIndex: buildSegmentIndex(activities),
+  };
+};
 
 const importerReturning =
   (result: ImportResult): ArchiveImporter =>

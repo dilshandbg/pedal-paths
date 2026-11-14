@@ -6,27 +6,49 @@ import type { ActivityId } from './activity';
  */
 export type LngLat = readonly [longitude: number, latitude: number];
 
-/** A renderable path together with how many distinct rides traversed it (ADR-0006). */
+/** A renderable stretch of road and how many distinct rides traversed it (BR-12, ADR-0006). */
 export interface HeatMapPath {
   readonly coordinates: readonly LngLat[];
-  /** Number of distinct filtered activities that traverse this path (≥ 1) (BR-12). */
+  /** Number of distinct selected activities that traverse every segment of this path (≥ 1). */
   readonly frequency: number;
-  /** `frequency` normalized to 0..1 against {@link HeatMapData.maxFrequency}. */
+  /**
+   * `frequency` on a 0..1 log scale relative to {@link HeatMapData.maxFrequency}:
+   * `log(1 + frequency) / log(1 + maxFrequency)`. It is monotonic, so more rides always means
+   * higher intensity (AC-12), but rarely ridden roads stay visible next to daily commutes.
+   */
   readonly intensity: number;
-  /** Activities that contribute to this path (makes AC-09 verifiable). */
-  readonly activityIds: readonly ActivityId[];
 }
 
 /**
  * Render-ready heat map data. Pure functions in `src/features/heatmap/services` produce it from
- * the filtered activities, and the map layer consumes it. Model: ADR-0006.
+ * the selected activities, and the map layer consumes it. Model: ADR-0006.
  */
 export interface HeatMapData {
   readonly paths: readonly HeatMapPath[];
   /** Highest `frequency` in `paths`, or 0 when there are none. */
   readonly maxFrequency: number;
-  /** Every activity represented in this data set. */
+  /** Every activity that contributed to this data set. */
   readonly activityIds: readonly ActivityId[];
+}
+
+/**
+ * Precomputed road-segment index for a whole dataset (ADR-0006). It is built once, in the import
+ * worker, so that re-aggregating after a filter change is only counter increments.
+ *
+ * Tracks are snapped to a grid of ~`cellSizeM` cells. A "segment" is an edge between two adjacent
+ * (8-neighbour) cells. Cells and segments are numbered densely from 0.
+ */
+export interface SegmentIndex {
+  readonly cellSizeM: number;
+  /** `[lng, lat]` per cell: the mean of the GPS points that fell in it, or the cell centre. */
+  readonly cellLngLat: Float64Array;
+  /** `[cellA, cellB]` per segment. */
+  readonly segmentCells: Uint32Array;
+  /** CSR adjacency: segments touching cell `c` are `cellSegments[cellSegmentOffsets[c] .. [c+1])`. */
+  readonly cellSegmentOffsets: Uint32Array;
+  readonly cellSegments: Uint32Array;
+  /** Distinct segments traversed by each activity, ascending. */
+  readonly activitySegments: ReadonlyMap<ActivityId, Uint32Array>;
 }
 
 /** Geographic bounding box in WGS84 degrees. */

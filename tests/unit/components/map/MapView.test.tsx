@@ -7,8 +7,10 @@ import {
   INITIAL_VIEW,
 } from '@/components/map/mapConfig';
 import { MapView } from '@/components/map/MapView';
+import { heatColor, heatWidth } from '@/components/map/heatStyle';
 import { ROUTE_LAYER_ID } from '@/components/map/routeLayer';
-import type { GeoBounds, HeatMapData } from '@/types';
+import { frequencyToIntensity } from '@/features/heatmap/services/aggregateHeatMap';
+import type { GeoBounds, HeatMapData, HeatMapPath } from '@/types';
 import {
   FakeMap,
   FakeMapboxOverlay,
@@ -26,20 +28,18 @@ const twoRides: HeatMapData = {
         [0.01, 0.01],
       ],
       frequency: 1,
-      intensity: 1,
-      activityIds: ['a'],
+      intensity: frequencyToIntensity(1, 5),
     },
     {
       coordinates: [
         [1, 1],
         [1.01, 1.01],
       ],
-      frequency: 1,
+      frequency: 5,
       intensity: 1,
-      activityIds: ['b'],
     },
   ],
-  maxFrequency: 1,
+  maxFrequency: 5,
   activityIds: ['a', 'b'],
 };
 
@@ -97,6 +97,34 @@ describe('BR-06: MapView', () => {
     expect((layer as PathLayer).props.data).toHaveLength(2);
     expect(screen.getByRole('status')).toHaveTextContent('Showing 2 rides on the map');
     expect(screen.queryByText(/Load your Strava export ZIP/)).not.toBeInTheDocument();
+  });
+
+  it('BR-12: colours and sizes each path by its intensity', () => {
+    render(<MapView styleUrl={STYLE} data={twoRides} fitBounds={null} />);
+
+    const layer = onlyOverlay().props.layers?.[0] as PathLayer<HeatMapPath>;
+    const getColor = layer.props.getColor as unknown as (path: HeatMapPath) => number[];
+    const getWidth = layer.props.getWidth as unknown as (path: HeatMapPath) => number;
+    const [quiet, busy] = twoRides.paths as [HeatMapPath, HeatMapPath];
+
+    expect(getColor(busy)).toEqual(heatColor(1));
+    expect(getColor(quiet)).toEqual(heatColor(quiet.intensity));
+    expect(getWidth(busy)).toBeGreaterThan(getWidth(quiet));
+    expect(getWidth(busy)).toBe(heatWidth(1));
+  });
+
+  it('BR-12: shows a legend from 1 ride to the busiest road', () => {
+    render(<MapView styleUrl={STYLE} data={twoRides} fitBounds={null} />);
+
+    const legend = screen.getByRole('figure', { name: 'Heat map legend' });
+    expect(legend).toHaveTextContent('Rides on a road');
+    expect(legend).toHaveTextContent('1 ride');
+    expect(legend).toHaveTextContent('5 rides');
+  });
+
+  it('shows no legend before rides are loaded', () => {
+    render(<MapView styleUrl={STYLE} data={null} fitBounds={null} />);
+    expect(screen.queryByRole('figure', { name: 'Heat map legend' })).not.toBeInTheDocument();
   });
 
   it('removes the routes when data is cleared', () => {

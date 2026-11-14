@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from '@/app/App';
 import { useActivitiesStore } from '@/features/activities/store/activitiesStore';
+import { buildSegmentIndex } from '@/features/heatmap/services/buildSegmentIndex';
 import { useFilterStore } from '@/features/filters/store/filterStore';
 import type { CyclingActivity, ImportResult } from '@/types';
 
@@ -20,10 +21,28 @@ const ride = (activityId: string): CyclingActivity => ({
   month: 1,
   distanceKm: 10,
   elevationGainM: 100,
-  gpsTrack: [
-    { latitude: 0, longitude: 0, elevation: null, timestamp: null },
-    { latitude: 0.01, longitude: 0, elevation: null, timestamp: null },
-  ],
+  // ~1.1 km north in 110 m steps (within the heat map's gap limit).
+  gpsTrack: Array.from({ length: 11 }, (_, k) => ({
+    latitude: k * 0.001,
+    longitude: 0,
+    elevation: null,
+    timestamp: null,
+  })),
+});
+
+/** A successful import result for these rides, with a real heat map segment index. */
+const loaded = (
+  activities: CyclingActivity[],
+  extras: Partial<
+    Pick<Extract<ImportResult, { ok: true }>, 'issues' | 'excludedNonRideCount'>
+  > = {},
+): ImportResult => ({
+  ok: true,
+  activities,
+  issues: [],
+  excludedNonRideCount: 0,
+  segmentIndex: buildSegmentIndex(activities),
+  ...extras,
 });
 
 const zipFile = (name = 'export_12345.zip') => new File(['PK'], name, { type: 'application/zip' });
@@ -47,19 +66,19 @@ describe('ZIP upload from the UI', () => {
   });
 
   it('AC-03 / UX-03 / UX-04: shows what was loaded, excluded and skipped', async () => {
-    fakeImport.mockResolvedValue({
-      ok: true,
-      activities: [ride('1'), ride('2')],
-      issues: [
-        {
-          activityId: '9',
-          activityName: 'Trainer Ride',
-          fileName: null,
-          reason: 'missing-gps-file',
-        },
-      ],
-      excludedNonRideCount: 5,
-    } satisfies ImportResult);
+    fakeImport.mockResolvedValue(
+      loaded([ride('1'), ride('2')], {
+        issues: [
+          {
+            activityId: '9',
+            activityName: 'Trainer Ride',
+            fileName: null,
+            reason: 'missing-gps-file',
+          },
+        ],
+        excludedNonRideCount: 5,
+      }),
+    );
     const user = userEvent.setup();
     render(<App />);
 
@@ -98,7 +117,7 @@ describe('ZIP upload from the UI', () => {
     );
     expect(fileInput()).toBeDisabled();
 
-    finish({ ok: true, activities: [ride('1')], issues: [], excludedNonRideCount: 0 });
+    finish(loaded([ride('1')]));
     expect(await screen.findByText('1 ride loaded')).toBeInTheDocument();
     expect(fileInput()).toBeEnabled();
   });
@@ -117,18 +136,8 @@ describe('ZIP upload from the UI', () => {
 
   it('AC-15: loading a new ZIP replaces the dataset and resets the filters', async () => {
     fakeImport
-      .mockResolvedValueOnce({
-        ok: true,
-        activities: [ride('1'), ride('2'), ride('3')],
-        issues: [],
-        excludedNonRideCount: 0,
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        activities: [ride('4')],
-        issues: [],
-        excludedNonRideCount: 0,
-      });
+      .mockResolvedValueOnce(loaded([ride('1'), ride('2'), ride('3')]))
+      .mockResolvedValueOnce(loaded([ride('4')]));
     const user = userEvent.setup();
     render(<App />);
 
@@ -151,12 +160,7 @@ describe('ZIP upload from the UI', () => {
 
   it('keeps the previous data when a replacement fails', async () => {
     fakeImport
-      .mockResolvedValueOnce({
-        ok: true,
-        activities: [ride('1')],
-        issues: [],
-        excludedNonRideCount: 0,
-      })
+      .mockResolvedValueOnce(loaded([ride('1')]))
       .mockResolvedValueOnce({ ok: false, reason: 'missing-activities-csv' });
     const user = userEvent.setup();
     render(<App />);
