@@ -24,6 +24,8 @@ What exists now:
 - **Combined filters** (BR-11): one pure `filterActivities` applies years × months, minus
   deselected rides (RULE-08). An "Active filters" summary lists the selected years, months and the
   number of deselected rides (UX-06).
+- **Reset filters** (BR-15): "Reset filters" button in the Active filters summary clears years,
+  months and ride exclusions; disabled while nothing is filtered.
 - **Ride filter** (BR-09): checkbox list of the loaded rides (name and local date); deselected
   rides are kept in `excludedActivityIds` and drop out of the heat map. The view stays fitted to
   the whole dataset, so toggling rides does not move the map.
@@ -31,7 +33,7 @@ What exists now:
 - Map style configuration helper (`services/map`).
 - Tooling: TypeScript strict, ESLint with architecture boundary rules, Prettier, Vitest + RTL, Playwright.
 
-Not built yet: reset, statistics.
+Not built yet: statistics.
 
 ## 2. Technology stack
 
