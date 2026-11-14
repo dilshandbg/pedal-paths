@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './test';
 import {
   makeActivitiesCsv,
   makeGpx,
@@ -24,7 +24,9 @@ test.describe('ZIP upload', () => {
     await expect(summary.getByText('3 rides loaded')).toBeVisible();
     await expect(summary.getByText('2 non-ride activities excluded')).toBeVisible();
     await expect(summary.getByText('3 rides could not be processed')).toBeVisible();
-    await expect(page.getByRole('region', { name: 'Map' })).toContainText('3 rides loaded');
+    await expect(page.getByRole('region', { name: 'Ride map' }).getByRole('status')).toHaveText(
+      'Showing 3 rides on the map',
+    );
   });
 
   test('AC-15: loading a different ZIP replaces the dataset', async ({ page }) => {

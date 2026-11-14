@@ -2,11 +2,11 @@ import { APP_TITLE } from '@/app/config';
 import { FilterPanel } from '@/components/filters/FilterPanel';
 import { AppHeader } from '@/components/layout/AppHeader';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
-import { MapView } from '@/components/map/MapView';
 import { StatisticsPanel } from '@/components/statistics/StatisticsPanel';
 import { ArchiveUploadPanel } from '@/features/activities/components/ArchiveUploadPanel';
 import { useActivitiesStore } from '@/features/activities/store/activitiesStore';
 import { useFilterStore } from '@/features/filters/store/filterStore';
+import { HeatMapView } from '@/features/heatmap/components/HeatMapView';
 
 /**
  * The single dashboard screen and the composition root that wires features together.
@@ -14,7 +14,7 @@ import { useFilterStore } from '@/features/filters/store/filterStore';
  */
 export function DashboardRoute() {
   const resetFilter = useFilterStore((state) => state.resetFilter);
-  const loadedRideCount = useActivitiesStore((state) => state.dataset?.activities.length ?? null);
+  const activities = useActivitiesStore((state) => state.dataset?.activities ?? null);
 
   return (
     <DashboardLayout
@@ -26,7 +26,7 @@ export function DashboardRoute() {
           <FilterPanel />
         </div>
       }
-      map={<MapView loadedRideCount={loadedRideCount} />}
+      map={<HeatMapView activities={activities} />}
       statistics={<StatisticsPanel />}
     />
   );

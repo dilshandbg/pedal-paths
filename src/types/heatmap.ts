@@ -28,3 +28,11 @@ export interface HeatMapData {
   /** Every activity represented in this data set. */
   readonly activityIds: readonly ActivityId[];
 }
+
+/** Geographic bounding box in WGS84 degrees. */
+export interface GeoBounds {
+  readonly west: number;
+  readonly south: number;
+  readonly east: number;
+  readonly north: number;
+}

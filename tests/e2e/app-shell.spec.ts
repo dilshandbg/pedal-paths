@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './test';
 
 test.describe('application shell', () => {
   test('shows the title, filter panel, map and statistics panel', async ({ page }) => {
@@ -9,7 +9,7 @@ test.describe('application shell', () => {
       page.getByRole('heading', { level: 1, name: 'Strava Cycling Heat Map' }),
     ).toBeVisible();
     await expect(page.getByRole('complementary', { name: 'Activity filters' })).toBeVisible();
-    await expect(page.getByRole('region', { name: 'Map' })).toBeVisible();
+    await expect(page.getByRole('region', { name: 'Ride map' })).toBeVisible();
     await expect(page.getByRole('complementary', { name: 'Activity statistics' })).toBeVisible();
   });
 
