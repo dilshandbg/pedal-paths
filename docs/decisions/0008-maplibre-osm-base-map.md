@@ -39,3 +39,21 @@ Maps billing and proposes OpenStreetMap-based mapping. The heat map must show tr
 - OpenStreetMap / OpenFreeMap attribution must stay visible on the map (MapLibre's attribution
   control is kept).
 - E2E tests can render the real map without credentials.
+
+## Amendment 2026-11-14: implementation notes (BR-06)
+
+- **MapLibre worker URL.** MapLibre 6 computes its web-worker URL from its own module location at
+  runtime. Vite can't see that reference, so in both the production bundle and the dev server's
+  pre-bundled dependencies the worker failed to load ("Worker failed to load"), and tiles would not
+  render. `src/services/map/setupMapLibre.ts` ships `maplibre-gl-worker.mjs` as a Vite asset
+  (`?url`) and registers it with `setWorkerUrl()` before any map is created. An e2e test fails on
+  any worker error in the console.
+- **Container sizing.** MapLibre sets `position: relative` on its container, so the container sits
+  inside an absolutely positioned wrapper. Otherwise it collapses to zero height. An e2e test checks
+  the canvas size.
+- **Rendering.** `MapboxOverlay` runs with `interleaved: false`, so deck.gl uses its own canvas above
+  the base map. Routes are a `PathLayer` built from `HeatMapData`. Until BR-12, each ride is one path
+  with frequency 1 (`buildRoutePaths`), and tracks are decimated to points at least 10 m apart.
+- **Tests.** Vitest replaces `maplibre-gl` and `@deck.gl/mapbox` with recording fakes
+  (`tests/mocks`), because jsdom has no WebGL. Playwright tests the real libraries in Chromium with
+  the tile style stubbed (`tests/e2e/test.ts`), so they run offline and deterministically.

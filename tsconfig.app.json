@@ -28,5 +28,12 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["src", "tests/setup.ts", "tests/unit", "tests/integration", "tests/fixtures"]
+  "include": [
+    "src",
+    "tests/setup.ts",
+    "tests/mocks",
+    "tests/unit",
+    "tests/integration",
+    "tests/fixtures"
+  ]
 }
