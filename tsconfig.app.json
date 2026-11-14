@@ -34,6 +34,7 @@
     "tests/mocks",
     "tests/unit",
     "tests/integration",
-    "tests/fixtures"
+    "tests/fixtures",
+    "tests/perf/harness"
   ]
 }

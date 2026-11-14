@@ -10,6 +10,7 @@ coverage/
 playwright-report/
 test-results/
 blob-report/
+tests/perf/dist/
 playwright/.cache/
 
 # Environment — never commit real API keys

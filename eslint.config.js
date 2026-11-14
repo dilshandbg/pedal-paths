@@ -29,6 +29,7 @@ export default tseslint.config(
       'playwright-report',
       'test-results',
       'blob-report',
+      'tests/perf/dist',
     ],
   },
   {
