@@ -4,9 +4,27 @@ A personal, local web app that turns your **original Strava export ZIP** into an
 map of your rides. It shows how often each road was ridden, filtered by year, month and individual
 ride. Everything runs in your browser and your data never leaves your machine.
 
-> **Status:** project scaffold. The app shell, tooling and architecture are in place. The features
-> (ZIP import, GPX/FIT parsing, filtering, heat map, statistics) come next, driven by
-> `docs/BRD.md` v1.1 and the ADRs in `docs/decisions/`.
+## Status
+
+All requirements in [`docs/BRD.md`](docs/BRD.md) v1.1 are implemented and verified by automated
+tests. See [`docs/traceability.md`](docs/traceability.md) for the requirement-by-requirement
+matrix.
+
+- **Import:** upload the original Strava export ZIP. It is processed in a background Web Worker,
+  with progress and a summary of loaded, excluded and skipped activities. Only **Ride** activities
+  with GPX or FIT tracks are kept.
+- **Heat map:** roads are coloured and sized by how many different rides used them, from 1 ride
+  to the busiest road, with a legend. The base map is MapLibre + OpenStreetMap with pan and zoom.
+- **Filters:** years, months (combined, e.g. November across several years) and individual rides.
+  An active-filters summary and a reset button sit above them. The map updates instantly, with no
+  page reload.
+- **Details and statistics:** each ride shows its date, distance and elevation gain. A statistics
+  panel shows the ride count, total distance and total elevation gain for the current filter.
+- **Performance:** a filter change reaches the screen in 27–121 ms for 2,000 synthetic rides
+  (budget 250 ms, NFR-02). Re-measure with `npm run perf`.
+
+Still open: confirming that performance with a real export (`npm run perf -- --zip <export>`). The
+alternative visualization modes in BRD §9 are deferred (OD-18).
 
 ## Tech stack
 
