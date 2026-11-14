@@ -5,6 +5,8 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { StatisticsPanel } from '@/components/statistics/StatisticsPanel';
 import { ArchiveUploadPanel } from '@/features/activities/components/ArchiveUploadPanel';
 import { useActivitiesStore } from '@/features/activities/store/activitiesStore';
+import { RideFilter } from '@/features/filters/components/RideFilter';
+import { useFilteredActivities } from '@/features/filters/hooks/useFilteredActivities';
 import { useFilterStore } from '@/features/filters/store/filterStore';
 import { HeatMapView } from '@/features/heatmap/components/HeatMapView';
 
@@ -16,6 +18,7 @@ export function DashboardRoute() {
   const resetFilter = useFilterStore((state) => state.resetFilter);
   const activities = useActivitiesStore((state) => state.dataset?.activities ?? null);
   const segmentIndex = useActivitiesStore((state) => state.dataset?.segmentIndex ?? null);
+  const selectedActivities = useFilteredActivities(activities);
 
   return (
     <DashboardLayout
@@ -24,10 +27,16 @@ export function DashboardRoute() {
         <div className="flex flex-col gap-4">
           {/* A new dataset invalidates the previous filter selection (ADR-0005, AC-15). */}
           <ArchiveUploadPanel onDatasetReplaced={resetFilter} />
-          <FilterPanel />
+          <FilterPanel rides={<RideFilter />} />
         </div>
       }
-      map={<HeatMapView activities={activities} segmentIndex={segmentIndex} />}
+      map={
+        <HeatMapView
+          activities={activities}
+          selectedActivities={selectedActivities}
+          segmentIndex={segmentIndex}
+        />
+      }
       statistics={<StatisticsPanel />}
     />
   );

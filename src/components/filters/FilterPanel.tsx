@@ -1,17 +1,24 @@
+import type { ReactNode } from 'react';
 import { Panel } from '@/components/common/Panel';
 import { PlaceholderNotice } from '@/components/common/PlaceholderNotice';
 
-const FILTER_SECTIONS = ['Year', 'Month', 'Ride'] as const;
+const PLACEHOLDER_SECTIONS = ['Year', 'Month'] as const;
 
-/** Placeholder for the filter panel. The real filter controls will come from `features/filters`. */
-export function FilterPanel() {
+interface FilterPanelProps {
+  /** The ride filter control, supplied by `features/filters`. */
+  rides: ReactNode;
+}
+
+/** Filter panel. Year and month are still placeholders; the ride filter is passed in. */
+export function FilterPanel({ rides }: FilterPanelProps) {
   return (
     <Panel title="Filters" description="Narrow down the activities shown on the map.">
-      {FILTER_SECTIONS.map((section) => (
+      {PLACEHOLDER_SECTIONS.map((section) => (
         <PlaceholderNotice key={section} label={section}>
           Coming soon
         </PlaceholderNotice>
       ))}
+      {rides}
     </Panel>
   );
 }

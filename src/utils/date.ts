@@ -25,3 +25,18 @@ export function getYearMonth(
   const month = Number(parts.find((part) => part.type === 'month')?.value);
   return Number.isInteger(year) && isMonth(month) ? { year, month } : null;
 }
+
+/**
+ * Short calendar date for display, such as "Nov 5, 2023", in the given IANA time zone or the
+ * browser's local zone (ADR-0007). Returns an empty string for an unparsable date.
+ */
+export function formatShortDate(isoDate: string, timeZone?: string): string {
+  const date = new Date(isoDate);
+  if (Number.isNaN(date.getTime())) {
+    return '';
+  }
+  return new Intl.DateTimeFormat('en-US', {
+    dateStyle: 'medium',
+    ...(timeZone === undefined ? {} : { timeZone }),
+  }).format(date);
+}
