@@ -1,5 +1,6 @@
 import { Suspense, lazy, useMemo } from 'react';
 import { aggregateHeatMap } from '@/features/heatmap/services/aggregateHeatMap';
+import { buildHeatMapGeometry } from '@/features/heatmap/services/buildHeatMapGeometry';
 import { computeBounds } from '@/features/heatmap/utils/bounds';
 import { getMapStyleUrl } from '@/services/map';
 import type { CyclingActivity, SegmentIndex } from '@/types';
@@ -27,15 +28,21 @@ interface HeatMapViewProps {
  * every filter change.
  */
 export function HeatMapView({ activities, selectedActivities, segmentIndex }: HeatMapViewProps) {
+  // Built once per loaded export; every filter change reuses it (NFR-02).
+  const geometry = useMemo(
+    () => (segmentIndex ? buildHeatMapGeometry(segmentIndex) : null),
+    [segmentIndex],
+  );
   const data = useMemo(
     () =>
-      selectedActivities && segmentIndex
+      selectedActivities && segmentIndex && geometry
         ? aggregateHeatMap(
             segmentIndex,
+            geometry,
             selectedActivities.map((activity) => activity.activityId),
           )
         : null,
-    [selectedActivities, segmentIndex],
+    [selectedActivities, segmentIndex, geometry],
   );
   const bounds = useMemo(() => (activities ? computeBounds(activities) : null), [activities]);
 

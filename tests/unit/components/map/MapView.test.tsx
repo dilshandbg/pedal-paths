@@ -1,4 +1,4 @@
-import { PathLayer } from '@deck.gl/layers';
+import { LineLayer, ScatterplotLayer } from '@deck.gl/layers';
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import {
@@ -8,9 +8,9 @@ import {
 } from '@/components/map/mapConfig';
 import { MapView } from '@/components/map/MapView';
 import { heatColor, heatWidth } from '@/components/map/heatStyle';
-import { ROUTE_LAYER_ID } from '@/components/map/routeLayer';
+import { JOINT_LAYER_ID, SEGMENT_LAYER_ID } from '@/components/map/routeLayer';
 import { frequencyToIntensity } from '@/features/heatmap/services/aggregateHeatMap';
-import type { GeoBounds, HeatMapData, HeatMapPath } from '@/types';
+import type { GeoBounds, HeatMapData, HeatMapGeometry } from '@/types';
 import {
   FakeMap,
   FakeMapboxOverlay,
@@ -20,28 +20,34 @@ import {
 
 const STYLE = 'https://tiles.example.org/style.json';
 
+// Two separate roads: segment 0 (cells 0-1) ridden once, segment 1 (cells 2-3) five times, and
+// segment 2 (cells 1-2) not ridden by the selection.
+const geometry: HeatMapGeometry = {
+  segmentCount: 3,
+  cellCount: 4,
+  segmentSources: Float64Array.of(0, 0, 1, 1, 0.01, 0.01),
+  segmentTargets: Float64Array.of(0.01, 0.01, 1.01, 1.01, 1, 1),
+  cellPositions: Float64Array.of(0, 0, 0.01, 0.01, 1, 1, 1.01, 1.01),
+};
 const twoRides: HeatMapData = {
-  paths: [
-    {
-      coordinates: [
-        [0, 0],
-        [0.01, 0.01],
-      ],
-      frequency: 1,
-      intensity: frequencyToIntensity(1, 5),
-    },
-    {
-      coordinates: [
-        [1, 1],
-        [1.01, 1.01],
-      ],
-      frequency: 5,
-      intensity: 1,
-    },
-  ],
+  geometry,
+  segmentFrequency: Uint32Array.of(1, 5, 0),
+  cellFrequency: Uint32Array.of(1, 1, 5, 5),
   maxFrequency: 5,
+  intensityByFrequency: Float32Array.from({ length: 6 }, (_, f) => frequencyToIntensity(f, 5)),
   activityIds: ['a', 'b'],
 };
+
+interface BinaryAttribute {
+  value: ArrayLike<number>;
+  size: number;
+}
+/** The binary attributes handed to one of the deck.gl layers. */
+const attributes = (layer: unknown) =>
+  (layer as { props: { data: { length: number; attributes: Record<string, BinaryAttribute> } } })
+    .props.data;
+const rgba = (attribute: BinaryAttribute | undefined, k: number) =>
+  Array.from(attribute?.value ?? []).slice(k * 4, k * 4 + 4);
 
 const bounds: GeoBounds = { west: 0, south: 0, east: 1.01, north: 1.01 };
 
@@ -88,29 +94,68 @@ describe('BR-06: MapView', () => {
     expect(screen.getByRole('status')).toHaveTextContent('No rides loaded');
   });
 
-  it('draws the prepared routes as a deck.gl path layer', () => {
+  it('draws road segments as instanced lines and joints as dots', () => {
     render(<MapView styleUrl={STYLE} data={twoRides} fitBounds={null} />);
 
-    const [layer] = onlyOverlay().props.layers ?? [];
-    expect(layer).toBeInstanceOf(PathLayer);
-    expect((layer as PathLayer).id).toBe(ROUTE_LAYER_ID);
-    expect((layer as PathLayer).props.data).toHaveLength(2);
+    const [segments, joints] = onlyOverlay().props.layers ?? [];
+    expect(segments).toBeInstanceOf(LineLayer);
+    expect((segments as LineLayer).id).toBe(SEGMENT_LAYER_ID);
+    expect(attributes(segments).length).toBe(3);
+    expect(joints).toBeInstanceOf(ScatterplotLayer);
+    expect((joints as ScatterplotLayer).id).toBe(JOINT_LAYER_ID);
+    expect(attributes(joints).length).toBe(4);
     expect(screen.getByRole('status')).toHaveTextContent('Showing 2 rides on the map');
     expect(screen.queryByText(/Load your Strava export ZIP/)).not.toBeInTheDocument();
   });
 
-  it('BR-12: colours and sizes each path by its intensity', () => {
+  it('BR-12: colours and sizes each segment by its intensity', () => {
     render(<MapView styleUrl={STYLE} data={twoRides} fitBounds={null} />);
 
-    const layer = onlyOverlay().props.layers?.[0] as PathLayer<HeatMapPath>;
-    const getColor = layer.props.getColor as unknown as (path: HeatMapPath) => number[];
-    const getWidth = layer.props.getWidth as unknown as (path: HeatMapPath) => number;
-    const [quiet, busy] = twoRides.paths as [HeatMapPath, HeatMapPath];
+    const { attributes: segment } = attributes(onlyOverlay().props.layers?.[0]);
+    const widths = Array.from(segment.getWidth?.value ?? []);
 
-    expect(getColor(busy)).toEqual(heatColor(1));
-    expect(getColor(quiet)).toEqual(heatColor(quiet.intensity));
-    expect(getWidth(busy)).toBeGreaterThan(getWidth(quiet));
-    expect(getWidth(busy)).toBe(heatWidth(1));
+    expect(rgba(segment.getColor, 1)).toEqual(heatColor(1));
+    expect(rgba(segment.getColor, 0)).toEqual(heatColor(frequencyToIntensity(1, 5)));
+    expect(widths[1]).toBeCloseTo(heatWidth(1), 5);
+    expect(widths[0]).toBeCloseTo(heatWidth(frequencyToIntensity(1, 5)), 5);
+    expect(widths[1]).toBeGreaterThan(widths[0] ?? Infinity);
+  });
+
+  it('does not draw segments or joints the selection does not use', () => {
+    render(<MapView styleUrl={STYLE} data={twoRides} fitBounds={null} />);
+
+    const { attributes: segment } = attributes(onlyOverlay().props.layers?.[0]);
+    expect(rgba(segment.getColor, 2)[3]).toBe(0);
+    expect(Array.from(segment.getWidth?.value ?? [])[2]).toBe(0);
+  });
+
+  it("BR-12: gives joints the busiest meeting road's colour, at half its width", () => {
+    render(<MapView styleUrl={STYLE} data={twoRides} fitBounds={null} />);
+
+    const { attributes: joint } = attributes(onlyOverlay().props.layers?.[1]);
+    expect(rgba(joint.getFillColor, 3)).toEqual(heatColor(1));
+    expect(Array.from(joint.getRadius?.value ?? [])[3]).toBeCloseTo(heatWidth(1) / 2, 5);
+  });
+
+  it('NFR-02: reuses the dataset geometry buffers when the selection changes', () => {
+    const { rerender } = render(<MapView styleUrl={STYLE} data={twoRides} fitBounds={null} />);
+    const fewer: HeatMapData = {
+      ...twoRides,
+      segmentFrequency: Uint32Array.of(1, 0, 0),
+      cellFrequency: Uint32Array.of(1, 1, 0, 0),
+      maxFrequency: 1,
+      intensityByFrequency: Float32Array.of(0, 1),
+      activityIds: ['a'],
+    };
+
+    rerender(<MapView styleUrl={STYLE} data={fewer} fitBounds={null} />);
+
+    const { attributes: segment } = attributes(onlyOverlay().props.layers?.[0]);
+    const { attributes: joint } = attributes(onlyOverlay().props.layers?.[1]);
+    expect(segment.getSourcePosition?.value).toBe(geometry.segmentSources);
+    expect(segment.getTargetPosition?.value).toBe(geometry.segmentTargets);
+    expect(joint.getPosition?.value).toBe(geometry.cellPositions);
+    expect(rgba(segment.getColor, 1)[3]).toBe(0); // no longer drawn
   });
 
   it('BR-12: shows a legend from 1 ride to the busiest road', () => {

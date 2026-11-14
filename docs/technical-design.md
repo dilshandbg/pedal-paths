@@ -39,25 +39,25 @@ What exists now:
 - Map style configuration helper (`services/map`).
 - Tooling: TypeScript strict, ESLint with architecture boundary rules, Prettier, Vitest + RTL, Playwright.
 
-All BRD v1.1 functional requirements are implemented and verified. Open: NFR-02 performance
-with real data (ADR-0006).
+All BRD v1.1 requirements are implemented and verified, including NFR-02 (ADR-0006 amendment).
+Still worth doing: re-measure with a real Strava export.
 
 ## 2. Technology stack
 
-| Concern         | Choice                                    | Decision              |
-| --------------- | ----------------------------------------- | --------------------- |
-| UI              | React 19 + TypeScript (strict)            | Project brief         |
-| Build           | Vite 6                                    | Project brief         |
-| Styling         | Tailwind CSS 4                            | Project brief         |
-| State           | Zustand 5                                 | Project brief, BRD §8 |
-| Base map        | MapLibre GL JS + OpenFreeMap (OSM) tiles  | ADR-0008              |
-| Route rendering | deck.gl 9 `PathLayer` via `MapboxOverlay` | ADR-0006, ADR-0008    |
-| ZIP + gunzip    | `fflate`                                  | ADR-0004              |
-| FIT parsing     | `@garmin/fitsdk`                          | ADR-0004              |
-| GPX parsing     | Local text scanner (no library)           | ADR-0004 amendment    |
-| CSV parsing     | Local pure parser                         | ADR-0004              |
-| Background work | Web Worker (Vite `?worker` import)        | ADR-0004              |
-| Testing         | Vitest 4 + jsdom + RTL; Playwright        | Project brief         |
+| Concern         | Choice                                                         | Decision              |
+| --------------- | -------------------------------------------------------------- | --------------------- |
+| UI              | React 19 + TypeScript (strict)                                 | Project brief         |
+| Build           | Vite 6                                                         | Project brief         |
+| Styling         | Tailwind CSS 4                                                 | Project brief         |
+| State           | Zustand 5                                                      | Project brief, BRD §8 |
+| Base map        | MapLibre GL JS + OpenFreeMap (OSM) tiles                       | ADR-0008              |
+| Route rendering | deck.gl 9 `LineLayer` + `ScatterplotLayer` via `MapboxOverlay` | ADR-0006, ADR-0008    |
+| ZIP + gunzip    | `fflate`                                                       | ADR-0004              |
+| FIT parsing     | `@garmin/fitsdk`                                               | ADR-0004              |
+| GPX parsing     | Local text scanner (no library)                                | ADR-0004 amendment    |
+| CSV parsing     | Local pure parser                                              | ADR-0004              |
+| Background work | Web Worker (Vite `?worker` import)                             | ADR-0004              |
+| Testing         | Vitest 4 + jsdom + RTL; Playwright                             | Project brief         |
 
 ## 3. Domain model (`src/types`)
 
@@ -113,11 +113,12 @@ never stored.
 
 - Tracks are snapped to a ~25 m grid.
 - Each activity is represented by a set of segment edges, computed once at import.
-- On a filter change, the per-segment count of **distinct activities** is aggregated, giving
-  `frequency` and `intensity = frequency / max`.
-- Equal-frequency neighbouring segments are merged into `HeatMapPath`s.
-- Rendering uses a deck.gl `PathLayer`, coloured and sized by `intensity`.
-- Target: about 2,000 rides, with filter updates under 250 ms.
+- Drawing geometry (segment and cell positions) is built once per dataset.
+- On a filter change, only the per-segment count of **distinct activities** is recomputed
+  (typed arrays), with `intensity = log(1 + f) / log(1 + max)`.
+- Rendering uses a deck.gl `LineLayer` (segments) and `ScatterplotLayer` (joints) with binary
+  attributes. Positions are shared buffers, so only colours and widths are uploaded.
+- Target: about 2,000 rides, filter updates under 250 ms. Measured at 34–169 ms (ADR-0006).
 
 ## 7. State management
 

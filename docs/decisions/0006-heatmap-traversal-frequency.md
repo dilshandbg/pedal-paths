@@ -77,3 +77,43 @@ climb produces more points than a fast descent, so density misrepresents frequen
   open until it is measured with real data and the filter UI exists (BR-09). Options, if needed:
   - move aggregation into a worker;
   - simplify paths by zoom level.
+
+## Amendment (2026-11-15): static geometry for NFR-02
+
+The first implementation rebuilt geometry on every filter change: merged paths, then deck.gl
+re-tessellating them. In Chromium on an Intel UHD GPU, from filter change to updated frame, that
+took 630–980 ms for 2,000 rides with little route overlap. This replaces items 4 and 6 and the
+"Draw order" and "Measured" points above.
+
+- **Geometry is built once per dataset.** `buildHeatMapGeometry(index)` creates Float64Array
+  positions for every segment's two ends and for every cell. `HeatMapView` memoizes it per
+  `SegmentIndex`.
+- **A filter change only counts.** `aggregateHeatMap(index, geometry, ids)` returns:
+  - `segmentFrequency` (distinct rides per segment);
+  - `cellFrequency` (the busiest segment meeting at each cell);
+  - `maxFrequency`;
+  - `intensityByFrequency`, a lookup of the log scale.
+
+  It uses typed arrays only; there are no per-path objects and no merging.
+
+- **Rendering.** Each segment is an instanced deck.gl `LineLayer` line, and each cell is a
+  `ScatterplotLayer` dot. The dot takes the busiest meeting road's colour at half its width, which
+  gives round, seamless joints, and crossings show the busier road.
+  - Both layers get binary attributes. The position buffers are the shared geometry arrays, so
+    deck.gl only uploads the new colour and width buffers. Those are filled from a per-frequency
+    lookup table.
+  - Unridden segments and cells get zero width and alpha.
+- **Colours are opaque.** Lines and dots overlap at joints, and transparency would show darker
+  spots. Width still grows with intensity, so colour is not the only signal.
+- **Measured** in Chromium with a real GPU (Intel UHD, D3D11), from filter change to updated frame,
+  for 2,000 rides × 3,600 points:
+
+  | Dataset                                            | Segments | Before     | After     |
+  | -------------------------------------------------- | -------- | ---------- | --------- |
+  | Random walk (worst case, little overlap)           | 1.35M    | 210–980 ms | 78–169 ms |
+  | "Explorer": dense 150 m street grid, 20 home bases | 1.0M     | 253–706 ms | 88–106 ms |
+  | Street grid, 5 home bases (repeated routes)        | 0.4M     | 95–184 ms  | 34–64 ms  |
+
+  Aggregation itself takes 7–35 ms. Index and geometry are built once per import, in 1.4–2.3 s.
+  The **250 ms target (NFR-02) is met** in every case. Measured with a temporary harness that was
+  not committed.

@@ -3,9 +3,10 @@ import {
   aggregateHeatMap,
   frequencyToIntensity,
 } from '@/features/heatmap/services/aggregateHeatMap';
+import { buildHeatMapGeometry } from '@/features/heatmap/services/buildHeatMapGeometry';
 import { buildSegmentIndex } from '@/features/heatmap/services/buildSegmentIndex';
 import { METRES_PER_DEGREE_LAT } from '@/features/heatmap/utils/grid';
-import type { CyclingActivity, GPSPoint, HeatMapData } from '@/types';
+import type { CyclingActivity, GPSPoint, HeatMapData, SegmentIndex } from '@/types';
 
 const metres = (m: number) => m / METRES_PER_DEGREE_LAT;
 
@@ -25,7 +26,7 @@ function track(
 const ride = (activityId: string, gpsTrack: GPSPoint[]): CyclingActivity => ({
   activityId,
   activityName: activityId,
-  activityDate: '2024-01-01T00:00:00.000Z',
+  activityDate: '2024-01-01T08:00:00.000Z',
   year: 2024,
   month: 1,
   distanceKm: null,
@@ -33,125 +34,162 @@ const ride = (activityId: string, gpsTrack: GPSPoint[]): CyclingActivity => ({
   gpsTrack,
 });
 
-const totalSegments = (data: HeatMapData, frequency: number) =>
-  data.paths
-    .filter((path) => path.frequency === frequency)
-    .reduce((sum, path) => sum + path.coordinates.length - 1, 0);
+function aggregate(rides: readonly CyclingActivity[], ids = rides.map((r) => r.activityId)) {
+  const index = buildSegmentIndex(rides);
+  return aggregateHeatMap(index, buildHeatMapGeometry(index), ids);
+}
+
+/** Number of segments drawn with exactly this frequency. */
+const segmentsWith = (data: HeatMapData, frequency: number) =>
+  data.segmentFrequency.filter((f) => f === frequency).length;
+const drawnSegments = (data: HeatMapData) => data.segmentFrequency.filter((f) => f > 0).length;
 
 describe('BR-12: traversal-frequency aggregation', () => {
   const road = track(100); // 1 km north
   const sideStreet = track(50, { lat0: 0.001 + metres(1000), north: 0, east: 10 }); // 500 m east
 
   it('AC-12: roads ridden by more rides get higher frequency and intensity', () => {
-    const rides = [
+    const data = aggregate([
       ride('a', road),
       ride('b', road),
       ride('c', road),
       ride('d', [...road, ...sideStreet]),
-    ];
-    const data = aggregateHeatMap(
-      buildSegmentIndex(rides),
-      rides.map((r) => r.activityId),
-    );
+    ]);
 
     expect(data.maxFrequency).toBe(4);
-    const main = data.paths.find((p) => p.frequency === 4);
-    const side = data.paths.find((p) => p.frequency === 1);
-    expect(main).toBeDefined();
-    expect(side).toBeDefined();
-    expect(main?.intensity).toBe(1);
-    expect(side?.intensity ?? 1).toBeLessThan(main?.intensity ?? 0);
-    expect(side?.intensity ?? 0).toBeGreaterThan(0);
+    expect(segmentsWith(data, 4)).toBeGreaterThan(30); // the main road
+    expect(segmentsWith(data, 1)).toBeGreaterThan(15); // the side street
+    expect(data.intensityByFrequency[4]).toBe(1);
+    expect(data.intensityByFrequency[1]).toBeGreaterThan(0);
+    expect(data.intensityByFrequency[1]).toBeLessThan(data.intensityByFrequency[4] ?? 0);
   });
 
   it('RULE-10: is about how often a road is ridden, not distance: a longer ride is not hotter', () => {
-    const short = ride('short', track(20));
-    const long = ride('long', track(100));
-    const data = aggregateHeatMap(buildSegmentIndex([short, long]), ['short', 'long']);
+    const data = aggregate([ride('short', track(20)), ride('long', track(100))]);
 
     expect(data.maxFrequency).toBe(2); // the shared first 200 m
-    expect(totalSegments(data, 1)).toBeGreaterThan(0); // the rest, ridden once
+    expect(segmentsWith(data, 1)).toBeGreaterThan(0); // the rest, ridden once
   });
 
   it('counts a road once per ride, even if one ride loops it several times', () => {
     const outAndBack = [...road, ...[...road].reverse(), ...road];
-    const data = aggregateHeatMap(buildSegmentIndex([ride('laps', outAndBack)]), ['laps']);
-
-    expect(data.maxFrequency).toBe(1);
+    expect(aggregate([ride('laps', outAndBack)]).maxFrequency).toBe(1);
   });
 
   it('absorbs GPS scatter: two rides a few metres apart count as the same road', () => {
     const shifted = track(100, { lon0: 0.001 + metres(3) });
-    const data = aggregateHeatMap(buildSegmentIndex([ride('a', road), ride('b', shifted)]), [
-      'a',
-      'b',
-    ]);
+    const data = aggregate([ride('a', road), ride('b', shifted)]);
 
-    const shared = totalSegments(data, 2);
-    const separate = totalSegments(data, 1);
-    expect(shared / (shared + separate)).toBeGreaterThan(0.8);
+    const shared = segmentsWith(data, 2);
+    expect(shared / drawnSegments(data)).toBeGreaterThan(0.8);
   });
 
   it('AC-09: leaving a ride out removes its contribution', () => {
     const rides = [ride('a', road), ride('b', road), ride('c', [...road, ...sideStreet])];
     const index = buildSegmentIndex(rides);
+    const geometry = buildHeatMapGeometry(index);
 
-    const all = aggregateHeatMap(index, ['a', 'b', 'c']);
-    const withoutC = aggregateHeatMap(index, ['a', 'b']);
+    const all = aggregateHeatMap(index, geometry, ['a', 'b', 'c']);
+    const withoutC = aggregateHeatMap(index, geometry, ['a', 'b']);
 
     expect(all.maxFrequency).toBe(3);
     expect(withoutC.maxFrequency).toBe(2);
-    expect(totalSegments(withoutC, 1)).toBe(0); // the side street was only ridden by c
+    expect(segmentsWith(withoutC, 1)).toBe(0); // the side street was only ridden by c
     expect(withoutC.activityIds).toEqual(['a', 'b']);
   });
 
-  it('merges a straight road with one frequency into a single path', () => {
-    const data = aggregateHeatMap(buildSegmentIndex([ride('a', road)]), ['a']);
+  it('reuses the same drawing geometry for every selection (NFR-02)', () => {
+    const rides = [ride('a', road), ride('b', sideStreet)];
+    const index = buildSegmentIndex(rides);
+    const geometry = buildHeatMapGeometry(index);
 
-    expect(data.paths).toHaveLength(1);
-    expect(data.paths[0]?.coordinates.length).toBeGreaterThan(30);
+    const first = aggregateHeatMap(index, geometry, ['a']);
+    const second = aggregateHeatMap(index, geometry, ['b']);
+
+    expect(first.geometry).toBe(geometry);
+    expect(second.geometry).toBe(geometry);
+    expect(first.segmentFrequency).toHaveLength(geometry.segmentCount);
+    expect(first.cellFrequency).toHaveLength(geometry.cellCount);
   });
 
-  it('splits paths where the frequency changes', () => {
-    const rides = [ride('a', road), ride('b', track(50))];
-    const data = aggregateHeatMap(buildSegmentIndex(rides), ['a', 'b']);
+  it('gives each joint the frequency of the busiest road meeting there', () => {
+    // Two rides on the main road, one of them continuing onto the side street.
+    const data = aggregate([ride('a', road), ride('b', [...road, ...sideStreet])]);
+    const index = buildSegmentIndex([ride('a', road), ride('b', [...road, ...sideStreet])]);
 
-    expect(data.paths.map((p) => p.frequency).sort()).toEqual([1, 2]);
-  });
-
-  it('follows the actual GPS positions, not just cell centres', () => {
-    const data = aggregateHeatMap(buildSegmentIndex([ride('a', road)]), ['a']);
-    const lngs = data.paths.flatMap((p) => p.coordinates.map(([lng]) => lng));
-    // Every point of the ride has longitude 0.001, so the drawn path stays on it.
-    for (const lng of lngs) {
-      expect(lng).toBeCloseTo(0.001, 9);
+    expect(maxCellFrequencyAtEndsOf(index, data, 2)).toBe(2);
+    // Every drawn segment's end cells are drawn at least as hot as the segment itself.
+    for (let s = 0; s < data.segmentFrequency.length; s += 1) {
+      const f = data.segmentFrequency[s] ?? 0;
+      const a = index.segmentCells[s * 2] ?? 0;
+      const b = index.segmentCells[s * 2 + 1] ?? 0;
+      expect(data.cellFrequency[a] ?? 0).toBeGreaterThanOrEqual(f);
+      expect(data.cellFrequency[b] ?? 0).toBeGreaterThanOrEqual(f);
     }
+    // No cell is drawn hotter than the busiest road through it.
+    expect(Math.max(...data.cellFrequency)).toBe(data.maxFrequency);
+  });
+
+  it('does not draw cells that no selected ride touches', () => {
+    const rides = [ride('a', road), ride('b', sideStreet)];
+    const index = buildSegmentIndex(rides);
+    const data = aggregateHeatMap(index, buildHeatMapGeometry(index), ['a']);
+
+    const drawnCells = data.cellFrequency.filter((f) => f > 0).length;
+    expect(drawnCells).toBeGreaterThan(30);
+    expect(drawnCells).toBeLessThan(data.cellFrequency.length);
   });
 
   it('does not join points across a long GPS gap', () => {
     const before = track(10);
     const after = track(10, { lat0: 0.001 + metres(5000) });
-    const data = aggregateHeatMap(buildSegmentIndex([ride('gap', [...before, ...after])]), ['gap']);
+    const data = aggregate([ride('gap', [...before, ...after])]);
 
-    const segmentCount = data.paths.reduce((sum, p) => sum + p.coordinates.length - 1, 0);
-    expect(segmentCount).toBeLessThan(20); // ~4 + ~4 cells, not 200 bridging the gap
+    expect(drawnSegments(data)).toBeLessThan(20); // ~4 + ~4 cells, not 200 bridging the gap
   });
 
-  it('draws busier roads last so they stay on top', () => {
-    const rides = [ride('a', road), ride('b', road), ride('c', [...road, ...sideStreet])];
-    const data = aggregateHeatMap(buildSegmentIndex(rides), ['a', 'b', 'c']);
-    const frequencies = data.paths.map((p) => p.frequency);
-
-    expect(frequencies).toEqual([...frequencies].sort((x, y) => x - y));
-  });
-
-  it('ignores unknown activity IDs and returns empty data for nothing selected', () => {
+  it('ignores unknown activity IDs and draws nothing when nothing is selected', () => {
     const index = buildSegmentIndex([ride('a', road)]);
+    const geometry = buildHeatMapGeometry(index);
 
-    expect(aggregateHeatMap(index, [])).toEqual({ paths: [], maxFrequency: 0, activityIds: [] });
-    expect(aggregateHeatMap(index, ['missing']).paths).toEqual([]);
+    const none = aggregateHeatMap(index, geometry, []);
+    expect(none.maxFrequency).toBe(0);
+    expect(none.activityIds).toEqual([]);
+    expect(drawnSegments(none)).toBe(0);
+    expect(none.cellFrequency.every((f) => f === 0)).toBe(true);
+    expect([...none.intensityByFrequency]).toEqual([0]);
+
+    const unknown = aggregateHeatMap(index, geometry, ['missing']);
+    expect(drawnSegments(unknown)).toBe(0);
+  });
+
+  it('lists an intensity for every frequency up to the maximum, on the log scale', () => {
+    const data = aggregate([ride('a', road), ride('b', road), ride('c', track(30))]);
+
+    expect(data.intensityByFrequency).toHaveLength(data.maxFrequency + 1);
+    for (let f = 0; f <= data.maxFrequency; f += 1) {
+      expect(data.intensityByFrequency[f]).toBeCloseTo(
+        frequencyToIntensity(f, data.maxFrequency),
+        6,
+      );
+    }
   });
 });
+
+function maxCellFrequencyAtEndsOf(
+  index: SegmentIndex,
+  data: HeatMapData,
+  frequency: number,
+): number {
+  let max = 0;
+  for (let s = 0; s < data.segmentFrequency.length; s += 1) {
+    if (data.segmentFrequency[s] !== frequency) continue;
+    for (const cell of [index.segmentCells[s * 2] ?? 0, index.segmentCells[s * 2 + 1] ?? 0]) {
+      max = Math.max(max, data.cellFrequency[cell] ?? 0);
+    }
+  }
+  return max;
+}
 
 describe('frequencyToIntensity', () => {
   it('maps 0..max onto a monotonic 0..1 log scale', () => {

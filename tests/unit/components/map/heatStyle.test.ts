@@ -16,14 +16,14 @@ describe('heat map styling', () => {
     expect(heatColor(1).slice(0, 3)).toEqual([...(HEAT_COLOR_STOPS.at(-1) ?? [])]);
   });
 
-  it('gets darker, more opaque and wider as intensity rises (AC-12)', () => {
+  it('gets darker and wider as intensity rises (AC-12)', () => {
     const steps = [0, 0.25, 0.5, 0.75, 1];
     const lum = steps.map((t) => luminance(heatColor(t)));
-    const alpha = steps.map((t) => heatColor(t)[3]);
     const width = steps.map(heatWidth);
 
     expect(lum).toEqual([...lum].sort((a, b) => b - a));
-    expect(alpha).toEqual([...alpha].sort((a, b) => a - b));
+    // Opaque at every intensity, so overlapping lines and joint dots blend seamlessly.
+    expect(steps.map((t) => heatColor(t)[3])).toEqual([255, 255, 255, 255, 255]);
     expect(width).toEqual([...width].sort((a, b) => a - b));
     expect(width[0]).toBe(HEAT_MIN_WIDTH_PX);
     expect(width.at(-1)).toBe(HEAT_MAX_WIDTH_PX);
