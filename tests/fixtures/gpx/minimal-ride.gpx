@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  SYNTHETIC fixture: hand-written, not a real recorded activity.
+  Three points roughly 1 km apart heading north from the equator/prime-meridian intersection.
+  Intended for future GPX parser tests (src/services/gpx).
+-->
+<gpx version="1.1" creator="strava-cycling-heatmap test fixture" xmlns="http://www.topografix.com/GPX/1/1">
+  <metadata>
+    <time>2024-03-10T07:00:00Z</time>
+  </metadata>
+  <trk>
+    <name>Synthetic Morning Ride</name>
+    <type>cycling</type>
+    <trkseg>
+      <trkpt lat="0.000000" lon="0.000000">
+        <ele>10.0</ele>
+        <time>2024-03-10T07:00:00Z</time>
+      </trkpt>
+      <trkpt lat="0.008993" lon="0.000000">
+        <ele>15.0</ele>
+        <time>2024-03-10T07:02:00Z</time>
+      </trkpt>
+      <trkpt lat="0.017986" lon="0.000000">
+        <ele>12.0</ele>
+        <time>2024-03-10T07:04:00Z</time>
+      </trkpt>
+    </trkseg>
+  </trk>
+</gpx>

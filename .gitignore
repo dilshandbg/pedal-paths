@@ -1,0 +1,40 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+*.tsbuildinfo
+
+# Test output
+coverage/
+playwright-report/
+test-results/
+blob-report/
+playwright/.cache/
+
+# Environment — never commit real API keys
+.env
+.env.*
+!.env.example
+
+# Personal activity data (GPS tracks reveal home/work locations)
+test-data/**/*.gpx
+test-data/**/*.fit
+test-data/**/*.tcx
+test-data/**/*.zip
+test-data/**/*.csv
+test-data/**/*.gz
+
+# Logs
+*.log
+npm-debug.log*
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Claude Code local settings
+.claude/settings.local.json
