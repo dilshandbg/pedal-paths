@@ -5,6 +5,7 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { StatisticsPanel } from '@/components/statistics/StatisticsPanel';
 import { ArchiveUploadPanel } from '@/features/activities/components/ArchiveUploadPanel';
 import { useActivitiesStore } from '@/features/activities/store/activitiesStore';
+import { MonthFilter } from '@/features/filters/components/MonthFilter';
 import { RideFilter } from '@/features/filters/components/RideFilter';
 import { YearFilter } from '@/features/filters/components/YearFilter';
 import { useFilteredActivities } from '@/features/filters/hooks/useFilteredActivities';
@@ -28,7 +29,7 @@ export function DashboardRoute() {
         <div className="flex flex-col gap-4">
           {/* A new dataset invalidates the previous filter selection (ADR-0005, AC-15). */}
           <ArchiveUploadPanel onDatasetReplaced={resetFilter} />
-          <FilterPanel years={<YearFilter />} rides={<RideFilter />} />
+          <FilterPanel years={<YearFilter />} months={<MonthFilter />} rides={<RideFilter />} />
         </div>
       }
       map={
