@@ -16,11 +16,11 @@ vi.mock('@/features/activities/workers/runImportInWorker', () => ({
 }));
 
 /** Rides on the same ~1.1 km road (110 m steps, within the heat map's gap limit). */
-const ride = (activityId: string, activityName: string): CyclingActivity => ({
+const ride = (activityId: string, activityName: string, year = 2024): CyclingActivity => ({
   activityId,
   activityName,
-  activityDate: '2024-01-01T08:00:00.000Z',
-  year: 2024,
+  activityDate: `${year}-06-01T08:00:00.000Z`,
+  year,
   month: 1,
   distanceKm: 10,
   elevationGainM: 100,
@@ -101,5 +101,78 @@ describe('BR-09: individual ride filter on the dashboard', () => {
     await user.click(screen.getByRole('checkbox', { name: 'Long loop' }));
     await screen.findByText('Showing 1 ride on the map');
     expect(map?.fitBoundsCalls).toHaveLength(1);
+  });
+});
+
+describe('BR-07: year filter on the dashboard', () => {
+  beforeEach(() => {
+    useActivitiesStore.setState(useActivitiesStore.getInitialState(), true);
+    useFilterStore.setState(useFilterStore.getInitialState(), true);
+    fakeImport.mockReset();
+  });
+
+  const threeYears = () => [
+    ride('1', 'Spring 2024', 2024),
+    ride('2', 'Summer 2023', 2023),
+    ride('3', 'Autumn 2023', 2023),
+    ride('4', 'Old ride', 2022),
+  ];
+
+  it('offers the years in the export, newest first, with all years selected', async () => {
+    await loadRides(threeYears());
+
+    const years = screen.getByRole('group', { name: 'Years' });
+    const labels = within(years)
+      .getAllByRole('checkbox')
+      .map((box) => box.closest('label')?.textContent);
+    expect(labels).toEqual(['All years', '2024', '2023', '2022']);
+    expect(within(years).getByRole('checkbox', { name: 'All years' })).toBeChecked();
+  });
+
+  it('AC-07: selecting years narrows the map and ride list; deselecting removes them', async () => {
+    const user = await loadRides(threeYears());
+    const years = screen.getByRole('group', { name: 'Years' });
+    const rideList = screen.getByRole('group', { name: 'Rides' });
+
+    await user.click(within(years).getByRole('checkbox', { name: '2023' }));
+    expect(await screen.findByText('Showing 2 rides on the map')).toBeInTheDocument();
+    expect(within(years).getByRole('checkbox', { name: 'All years' })).not.toBeChecked();
+    expect(within(rideList).getAllByRole('checkbox')).toHaveLength(2);
+    expect(within(rideList).getByRole('checkbox', { name: 'Summer 2023' })).toBeInTheDocument();
+    expect(within(rideList).getByRole('checkbox', { name: 'Autumn 2023' })).toBeInTheDocument();
+    expect(maxDrawnFrequency()).toBe(2);
+
+    await user.click(within(years).getByRole('checkbox', { name: '2022' }));
+    expect(await screen.findByText('Showing 3 rides on the map')).toBeInTheDocument();
+
+    await user.click(within(years).getByRole('checkbox', { name: '2023' }));
+    expect(await screen.findByText('Showing 1 ride on the map')).toBeInTheDocument();
+    expect(within(rideList).getByRole('checkbox', { name: 'Old ride' })).toBeChecked();
+  });
+
+  it('RULE-09: deselecting the last year, or choosing "All years", shows every ride again', async () => {
+    const user = await loadRides(threeYears());
+    const years = screen.getByRole('group', { name: 'Years' });
+
+    await user.click(within(years).getByRole('checkbox', { name: '2024' }));
+    await screen.findByText('Showing 1 ride on the map');
+    await user.click(within(years).getByRole('checkbox', { name: '2024' }));
+    expect(await screen.findByText('Showing 4 rides on the map')).toBeInTheDocument();
+
+    await user.click(within(years).getByRole('checkbox', { name: '2022' }));
+    await screen.findByText('Showing 1 ride on the map');
+    await user.click(within(years).getByRole('checkbox', { name: 'All years' }));
+    expect(await screen.findByText('Showing 4 rides on the map')).toBeInTheDocument();
+  });
+
+  it('keeps deselected rides out when their year is selected (ADR-0005)', async () => {
+    const user = await loadRides(threeYears());
+
+    await user.click(screen.getByRole('checkbox', { name: 'Summer 2023' }));
+    await screen.findByText('Showing 3 rides on the map');
+    await user.click(screen.getByRole('checkbox', { name: '2023' }));
+
+    expect(await screen.findByText('Showing 1 ride on the map')).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: 'Summer 2023' })).not.toBeChecked();
   });
 });
