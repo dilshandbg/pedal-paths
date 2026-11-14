@@ -21,6 +21,9 @@ What exists now:
   checked while none is selected (ADR-0005). The ride list shows only rides in the selected years.
 - **Month filter** (BR-08): January–December checklist with "All months"; combines with the
   years as a Cartesian AND (AC-10). The ride list shows only rides in the selected period.
+- **Combined filters** (BR-11): one pure `filterActivities` applies years × months, minus
+  deselected rides (RULE-08). An "Active filters" summary lists the selected years, months and the
+  number of deselected rides (UX-06).
 - **Ride filter** (BR-09): checkbox list of the loaded rides (name and local date); deselected
   rides are kept in `excludedActivityIds` and drop out of the heat map. The view stays fitted to
   the whole dataset, so toggling rides does not move the map.
@@ -28,7 +31,7 @@ What exists now:
 - Map style configuration helper (`services/map`).
 - Tooling: TypeScript strict, ESLint with architecture boundary rules, Prettier, Vitest + RTL, Playwright.
 
-Not built yet: active-filters display (UX-06), reset, statistics.
+Not built yet: reset, statistics.
 
 ## 2. Technology stack
 

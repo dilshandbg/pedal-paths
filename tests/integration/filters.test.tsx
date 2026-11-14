@@ -254,3 +254,55 @@ describe('BR-08: month filter on the dashboard', () => {
     expect(within(months).getByRole('checkbox', { name: 'All months' })).toBeChecked();
   });
 });
+
+describe('BR-11: combined filters on the dashboard', () => {
+  beforeEach(() => {
+    useActivitiesStore.setState(useActivitiesStore.getInitialState(), true);
+    useFilterStore.setState(useFilterStore.getInitialState(), true);
+    fakeImport.mockReset();
+  });
+
+  const summaryValue = (label: string) => {
+    const region = screen.getByRole('region', { name: 'Active filters' });
+    const term = within(region).getByText(label, { selector: 'dt' });
+    return term.nextElementSibling?.textContent;
+  };
+
+  it('UX-06 / RULE-08: shows the active filters, and the map follows all of them', async () => {
+    const user = await loadRides([
+      ride('1', 'November 2023', 2023, 11),
+      ride('2', 'Another November 2023', 2023, 11),
+      ride('3', 'November 2022', 2022, 11),
+      ride('4', 'June 2023', 2023, 6),
+    ]);
+    expect(summaryValue('Years')).toBe('All years');
+    expect(summaryValue('Months')).toBe('All months');
+    expect(summaryValue('Rides')).toBe('All rides');
+
+    await user.click(screen.getByRole('checkbox', { name: '2023' }));
+    await user.click(screen.getByRole('checkbox', { name: 'November' }));
+    expect(await screen.findByText('Showing 2 rides on the map')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('checkbox', { name: 'Another November 2023' }));
+    expect(await screen.findByText('Showing 1 ride on the map')).toBeInTheDocument();
+    expect(summaryValue('Years')).toBe('2023');
+    expect(summaryValue('Months')).toBe('November');
+    expect(summaryValue('Rides')).toBe('1 ride deselected');
+  });
+
+  it('a new export clears every filter (ADR-0005)', async () => {
+    const user = await loadRides([ride('1', 'Old', 2023, 11), ride('2', 'Older', 2022, 3)]);
+    await user.click(screen.getByRole('checkbox', { name: '2023' }));
+    await user.click(screen.getByRole('checkbox', { name: 'November' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Old' }));
+    expect(summaryValue('Rides')).toBe('1 ride deselected');
+
+    fakeImport.mockResolvedValue(loaded([ride('9', 'New', 2024, 5), ride('8', 'Newer', 2024, 6)]));
+    await user.upload(screen.getByLabelText('Strava export ZIP file'), zipFile());
+
+    expect(await screen.findByText('Showing 2 rides on the map')).toBeInTheDocument();
+    expect(summaryValue('Years')).toBe('All years');
+    expect(summaryValue('Months')).toBe('All months');
+    expect(summaryValue('Rides')).toBe('All rides');
+  });
+});
