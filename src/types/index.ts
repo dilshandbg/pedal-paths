@@ -1,6 +1,6 @@
 export type { ActivityId, CyclingActivity, GPSPoint, Month } from './activity';
 export type { ActivityFilter } from './filter';
-export type { GeoBounds, HeatMapData, HeatMapPath, LngLat, SegmentIndex } from './heatmap';
+export type { GeoBounds, HeatMapData, HeatMapGeometry, LngLat, SegmentIndex } from './heatmap';
 export type {
   ImportFailureReason,
   ImportIssue,

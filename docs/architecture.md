@@ -87,7 +87,7 @@ flowchart LR
     FS[("filter store<br/>ActivityFilter")] --> FL
     FL --> H["buildHeatMapData()<br/>→ HeatMapData"]
     FL --> ST["summarizeActivities()<br/>→ ActivitySummary"]
-    H --> L["deck.gl PathLayer via MapboxOverlay<br/>on MapLibre"]
+    H --> L["deck.gl LineLayer + ScatterplotLayer<br/>via MapboxOverlay on MapLibre"]
     ST --> SP["StatisticsPanel"]
 ```
 

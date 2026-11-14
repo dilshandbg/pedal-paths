@@ -8,7 +8,7 @@ import {
   INITIAL_VIEW,
 } from '@/components/map/mapConfig';
 import { HeatLegend } from '@/components/map/HeatLegend';
-import { createRouteLayer } from '@/components/map/routeLayer';
+import { createRouteLayers } from '@/components/map/routeLayer';
 import { setupMapLibre } from '@/services/map/setupMapLibre';
 import type { GeoBounds, HeatMapData } from '@/types';
 
@@ -71,7 +71,7 @@ export function MapView({ styleUrl, data, fitBounds }: MapViewProps) {
 
   // Redraw routes whenever the prepared data changes.
   useEffect(() => {
-    overlayRef.current?.setProps({ layers: data ? [createRouteLayer(data)] : [] });
+    overlayRef.current?.setProps({ layers: data ? createRouteLayers(data) : [] });
   }, [data]);
 
   // Fit the view when new bounds arrive.

@@ -6,27 +6,43 @@ import type { ActivityId } from './activity';
  */
 export type LngLat = readonly [longitude: number, latitude: number];
 
-/** A renderable stretch of road and how many distinct rides traversed it (BR-12, ADR-0006). */
-export interface HeatMapPath {
-  readonly coordinates: readonly LngLat[];
-  /** Number of distinct selected activities that traverse every segment of this path (≥ 1). */
-  readonly frequency: number;
-  /**
-   * `frequency` on a 0..1 log scale relative to {@link HeatMapData.maxFrequency}:
-   * `log(1 + frequency) / log(1 + maxFrequency)`. It is monotonic, so more rides always means
-   * higher intensity (AC-12), but rarely ridden roads stay visible next to daily commutes.
-   */
-  readonly intensity: number;
+/**
+ * Static drawing geometry of a dataset's road segments (ADR-0006). It depends only on the
+ * {@link SegmentIndex}, so it is built once per loaded export and reused for every filter change.
+ */
+export interface HeatMapGeometry {
+  readonly segmentCount: number;
+  readonly cellCount: number;
+  /** `[lng, lat]` of each segment's first end cell. */
+  readonly segmentSources: Float64Array;
+  /** `[lng, lat]` of each segment's second end cell. */
+  readonly segmentTargets: Float64Array;
+  /** `[lng, lat]` per cell: where segments meet (joints and crossings). */
+  readonly cellPositions: Float64Array;
 }
 
 /**
- * Render-ready heat map data. Pure functions in `src/features/heatmap/services` produce it from
- * the selected activities, and the map layer consumes it. Model: ADR-0006.
+ * Render-ready heat map data for the current selection (BR-12, ADR-0006). Pure functions in
+ * `src/features/heatmap/services` produce it; the map layer only turns it into colours and widths.
+ * Everything is indexed by segment or cell number, so a filter change never rebuilds geometry.
  */
 export interface HeatMapData {
-  readonly paths: readonly HeatMapPath[];
-  /** Highest `frequency` in `paths`, or 0 when there are none. */
+  readonly geometry: HeatMapGeometry;
+  /** Distinct selected activities that traverse each segment (0 = not drawn). */
+  readonly segmentFrequency: Uint32Array;
+  /**
+   * Highest frequency among the segments meeting at each cell, so joints and crossings take the
+   * busiest road's colour (0 = not drawn).
+   */
+  readonly cellFrequency: Uint32Array;
+  /** Highest segment frequency, or 0 when nothing is drawn. */
   readonly maxFrequency: number;
+  /**
+   * Intensity 0..1 for each frequency 0..maxFrequency: `log(1 + f) / log(1 + maxFrequency)`. It is
+   * monotonic, so more rides always means higher intensity (AC-12), but rarely ridden roads stay
+   * visible next to daily commutes.
+   */
+  readonly intensityByFrequency: Float32Array;
   /** Every activity that contributed to this data set. */
   readonly activityIds: readonly ActivityId[];
 }
