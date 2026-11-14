@@ -19,7 +19,8 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "typecheck": "tsc -b"
+    "typecheck": "tsc -b",
+    "perf": "node tests/perf/run.mjs"
   },
   "dependencies": {
     "@deck.gl/core": "^9.1.0",
