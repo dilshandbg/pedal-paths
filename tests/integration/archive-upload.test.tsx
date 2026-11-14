@@ -20,7 +20,10 @@ const ride = (activityId: string): CyclingActivity => ({
   month: 1,
   distanceKm: 10,
   elevationGainM: 100,
-  gpsTrack: [],
+  gpsTrack: [
+    { latitude: 0, longitude: 0, elevation: null, timestamp: null },
+    { latitude: 0.01, longitude: 0, elevation: null, timestamp: null },
+  ],
 });
 
 const zipFile = (name = 'export_12345.zip') => new File(['PK'], name, { type: 'application/zip' });
@@ -67,7 +70,10 @@ describe('ZIP upload from the UI', () => {
     expect(within(summary).getByText('5 non-ride activities excluded')).toBeInTheDocument();
     expect(within(summary).getByText('1 ride could not be processed')).toBeInTheDocument();
     expect(within(summary).getByText('Trainer Ride')).toBeInTheDocument();
-    expect(screen.getByRole('region', { name: 'Map' })).toHaveTextContent('2 rides loaded');
+    // The map is lazy-loaded, so wait for it to mount.
+    expect(
+      await screen.findByText('Showing 2 rides on the map', {}, { timeout: 15_000 }),
+    ).toBeInTheDocument();
     expect(screen.getByText('Load a different ZIP')).toBeInTheDocument();
   });
 

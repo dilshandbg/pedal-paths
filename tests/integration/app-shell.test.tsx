@@ -11,7 +11,7 @@ describe('application shell', () => {
     ).toBeInTheDocument();
     expect(screen.getByRole('complementary', { name: 'Activity filters' })).toBeInTheDocument();
     expect(screen.getByRole('main')).toBeInTheDocument();
-    expect(screen.getByRole('region', { name: 'Map' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Ride map' })).toBeInTheDocument();
     expect(screen.getByRole('complementary', { name: 'Activity statistics' })).toBeInTheDocument();
   });
 

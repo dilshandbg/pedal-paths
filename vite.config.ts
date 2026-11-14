@@ -13,6 +13,19 @@ export default defineConfig({
   optimizeDeps: {
     include: ['fflate', '@garmin/fitsdk'],
   },
+  build: {
+    rollupOptions: {
+      output: {
+        // Map libraries change rarely: separate chunks cache well across app releases.
+        manualChunks: {
+          maplibre: ['maplibre-gl'],
+          deckgl: ['@deck.gl/core', '@deck.gl/layers', '@deck.gl/mapbox'],
+        },
+      },
+    },
+    // MapLibre alone is ~1 MB minified. It is lazy-loaded with the map, never part of the first paint.
+    chunkSizeWarningLimit: 1200,
+  },
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
