@@ -30,6 +30,8 @@ What exists now:
   of the filtered rides; unknown metrics are left out of the totals (ADR-0007).
 - **Activity details** (BR-13): each ride in the ride list shows its name, local date and, when
   known, distance (km) and elevation gain (m).
+- **Dynamic heat map** (BR-10): filter changes re-derive the selection and replace the deck.gl
+  layer on the existing map; no reload, no map re-creation (AC-11, RULE-11).
 - **Ride filter** (BR-09): checkbox list of the loaded rides (name and local date); deselected
   rides are kept in `excludedActivityIds` and drop out of the heat map. The view stays fitted to
   the whole dataset, so toggling rides does not move the map.
@@ -37,8 +39,8 @@ What exists now:
 - Map style configuration helper (`services/map`).
 - Tooling: TypeScript strict, ESLint with architecture boundary rules, Prettier, Vitest + RTL, Playwright.
 
-Not built yet: BR-10 / AC-11 (no-reload updates) still needs its own verification. Open: NFR-02
-performance with real data (ADR-0006).
+All BRD v1.1 functional requirements are implemented and verified. Open: NFR-02 performance
+with real data (ADR-0006).
 
 ## 2. Technology stack
 

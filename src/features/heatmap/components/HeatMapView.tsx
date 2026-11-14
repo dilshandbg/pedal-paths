@@ -21,7 +21,8 @@ interface HeatMapViewProps {
 
 /**
  * Aggregates traversal frequency for the selected activities with pure functions and hands the
- * result to the map (BR-12). Re-aggregation happens when the selection or the index changes. The
+ * result to the map (BR-12). A new selection only replaces the deck.gl layer on the existing map:
+ * the map is never recreated and the page never reloads (BR-10). Re-aggregation happens when the selection or the index changes. The
  * view is fitted to all loaded activities, so it only moves when a new dataset arrives, not on
  * every filter change.
  */
