@@ -26,6 +26,10 @@ What exists now:
   number of deselected rides (UX-06).
 - **Reset filters** (BR-15): "Reset filters" button in the Active filters summary clears years,
   months and ride exclusions; disabled while nothing is filtered.
+- **Statistics** (BR-14, UX-08): ride count, total distance (km) and total elevation gain (m)
+  of the filtered rides; unknown metrics are left out of the totals (ADR-0007).
+- **Activity details** (BR-13): each ride in the ride list shows its name, local date and, when
+  known, distance (km) and elevation gain (m).
 - **Ride filter** (BR-09): checkbox list of the loaded rides (name and local date); deselected
   rides are kept in `excludedActivityIds` and drop out of the heat map. The view stays fitted to
   the whole dataset, so toggling rides does not move the map.
@@ -33,7 +37,8 @@ What exists now:
 - Map style configuration helper (`services/map`).
 - Tooling: TypeScript strict, ESLint with architecture boundary rules, Prettier, Vitest + RTL, Playwright.
 
-Not built yet: statistics.
+Not built yet: BR-10 / AC-11 (no-reload updates) still needs its own verification. Open: NFR-02
+performance with real data (ADR-0006).
 
 ## 2. Technology stack
 

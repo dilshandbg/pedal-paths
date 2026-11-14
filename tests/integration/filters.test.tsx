@@ -345,3 +345,59 @@ describe('BR-15: reset filters on the dashboard', () => {
     expect(reset).toBeDisabled();
   });
 });
+
+describe('BR-14: activity count and statistics on the dashboard', () => {
+  beforeEach(() => {
+    useActivitiesStore.setState(useActivitiesStore.getInitialState(), true);
+    useFilterStore.setState(useFilterStore.getInitialState(), true);
+    fakeImport.mockReset();
+  });
+
+  const statistic = (label: string) => {
+    const panel = screen.getByRole('region', { name: 'Statistics' });
+    return within(panel).getByText(label, { selector: 'dt' }).nextElementSibling?.textContent;
+  };
+
+  it('AC-13: the count and totals follow the active filters', async () => {
+    // The fixture gives every ride 10 km and 100 m of climbing.
+    const user = await loadRides([
+      ride('1', 'November 2023', 2023, 11),
+      ride('2', 'June 2023', 2023, 6),
+      ride('3', 'November 2022', 2022, 11),
+    ]);
+    expect(statistic('Rides')).toBe('3 rides');
+    expect(statistic('Distance')).toBe('30.0 km');
+    expect(statistic('Elevation gain')).toBe('300 m');
+
+    await user.click(screen.getByRole('checkbox', { name: 'November' }));
+    expect(await screen.findByText('2 rides', { selector: 'dd' })).toBeInTheDocument();
+    expect(statistic('Distance')).toBe('20.0 km');
+
+    await user.click(screen.getByRole('checkbox', { name: 'November 2022' }));
+    expect(await screen.findByText('1 ride', { selector: 'dd' })).toBeInTheDocument();
+    expect(statistic('Elevation gain')).toBe('100 m');
+
+    await user.click(screen.getByRole('button', { name: 'Reset filters' }));
+    expect(await screen.findByText('3 rides', { selector: 'dd' })).toBeInTheDocument();
+  });
+});
+
+describe('BR-13: activity details on the dashboard', () => {
+  beforeEach(() => {
+    useActivitiesStore.setState(useActivitiesStore.getInitialState(), true);
+    useFilterStore.setState(useFilterStore.getInitialState(), true);
+    fakeImport.mockReset();
+  });
+
+  it('shows each ride with its name, date, distance and elevation gain when available', async () => {
+    await loadRides([
+      ride('1', 'Known metrics', 2023, 11),
+      { ...ride('2', 'No metrics', 2023, 6), distanceKm: null, elevationGainM: null },
+    ]);
+
+    const known = screen.getByRole('checkbox', { name: 'Known metrics' });
+    expect(known).toHaveAccessibleDescription(/^Nov 15, 2023 · 10\.0 km · 100 m gain$/);
+    const unknown = screen.getByRole('checkbox', { name: 'No metrics' });
+    expect(unknown).toHaveAccessibleDescription(/^Jun 15, 2023$/);
+  });
+});

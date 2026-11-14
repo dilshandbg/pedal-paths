@@ -2,7 +2,7 @@ import { APP_TITLE } from '@/app/config';
 import { FilterPanel } from '@/components/filters/FilterPanel';
 import { AppHeader } from '@/components/layout/AppHeader';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
-import { StatisticsPanel } from '@/components/statistics/StatisticsPanel';
+import { ActivityStatistics } from '@/features/activities/components/ActivityStatistics';
 import { ArchiveUploadPanel } from '@/features/activities/components/ArchiveUploadPanel';
 import { useActivitiesStore } from '@/features/activities/store/activitiesStore';
 import { ActiveFiltersSummary } from '@/features/filters/components/ActiveFiltersSummary';
@@ -45,7 +45,7 @@ export function DashboardRoute() {
           segmentIndex={segmentIndex}
         />
       }
-      statistics={<StatisticsPanel />}
+      statistics={<ActivityStatistics activities={selectedActivities} />}
     />
   );
 }

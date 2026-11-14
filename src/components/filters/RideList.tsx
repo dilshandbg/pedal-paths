@@ -4,8 +4,8 @@ import type { ActivityId } from '@/types';
 export interface RideOption {
   readonly activityId: ActivityId;
   readonly name: string;
-  /** Display date, already formatted. */
-  readonly date: string;
+  /** Date and, when available, distance and elevation gain, already formatted (BR-13). */
+  readonly details: string;
 }
 
 interface RideListProps {
@@ -14,7 +14,10 @@ interface RideListProps {
   onRideToggle: (activityId: ActivityId, included: boolean) => void;
 }
 
-/** Checkbox list for selecting and deselecting individual rides (BR-09). Prop-driven only. */
+/**
+ * Checkbox list for selecting and deselecting individual rides (BR-09), each with its details
+ * (BR-13). Prop-driven only.
+ */
 export function RideList({ rides, excludedActivityIds, onRideToggle }: RideListProps) {
   const legendId = useId();
 
@@ -50,7 +53,7 @@ interface RideCheckboxProps {
 
 function RideCheckbox({ ride, checked, onChange }: RideCheckboxProps) {
   const nameId = useId();
-  const dateId = useId();
+  const detailsId = useId();
   return (
     <label className="flex cursor-pointer items-start gap-2 rounded-md px-1 py-1 text-sm hover:bg-slate-50">
       <input
@@ -58,15 +61,15 @@ function RideCheckbox({ ride, checked, onChange }: RideCheckboxProps) {
         className="mt-0.5 size-4 shrink-0 accent-orange-600"
         checked={checked}
         aria-labelledby={nameId}
-        aria-describedby={dateId}
+        aria-describedby={detailsId}
         onChange={(event) => onChange(ride.activityId, event.target.checked)}
       />
       <span className="flex min-w-0 flex-col">
         <span id={nameId} className="truncate text-slate-800">
           {ride.name}
         </span>
-        <span id={dateId} className="text-xs text-slate-500">
-          {ride.date}
+        <span id={detailsId} className="text-xs text-slate-500">
+          {ride.details}
         </span>
       </span>
     </label>

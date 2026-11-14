@@ -1,11 +1,11 @@
 import { useMemo } from 'react';
 import { RideList, type RideOption } from '@/components/filters/RideList';
 import { useActivitiesStore } from '@/features/activities/store/activitiesStore';
+import { describeRide } from '@/features/filters/utils/describeRide';
 import { activitiesInScope } from '@/features/filters/utils/filterActivities';
 import { setRideIncluded } from '@/features/filters/utils/rideFilter';
 import { useFilterStore } from '@/features/filters/store/filterStore';
 import type { ActivityId } from '@/types';
-import { formatShortDate } from '@/utils/date';
 
 /**
  * Connects the ride list to the loaded rides and the filter store (BR-09). Only rides in the
@@ -21,11 +21,9 @@ export function RideFilter() {
 
   const rides = useMemo<readonly RideOption[]>(
     () =>
-      activitiesInScope(activities ?? [], { selectedYears, selectedMonths }).map((activity) => ({
-        activityId: activity.activityId,
-        name: activity.activityName,
-        date: formatShortDate(activity.activityDate),
-      })),
+      activitiesInScope(activities ?? [], { selectedYears, selectedMonths }).map((activity) =>
+        describeRide(activity),
+      ),
     [activities, selectedYears, selectedMonths],
   );
   const excluded = useMemo(() => new Set(excludedActivityIds), [excludedActivityIds]);
