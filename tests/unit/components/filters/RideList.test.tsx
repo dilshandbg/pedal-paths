@@ -4,18 +4,18 @@ import { describe, expect, it, vi } from 'vitest';
 import { RideList, type RideOption } from '@/components/filters/RideList';
 
 const rides: RideOption[] = [
-  { activityId: '1', name: 'Morning Ride', date: 'Nov 5, 2023' },
-  { activityId: '2', name: 'Evening Ride', date: 'Nov 6, 2023' },
+  { activityId: '1', name: 'Morning Ride', details: 'Nov 5, 2023 · 2.9 km · 29 m gain' },
+  { activityId: '2', name: 'Evening Ride', details: 'Nov 6, 2023' },
 ];
 
 describe('BR-09: RideList', () => {
-  it('lists each ride as a labelled checkbox with its date', () => {
+  it('BR-13: lists each ride as a checkbox named after the ride, described by its details', () => {
     render(<RideList rides={rides} excludedActivityIds={new Set()} onRideToggle={vi.fn()} />);
 
     const group = screen.getByRole('group', { name: 'Rides' });
     const morning = within(group).getByRole('checkbox', { name: 'Morning Ride' });
     expect(morning).toBeChecked();
-    expect(morning).toHaveAccessibleDescription('Nov 5, 2023');
+    expect(morning).toHaveAccessibleDescription('Nov 5, 2023 · 2.9 km · 29 m gain');
     expect(within(group).getAllByRole('checkbox')).toHaveLength(2);
   });
 
