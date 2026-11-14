@@ -237,3 +237,35 @@ describe('BR-08: setMonthSelected', () => {
     expect(months).toEqual([5]);
   });
 });
+
+describe('BR-11 / RULE-08: year, month and ride filters combine', () => {
+  const rides = [
+    ride('nov23', 2023, 11),
+    ride('nov23b', 2023, 11),
+    ride('dec23', 2023, 12),
+    ride('nov22', 2022, 11),
+    ride('nov24', 2024, 11),
+  ];
+
+  it('a ride contributes only if it passes all three filters', () => {
+    const result = filterActivities(
+      rides,
+      filter({
+        selectedYears: [2023, 2022],
+        selectedMonths: [11],
+        excludedActivityIds: ['nov23b'],
+      }),
+    );
+    expect(ids(result)).toEqual(['nov23', 'nov22']);
+  });
+
+  it('changing any one filter changes the result', () => {
+    const base = filter({ selectedYears: [2023], selectedMonths: [11] });
+    expect(ids(filterActivities(rides, base))).toEqual(['nov23', 'nov23b']);
+    expect(ids(filterActivities(rides, { ...base, selectedYears: [2024] }))).toEqual(['nov24']);
+    expect(ids(filterActivities(rides, { ...base, selectedMonths: [12] }))).toEqual(['dec23']);
+    expect(ids(filterActivities(rides, { ...base, excludedActivityIds: ['nov23'] }))).toEqual([
+      'nov23b',
+    ]);
+  });
+});
