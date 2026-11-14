@@ -33,6 +33,7 @@ npm run test:e2e     # Playwright e2e (first run: npm run test:e2e:install)
 npm run lint         # ESLint
 npm run typecheck    # tsc -b
 npm run format       # Prettier write
+npm run perf         # NFR-02 benchmark: filter change to frame, 250 ms budget (--zip <export>)
 ```
 
 Before you call any task done, run `typecheck`, `lint` and `test` (and `build` when the change

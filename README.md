@@ -40,18 +40,19 @@ contributors) stays visible on the map, as the tile licence requires.
 
 ## Scripts
 
-| Command                    | Description                                         |
-| -------------------------- | --------------------------------------------------- |
-| `npm run dev`              | Start the Vite dev server                           |
-| `npm run build`            | Type-check and build for production into `dist/`    |
-| `npm run preview`          | Serve the production build locally                  |
-| `npm run test`             | Run unit and integration tests (Vitest)             |
-| `npm run test:watch`       | Run Vitest in watch mode                            |
-| `npm run test:e2e:install` | Download the Playwright Chromium browser (run once) |
-| `npm run test:e2e`         | Run Playwright end-to-end tests                     |
-| `npm run lint`             | Lint with ESLint                                    |
-| `npm run typecheck`        | Type-check with `tsc -b`                            |
-| `npm run format`           | Format with Prettier                                |
+| Command                    | Description                                            |
+| -------------------------- | ------------------------------------------------------ |
+| `npm run dev`              | Start the Vite dev server                              |
+| `npm run build`            | Type-check and build for production into `dist/`       |
+| `npm run preview`          | Serve the production build locally                     |
+| `npm run test`             | Run unit and integration tests (Vitest)                |
+| `npm run test:watch`       | Run Vitest in watch mode                               |
+| `npm run test:e2e:install` | Download the Playwright Chromium browser (run once)    |
+| `npm run test:e2e`         | Run Playwright end-to-end tests                        |
+| `npm run lint`             | Lint with ESLint                                       |
+| `npm run typecheck`        | Type-check with `tsc -b`                               |
+| `npm run format`           | Format with Prettier                                   |
+| `npm run perf`             | Time filter changes against the 250 ms budget (NFR-02) |
 
 ## Project structure
 
@@ -90,3 +91,17 @@ See [`docs/architecture.md`](docs/architecture.md) for the layering and dependen
 > processed (for example indoor rides without GPS, or TCX files).
 
 Keep your own export in `test-data/`, which is git-ignored for privacy.
+
+## Performance check
+
+`npm run perf` measures how long a filter change takes to reach the screen (NFR-02, 250 ms
+budget). It runs the real heat map code in Chromium and exits with code 1 if any change is too slow.
+
+```bash
+npm run perf                                       # 3 synthetic datasets, 2,000 rides each
+npm run perf -- --zip test-data/export_12345.zip   # your own Strava export
+npm run perf -- --scenario explorer --rides 500 --budget 200 --headed
+```
+
+Your export is read from disk into a local test browser. Nothing is uploaded, and the base map is a
+blank local style. Run it on the machine you use the app on: timings depend on its GPU.

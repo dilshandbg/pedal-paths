@@ -115,5 +115,5 @@ took 630–980 ms for 2,000 rides with little route overlap. This replaces items
   | Street grid, 5 home bases (repeated routes)        | 0.4M     | 95–184 ms  | 34–64 ms  |
 
   Aggregation itself takes 7–35 ms. Index and geometry are built once per import, in 1.4–2.3 s.
-  The **250 ms target (NFR-02) is met** in every case. Measured with a temporary harness that was
-  not committed.
+  The **250 ms target (NFR-02) is met** in every case. Re-measure with `npm run perf`
+  (`tests/perf/`). Add `--zip <export>` to use a real Strava export.
