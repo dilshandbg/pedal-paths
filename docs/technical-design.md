@@ -13,12 +13,15 @@ What exists now:
 - **ZIP upload and import** (BR-01–05, BR-16): upload panel, Web Worker import pipeline, progress,
   loaded/excluded/skipped summary, clear errors.
 - **Interactive map** (BR-06): MapLibre + OpenFreeMap base map with pan/zoom controls; loaded rides
-  drawn by deck.gl, one path per ride, view fitted to the rides.
+  drawn by deck.gl, view fitted to the rides.
+- **Traversal-frequency heat map** (BR-12): segment index built in the import worker; per-selection
+  aggregation counts distinct rides per ~25 m road segment; log-scaled colour and width; legend
+  (ADR-0006 amendment).
 - Generic utilities: haversine distance, coordinate validation, month guard.
 - Map style configuration helper (`services/map`).
 - Tooling: TypeScript strict, ESLint with architecture boundary rules, Prettier, Vitest + RTL, Playwright.
 
-Not built yet: filtering, traversal-frequency heat map (BR-12), statistics.
+Not built yet: filtering, statistics.
 
 ## 2. Technology stack
 

@@ -52,22 +52,23 @@ inward.** The domain layer never imports from the UI or state layers.
 
 ## 3. Separation of responsibilities
 
-| Responsibility                  | Location                                                        | Kind                          |
-| ------------------------------- | --------------------------------------------------------------- | ----------------------------- |
-| ZIP upload / replacement        | `features/activities/components`                                | UI                            |
-| Archive reading (unzip, gunzip) | `services/strava-export`                                        | Pure adapter (fflate)         |
-| `activities.csv` parsing        | `services/strava-export`                                        | Pure                          |
-| Ride classification             | `features/activities/services`                                  | Pure                          |
-| GPX parsing                     | `services/gpx`                                                  | Pure (text scanner)           |
-| FIT parsing                     | `services/fit`                                                  | Pure adapter (@garmin/fitsdk) |
-| Activity normalization          | `features/activities/services`                                  | Pure                          |
-| Import orchestration            | `features/activities/workers`                                   | Web Worker                    |
-| Year and month filtering        | `features/filters/utils`                                        | Pure                          |
-| Individual ride selection       | `features/filters/utils` + `features/filters/store`             | Pure + state                  |
-| Heat map data preparation       | `features/heatmap/services`                                     | Pure                          |
-| Map rendering                   | `components/map`, `features/heatmap/components`, `services/map` | UI / adapter                  |
-| Application state               | `features/*/store`, `store/`                                    | Zustand                       |
-| Statistics calculation          | `features/activities/utils`                                     | Pure                          |
+| Responsibility                                 | Location                                                                   | Kind                          |
+| ---------------------------------------------- | -------------------------------------------------------------------------- | ----------------------------- |
+| ZIP upload / replacement                       | `features/activities/components`                                           | UI                            |
+| Archive reading (unzip, gunzip)                | `services/strava-export`                                                   | Pure adapter (fflate)         |
+| `activities.csv` parsing                       | `services/strava-export`                                                   | Pure                          |
+| Ride classification                            | `features/activities/services`                                             | Pure                          |
+| GPX parsing                                    | `services/gpx`                                                             | Pure (text scanner)           |
+| FIT parsing                                    | `services/fit`                                                             | Pure adapter (@garmin/fitsdk) |
+| Activity normalization                         | `features/activities/services`                                             | Pure                          |
+| Import orchestration                           | `features/activities/workers`                                              | Web Worker                    |
+| Year and month filtering                       | `features/filters/utils`                                                   | Pure                          |
+| Individual ride selection                      | `features/filters/utils` + `features/filters/store`                        | Pure + state                  |
+| Heat map data preparation                      | `features/heatmap/services`                                                | Pure                          |
+| Road-segment index (built at import, ADR-0006) | `features/heatmap/services/buildSegmentIndex`, called by the import worker | Pure                          |
+| Map rendering                                  | `components/map`, `features/heatmap/components`, `services/map`            | UI / adapter                  |
+| Application state                              | `features/*/store`, `store/`                                               | Zustand                       |
+| Statistics calculation                         | `features/activities/utils`                                                | Pure                          |
 
 ## 4. Data flow (target)
 
