@@ -10,12 +10,13 @@ What exists now:
 - Application shell: header, filter panel placeholder, map placeholder, statistics panel placeholder.
 - Domain types in `src/types`, accepted against BRD v1.1.
 - Filter store (state only).
+- **ZIP upload and import** (BR-01–05, BR-16): upload panel, Web Worker import pipeline, progress,
+  loaded/excluded/skipped summary, clear errors.
 - Generic utilities: haversine distance, coordinate validation, month guard.
 - Map style configuration helper (`services/map`).
 - Tooling: TypeScript strict, ESLint with architecture boundary rules, Prettier, Vitest + RTL, Playwright.
 
-Not built yet: ZIP ingestion, CSV/GPX/FIT parsing, classification, filtering, heat map, map
-rendering, statistics, upload UI.
+Not built yet: filtering, heat map, map rendering, statistics.
 
 ## 2. Technology stack
 
@@ -29,7 +30,7 @@ rendering, statistics, upload UI.
 | Route rendering | deck.gl 9 `PathLayer` via `MapboxOverlay` | ADR-0006, ADR-0008    |
 | ZIP + gunzip    | `fflate`                                  | ADR-0004              |
 | FIT parsing     | `@garmin/fitsdk`                          | ADR-0004              |
-| GPX parsing     | Native `DOMParser`                        | ADR-0002, ADR-0004    |
+| GPX parsing     | Local text scanner (no library)           | ADR-0004 amendment    |
 | CSV parsing     | Local pure parser                         | ADR-0004              |
 | Background work | Web Worker (Vite `?worker` import)        | ADR-0004              |
 | Testing         | Vitest 4 + jsdom + RTL; Playwright        | Project brief         |

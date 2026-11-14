@@ -3,10 +3,15 @@ import { describe, expect, it } from 'vitest';
 import { MapView } from '@/components/map/MapView';
 
 describe('MapView placeholder', () => {
-  it('renders a labelled map region that explains what will appear', () => {
-    render(<MapView />);
+  it('asks for a Strava export ZIP before any data is loaded', () => {
+    render(<MapView loadedRideCount={null} />);
 
-    const region = screen.getByRole('region', { name: 'Map' });
-    expect(region).toHaveTextContent('Strava export ZIP');
+    expect(screen.getByRole('region', { name: 'Map' })).toHaveTextContent('Strava export ZIP');
+  });
+
+  it('shows how many rides are loaded once a dataset exists', () => {
+    render(<MapView loadedRideCount={1234} />);
+
+    expect(screen.getByRole('region', { name: 'Map' })).toHaveTextContent('1,234 rides loaded');
   });
 });

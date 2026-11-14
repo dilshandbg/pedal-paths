@@ -1,0 +1,27 @@
+import type { Month } from '@/types';
+import { isMonth } from '@/utils/month';
+
+/**
+ * Calendar year and month of a UTC instant in the given IANA time zone. When `timeZone` is
+ * undefined, the runtime's local zone (the browser's) is used, as ADR-0007 specifies.
+ * Returns null for an unparsable date.
+ */
+export function getYearMonth(
+  isoDate: string,
+  timeZone?: string,
+): { readonly year: number; readonly month: Month } | null {
+  const date = new Date(isoDate);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  const parts = new Intl.DateTimeFormat('en-US', {
+    year: 'numeric',
+    month: 'numeric',
+    ...(timeZone === undefined ? {} : { timeZone }),
+  }).formatToParts(date);
+
+  const year = Number(parts.find((part) => part.type === 'year')?.value);
+  const month = Number(parts.find((part) => part.type === 'month')?.value);
+  return Number.isInteger(year) && isMonth(month) ? { year, month } : null;
+}

@@ -20,8 +20,8 @@ filter by year, month and individual ride, and the heat map updates to match.
 ## Technology stack
 
 React 19 · TypeScript (strict) · Vite 6 · Tailwind CSS 4 · Zustand 5 · deck.gl 9 · MapLibre GL JS +
-OpenStreetMap tiles (ADR-0008) · fflate (ZIP/gunzip) · @garmin/fitsdk (FIT) · native `DOMParser`
-(GPX) · Web Worker for imports · Vitest 4 + React Testing Library · Playwright · ESLint 9 · Prettier · npm.
+OpenStreetMap tiles (ADR-0008) · fflate (ZIP/gunzip) · @garmin/fitsdk (FIT) · local GPX
+scanner (no library) · Web Worker for imports · Vitest 4 + React Testing Library · Playwright · ESLint 9 · Prettier · npm.
 
 ## Commands
 
@@ -76,7 +76,7 @@ touches config). The `/verify` command runs all of them.
 - **Inspect before modifying.** Read the file you are changing and its tests, check for an
   existing util, type or component before writing a new one, and follow the patterns already
   in place.
-- **Avoid unnecessary dependencies.** Prefer platform APIs (e.g. `DOMParser` for GPX) and small
+- **Avoid unnecessary dependencies.** Prefer platform APIs and small
   local utilities. Before adding a package, justify it (what it replaces, size, maintenance)
   and ask the user. Pin compatible versions and keep `package-lock.json` committed.
 - Keep changes scoped to the task. No drive-by refactors or speculative abstractions.

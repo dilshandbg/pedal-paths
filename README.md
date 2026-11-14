@@ -85,6 +85,8 @@ See [`docs/architecture.md`](docs/architecture.md) for the layering and dependen
    (including Virtual, E-Bike, Gravel and Mountain Bike rides) are excluded.
 4. To switch datasets, select a different ZIP. Data is not kept after a page reload.
 
-> The upload flow is designed (ADR-0004) but not implemented yet.
+> Processing runs in a background Web Worker, so the page stays responsive even for large exports.
+> You get a summary of rides loaded, non-ride activities excluded, and any rides that could not be
+> processed (for example indoor rides without GPS, or TCX files).
 
 Keep your own export in `test-data/`, which is git-ignored for privacy.
