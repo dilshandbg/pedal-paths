@@ -11,27 +11,30 @@ const MapView = lazy(() =>
 );
 
 interface HeatMapViewProps {
-  /** Activities to include in the heat map, or null when no export is loaded. */
+  /** All loaded activities (the view is fitted to them), or null when no export is loaded. */
   activities: readonly CyclingActivity[] | null;
+  /** Activities that pass the filters and contribute to the heat map (BR-09). */
+  selectedActivities: readonly CyclingActivity[] | null;
   /** Segment index of the loaded dataset (ADR-0006), or null when no export is loaded. */
   segmentIndex: SegmentIndex | null;
 }
 
 /**
- * Aggregates traversal frequency for the given activities with pure functions and hands the
- * result to the map (BR-12). Re-aggregation only happens when the activities or the index change.
- * The view is refitted only when a new dataset (index) arrives.
+ * Aggregates traversal frequency for the selected activities with pure functions and hands the
+ * result to the map (BR-12). Re-aggregation happens when the selection or the index changes. The
+ * view is fitted to all loaded activities, so it only moves when a new dataset arrives, not on
+ * every filter change.
  */
-export function HeatMapView({ activities, segmentIndex }: HeatMapViewProps) {
+export function HeatMapView({ activities, selectedActivities, segmentIndex }: HeatMapViewProps) {
   const data = useMemo(
     () =>
-      activities && segmentIndex
+      selectedActivities && segmentIndex
         ? aggregateHeatMap(
             segmentIndex,
-            activities.map((activity) => activity.activityId),
+            selectedActivities.map((activity) => activity.activityId),
           )
         : null,
-    [activities, segmentIndex],
+    [selectedActivities, segmentIndex],
   );
   const bounds = useMemo(() => (activities ? computeBounds(activities) : null), [activities]);
 

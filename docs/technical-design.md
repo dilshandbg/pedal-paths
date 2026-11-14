@@ -17,11 +17,14 @@ What exists now:
 - **Traversal-frequency heat map** (BR-12): segment index built in the import worker; per-selection
   aggregation counts distinct rides per ~25 m road segment; log-scaled colour and width; legend
   (ADR-0006 amendment).
+- **Ride filter** (BR-09): checkbox list of the loaded rides (name and local date); deselected
+  rides are kept in `excludedActivityIds` and drop out of the heat map. The view stays fitted to
+  the whole dataset, so toggling rides does not move the map.
 - Generic utilities: haversine distance, coordinate validation, month guard.
 - Map style configuration helper (`services/map`).
 - Tooling: TypeScript strict, ESLint with architecture boundary rules, Prettier, Vitest + RTL, Playwright.
 
-Not built yet: filtering, statistics.
+Not built yet: year and month filters, combined filtering, reset, statistics.
 
 ## 2. Technology stack
 

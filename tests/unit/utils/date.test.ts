@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getYearMonth } from '@/utils/date';
+import { formatShortDate, getYearMonth } from '@/utils/date';
 
 describe('getYearMonth', () => {
   it('derives year and month in the given time zone', () => {
@@ -27,5 +27,19 @@ describe('getYearMonth', () => {
 
   it('returns null for an invalid date', () => {
     expect(getYearMonth('not a date')).toBeNull();
+  });
+});
+
+describe('formatShortDate', () => {
+  it('formats a medium date in the given time zone', () => {
+    expect(formatShortDate('2023-11-05T08:00:00.000Z', 'UTC')).toBe('Nov 5, 2023');
+  });
+
+  it('uses the calendar day of the time zone, not of UTC', () => {
+    expect(formatShortDate('2023-12-31T23:30:00.000Z', 'Asia/Tokyo')).toBe('Jan 1, 2024');
+  });
+
+  it('returns an empty string for an invalid date', () => {
+    expect(formatShortDate('not a date')).toBe('');
   });
 });
