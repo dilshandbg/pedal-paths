@@ -306,3 +306,42 @@ describe('BR-11: combined filters on the dashboard', () => {
     expect(summaryValue('Rides')).toBe('All rides');
   });
 });
+
+describe('BR-15: reset filters on the dashboard', () => {
+  beforeEach(() => {
+    useActivitiesStore.setState(useActivitiesStore.getInitialState(), true);
+    useFilterStore.setState(useFilterStore.getInitialState(), true);
+    fakeImport.mockReset();
+  });
+
+  it('AC-14: reset restores every eligible ride and clears all filter controls', async () => {
+    const user = await loadRides([
+      ride('1', 'November 2023', 2023, 11),
+      ride('2', 'Another November 2023', 2023, 11),
+      ride('3', 'June 2022', 2022, 6),
+    ]);
+    const reset = screen.getByRole('button', { name: 'Reset filters' });
+    expect(reset).toBeDisabled();
+
+    await user.click(screen.getByRole('checkbox', { name: '2023' }));
+    await user.click(screen.getByRole('checkbox', { name: 'November' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Another November 2023' }));
+    expect(await screen.findByText('Showing 1 ride on the map')).toBeInTheDocument();
+    expect(reset).toBeEnabled();
+
+    await user.click(reset);
+
+    expect(await screen.findByText('Showing 3 rides on the map')).toBeInTheDocument();
+    expect(maxDrawnFrequency()).toBe(3);
+    expect(screen.getByRole('checkbox', { name: 'All years' })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'All months' })).toBeChecked();
+    const rideList = screen.getByRole('group', { name: 'Rides' });
+    const rideBoxes = within(rideList).getAllByRole('checkbox');
+    expect(rideBoxes).toHaveLength(3);
+    for (const box of rideBoxes) expect(box).toBeChecked();
+    expect(screen.getByRole('region', { name: 'Active filters' })).toHaveTextContent(
+      /All years.*All months.*All rides/,
+    );
+    expect(reset).toBeDisabled();
+  });
+});
