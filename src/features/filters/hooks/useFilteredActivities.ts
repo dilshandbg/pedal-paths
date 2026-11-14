@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { filterExcludedRides } from '@/features/filters/utils/rideFilter';
+import { filterActivities } from '@/features/filters/utils/filterActivities';
 import { useFilterStore } from '@/features/filters/store/filterStore';
 import type { CyclingActivity } from '@/types';
 
@@ -9,7 +9,7 @@ export function useFilteredActivities(
 ): readonly CyclingActivity[] | null {
   const filter = useFilterStore((state) => state.filter);
   return useMemo(
-    () => (activities ? filterExcludedRides(activities, filter) : null),
+    () => (activities ? filterActivities(activities, filter) : null),
     [activities, filter],
   );
 }
