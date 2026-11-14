@@ -13,7 +13,7 @@ export function Panel({ title, description, children }: PanelProps) {
   return (
     <section
       aria-labelledby={headingId}
-      className="flex h-full flex-col rounded-xl border border-slate-200 bg-white shadow-sm"
+      className="flex flex-col rounded-xl border border-slate-200 bg-white shadow-sm"
     >
       <header className="border-b border-slate-100 px-4 py-3">
         <h2 id={headingId} className="text-sm font-semibold tracking-wide text-slate-700 uppercase">

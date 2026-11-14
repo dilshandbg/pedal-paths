@@ -20,7 +20,8 @@ export default defineConfig({
     { name: 'mobile-chromium', use: { ...devices['Pixel 7'] } },
   ],
   webServer: {
-    command: `npm run dev -- --port ${PORT} --strictPort`,
+    // Test the production build, including the bundled import Web Worker.
+    command: `npx vite build && npx vite preview --port ${PORT} --strictPort`,
     url: BASE_URL,
     reuseExistingServer: !isCI,
     timeout: 120_000,

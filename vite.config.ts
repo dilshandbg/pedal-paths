@@ -5,6 +5,14 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  worker: {
+    format: 'es',
+  },
+  // The import worker's dependencies are pre-bundled so the dev server doesn't discover them on the
+  // first upload and force a full page reload.
+  optimizeDeps: {
+    include: ['fflate', '@garmin/fitsdk'],
+  },
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
