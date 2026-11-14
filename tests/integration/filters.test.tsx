@@ -401,3 +401,45 @@ describe('BR-13: activity details on the dashboard', () => {
     expect(unknown).toHaveAccessibleDescription(/^Jun 15, 2023$/);
   });
 });
+
+describe('BR-10: the heat map follows the filters without a reload', () => {
+  beforeEach(() => {
+    useActivitiesStore.setState(useActivitiesStore.getInitialState(), true);
+    useFilterStore.setState(useFilterStore.getInitialState(), true);
+    fakeImport.mockReset();
+  });
+
+  it('AC-11 / RULE-11: every filter change replaces the layer on the same map instance', async () => {
+    const user = await loadRides([
+      ride('1', 'November 2023', 2023, 11),
+      ride('2', 'June 2023', 2023, 6),
+      ride('3', 'November 2022', 2022, 11),
+    ]);
+    const maps = FakeMap.instances.length;
+    const overlays = FakeMapboxOverlay.instances.length;
+    const layers: unknown[] = [];
+    const recordLayer = () => layers.push(FakeMapboxOverlay.instances.at(-1)?.props.layers?.[0]);
+    recordLayer();
+
+    await user.click(screen.getByRole('checkbox', { name: '2023' }));
+    await screen.findByText('Showing 2 rides on the map');
+    recordLayer();
+    await user.click(screen.getByRole('checkbox', { name: 'November' }));
+    await screen.findByText('Showing 1 ride on the map');
+    recordLayer();
+    await user.click(screen.getByRole('checkbox', { name: 'November 2023' }));
+    await screen.findByText('Showing 0 rides on the map');
+    recordLayer();
+    await user.click(screen.getByRole('button', { name: 'Reset filters' }));
+    await screen.findByText('Showing 3 rides on the map');
+    recordLayer();
+
+    // Same map and overlay throughout; a new layer for each change.
+    expect(FakeMap.instances).toHaveLength(maps);
+    expect(FakeMapboxOverlay.instances).toHaveLength(overlays);
+    expect(FakeMap.instances.at(-1)?.removed).toBe(false);
+    expect(new Set(layers).size).toBe(layers.length);
+    // The loaded export is kept: nothing was reloaded.
+    expect(useActivitiesStore.getState().dataset?.activities).toHaveLength(3);
+  });
+});
