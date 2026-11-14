@@ -19,6 +19,8 @@ What exists now:
   (ADR-0006 amendment).
 - **Year filter** (BR-07): checklist of the years in the export, newest first, with "All years"
   checked while none is selected (ADR-0005). The ride list shows only rides in the selected years.
+- **Month filter** (BR-08): January–December checklist with "All months"; combines with the
+  years as a Cartesian AND (AC-10). The ride list shows only rides in the selected period.
 - **Ride filter** (BR-09): checkbox list of the loaded rides (name and local date); deselected
   rides are kept in `excludedActivityIds` and drop out of the heat map. The view stays fitted to
   the whole dataset, so toggling rides does not move the map.
@@ -26,7 +28,7 @@ What exists now:
 - Map style configuration helper (`services/map`).
 - Tooling: TypeScript strict, ESLint with architecture boundary rules, Prettier, Vitest + RTL, Playwright.
 
-Not built yet: month filter, combined filtering, reset, statistics.
+Not built yet: active-filters display (UX-06), reset, statistics.
 
 ## 2. Technology stack
 
