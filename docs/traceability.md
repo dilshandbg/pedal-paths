@@ -32,7 +32,7 @@ The Tests columns name test files without their suffix: unit and integration tes
 | BR-12  | Intensity = how often roads/segments are traversed                            | ADR-0006 | Verified                                                       | `buildSegmentIndex`, `aggregateHeatMap`, `grid`, `heatStyle`, `routeLayer`, `HeatLegend`                               | buildSegmentIndex, aggregateHeatMap, grid, heatStyle, MapView, e2e heatmap                                         |
 | BR-13  | Show activity name, date, distance and elevation gain when available          | ADR-0007 | In progress: data normalized; display comes with the ride list | `normalizeActivity.ts`                                                                                                 | normalizeActivity, importStravaArchive                                                                             |
 | BR-14  | Show the number of activities matching the active filters                     | ADR-0005 | Not started                                                    | —                                                                                                                      | —                                                                                                                  |
-| BR-15  | Reset filters to show all Ride activities                                     | ADR-0005 | Not started                                                    | —                                                                                                                      | —                                                                                                                  |
+| BR-15  | Reset filters to show all Ride activities                                     | ADR-0005 | Verified                                                       | `ActiveFiltersSummary`, `ActiveFilters`, `isFilterActive`, `filterStore.resetFilter`                                   | ActiveFilters, isFilterActive, filterStore, filters (integration), e2e reset-filters                               |
 | BR-16  | Load a different ZIP and refresh the dataset                                  | ADR-0004 | Verified                                                       | `activitiesStore.loadArchive`, `DashboardRoute`, `HeatMapView`                                                         | activitiesStore, archive-upload, e2e zip-upload, e2e map                                                           |
 
 ## Acceptance criteria (BRD §5)
@@ -52,7 +52,7 @@ The Tests columns name test files without their suffix: unit and integration tes
 | AC-11  | BR-10               | Heat map updates without a full page reload                                  | Not started | —                                                                                             |
 | AC-12  | BR-12               | Frequently traversed roads show greater intensity                            | Verified    | aggregateHeatMap, heatStyle, MapView, e2e heatmap                                             |
 | AC-13  | BR-14               | Activity count reflects the currently filtered Rides                         | Not started | —                                                                                             |
-| AC-14  | BR-15               | Reset restores all eligible Rides                                            | Not started | —                                                                                             |
+| AC-14  | BR-15               | Reset restores all eligible Rides                                            | Verified    | filters (integration), e2e reset-filters                                                      |
 | AC-15  | BR-16               | Loading a new ZIP replaces the dataset and refreshes the visualization       | Verified    | activitiesStore, archive-upload, MapView, e2e zip-upload, e2e map                             |
 | AC-16  | BR-01, BR-05, UX-04 | An invalid ZIP, or one without eligible Ride GPS data, shows a clear message | Verified    | archive, importStravaArchive, importMessages, archive-upload, e2e zip-upload                  |
 
@@ -85,7 +85,7 @@ Their tests will be derived from the requirement text.
 | UX-04  | Clearly indicate activities that could not be processed     | RULE-07, AC-16  | Verified    |
 | UX-05  | Year, month and ride filter controls                        | BR-07–09        | Verified    |
 | UX-06  | Show the currently active filters                           | BR-11           | Verified    |
-| UX-07  | Reset-to-all option                                         | BR-15           | Not started |
+| UX-07  | Reset-to-all option                                         | BR-15           | Verified    |
 | UX-08  | Show the activity count and relevant summary statistics     | BR-14, ADR-0007 | Not started |
 | UX-09  | The map stays responsive while filters change               | NFR-02          | Not started |
 
