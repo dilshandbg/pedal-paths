@@ -11,47 +11,50 @@
 
 **Status:** `Not started` · `In progress` · `Implemented` · `Verified` (tests pass) · `Blocked (OD-xx)`
 
+The Tests columns name test files without their suffix: unit and integration tests live under
+`tests/unit` and `tests/integration`, and e2e tests under `tests/e2e`.
+
 ## Business requirements (BRD §3)
 
-| Req ID | Summary                                                                       | Design   | Status      | Implementation | Tests |
-| ------ | ----------------------------------------------------------------------------- | -------- | ----------- | -------------- | ----- |
-| BR-01  | Accept the original Strava export ZIP as input                                | ADR-0004 | Not started | —              | —     |
-| BR-02  | Inspect and extract relevant files from the ZIP automatically                 | ADR-0004 | Not started | —              | —     |
-| BR-03  | Identify activities classified as Ride                                        | ADR-0007 | Not started | —              | —     |
-| BR-04  | Exclude Run, Swim, Workout and every other non-Ride type                      | ADR-0007 | Not started | —              | —     |
-| BR-05  | Process GPS tracks from GPX and FIT files of Ride activities                  | ADR-0004 | Not started | —              | —     |
-| BR-06  | Interactive map with pan and zoom                                             | ADR-0008 | Not started | —              | —     |
-| BR-07  | Year filter: select/deselect, multiple years                                  | ADR-0005 | Not started | —              | —     |
-| BR-08  | Month filter: select/deselect January–December                                | ADR-0005 | Not started | —              | —     |
-| BR-09  | Individual ride filter: select/deselect rides                                 | ADR-0005 | Not started | —              | —     |
-| BR-10  | Heat map updates automatically on filter change, no reload                    | ADR-0005 | Not started | —              | —     |
-| BR-11  | Year, month and ride filters combine to determine the contributing activities | ADR-0005 | Not started | —              | —     |
-| BR-12  | Intensity = how often roads/segments are traversed                            | ADR-0006 | Not started | —              | —     |
-| BR-13  | Show activity name, date, distance and elevation gain when available          | ADR-0007 | Not started | —              | —     |
-| BR-14  | Show the number of activities matching the active filters                     | ADR-0005 | Not started | —              | —     |
-| BR-15  | Reset filters to show all Ride activities                                     | ADR-0005 | Not started | —              | —     |
-| BR-16  | Load a different ZIP and refresh the dataset                                  | ADR-0004 | Not started | —              | —     |
+| Req ID | Summary                                                                       | Design   | Status                                                         | Implementation                                                             | Tests                                                   |
+| ------ | ----------------------------------------------------------------------------- | -------- | -------------------------------------------------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------- |
+| BR-01  | Accept the original Strava export ZIP as input                                | ADR-0004 | Verified                                                       | `ArchiveUploadPanel`, `activitiesStore.loadArchive`, `importStravaArchive` | archive-upload, activitiesStore, e2e zip-upload         |
+| BR-02  | Inspect and extract relevant files from the ZIP automatically                 | ADR-0004 | Verified                                                       | `services/strava-export/archive.ts`                                        | archive, importStravaArchive, e2e zip-upload            |
+| BR-03  | Identify activities classified as Ride                                        | ADR-0007 | Verified                                                       | `classifyActivities.ts`                                                    | classifyActivities, importStravaArchive                 |
+| BR-04  | Exclude Run, Swim, Workout and every other non-Ride type                      | ADR-0007 | Verified                                                       | `classifyActivities.ts`                                                    | classifyActivities, importStravaArchive, e2e zip-upload |
+| BR-05  | Process GPS tracks from GPX and FIT files of Ride activities                  | ADR-0004 | Verified                                                       | `services/gpx/parseGpx.ts`, `services/fit/parseFit.ts`                     | parseGpx, parseFit, importStravaArchive, e2e zip-upload |
+| BR-06  | Interactive map with pan and zoom                                             | ADR-0008 | Not started                                                    | —                                                                          | —                                                       |
+| BR-07  | Year filter: select/deselect, multiple years                                  | ADR-0005 | Not started                                                    | —                                                                          | —                                                       |
+| BR-08  | Month filter: select/deselect January–December                                | ADR-0005 | Not started                                                    | —                                                                          | —                                                       |
+| BR-09  | Individual ride filter: select/deselect rides                                 | ADR-0005 | Not started                                                    | —                                                                          | —                                                       |
+| BR-10  | Heat map updates automatically on filter change, no reload                    | ADR-0005 | Not started                                                    | —                                                                          | —                                                       |
+| BR-11  | Year, month and ride filters combine to determine the contributing activities | ADR-0005 | Not started                                                    | —                                                                          | —                                                       |
+| BR-12  | Intensity = how often roads/segments are traversed                            | ADR-0006 | Not started                                                    | —                                                                          | —                                                       |
+| BR-13  | Show activity name, date, distance and elevation gain when available          | ADR-0007 | In progress: data normalized; display comes with the ride list | `normalizeActivity.ts`                                                     | normalizeActivity, importStravaArchive                  |
+| BR-14  | Show the number of activities matching the active filters                     | ADR-0005 | Not started                                                    | —                                                                          | —                                                       |
+| BR-15  | Reset filters to show all Ride activities                                     | ADR-0005 | Not started                                                    | —                                                                          | —                                                       |
+| BR-16  | Load a different ZIP and refresh the dataset                                  | ADR-0004 | In progress: dataset replaced; map refresh pending BR-06       | `activitiesStore.loadArchive`, `DashboardRoute`                            | activitiesStore, archive-upload, e2e zip-upload         |
 
 ## Acceptance criteria (BRD §5)
 
-| Req ID | Verifies            | Summary                                                                      | Status      | Tests |
-| ------ | ------------------- | ---------------------------------------------------------------------------- | ----------- | ----- |
-| AC-01  | BR-01               | The user can select the original Strava ZIP through the app                  | Not started | —     |
-| AC-02  | BR-02               | The ZIP is inspected and processed without manual extraction                 | Not started | —     |
-| AC-03  | BR-03               | Activities classified as Ride are identified and loaded                      | Not started | —     |
-| AC-04  | BR-04               | Run, Swim, Workout and other non-Ride activities are excluded                | Not started | —     |
-| AC-05  | BR-05               | GPX and FIT tracks are processed and visualized                              | Not started | —     |
-| AC-06  | BR-06, BR-11        | The initial heat map shows all eligible Rides with valid GPS                 | Not started | —     |
-| AC-07  | BR-07               | Deselecting a year removes that year's rides                                 | Not started | —     |
-| AC-08  | BR-08, BR-11        | Deselecting a month removes that month's rides, subject to other filters     | Not started | —     |
-| AC-09  | BR-09               | Deselecting a ride removes its heat map contribution                         | Not started | —     |
-| AC-10  | BR-07, BR-08        | The same month can be filtered across multiple selected years                | Not started | —     |
-| AC-11  | BR-10               | Heat map updates without a full page reload                                  | Not started | —     |
-| AC-12  | BR-12               | Frequently traversed roads show greater intensity                            | Not started | —     |
-| AC-13  | BR-14               | Activity count reflects the currently filtered Rides                         | Not started | —     |
-| AC-14  | BR-15               | Reset restores all eligible Rides                                            | Not started | —     |
-| AC-15  | BR-16               | Loading a new ZIP replaces the dataset and refreshes the visualization       | Not started | —     |
-| AC-16  | BR-01, BR-05, UX-04 | An invalid ZIP, or one without eligible Ride GPS data, shows a clear message | Not started | —     |
+| Req ID | Verifies            | Summary                                                                      | Status                                                                  | Tests                                                                        |
+| ------ | ------------------- | ---------------------------------------------------------------------------- | ----------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| AC-01  | BR-01               | The user can select the original Strava ZIP through the app                  | Verified                                                                | archive-upload, e2e zip-upload                                               |
+| AC-02  | BR-02               | The ZIP is inspected and processed without manual extraction                 | Verified                                                                | archive, importStravaArchive, e2e zip-upload                                 |
+| AC-03  | BR-03               | Activities classified as Ride are identified and loaded                      | Verified                                                                | classifyActivities, importStravaArchive                                      |
+| AC-04  | BR-04               | Run, Swim, Workout and other non-Ride activities are excluded                | Verified                                                                | classifyActivities, importStravaArchive, e2e zip-upload                      |
+| AC-05  | BR-05               | GPX and FIT tracks are processed and visualized                              | In progress: processed; visualization pending BR-06                     | parseGpx, parseFit, importStravaArchive, e2e zip-upload                      |
+| AC-06  | BR-06, BR-11        | The initial heat map shows all eligible Rides with valid GPS                 | Not started                                                             | —                                                                            |
+| AC-07  | BR-07               | Deselecting a year removes that year's rides                                 | Not started                                                             | —                                                                            |
+| AC-08  | BR-08, BR-11        | Deselecting a month removes that month's rides, subject to other filters     | Not started                                                             | —                                                                            |
+| AC-09  | BR-09               | Deselecting a ride removes its heat map contribution                         | Not started                                                             | —                                                                            |
+| AC-10  | BR-07, BR-08        | The same month can be filtered across multiple selected years                | Not started                                                             | —                                                                            |
+| AC-11  | BR-10               | Heat map updates without a full page reload                                  | Not started                                                             | —                                                                            |
+| AC-12  | BR-12               | Frequently traversed roads show greater intensity                            | Not started                                                             | —                                                                            |
+| AC-13  | BR-14               | Activity count reflects the currently filtered Rides                         | Not started                                                             | —                                                                            |
+| AC-14  | BR-15               | Reset restores all eligible Rides                                            | Not started                                                             | —                                                                            |
+| AC-15  | BR-16               | Loading a new ZIP replaces the dataset and refreshes the visualization       | In progress: dataset replaced, filters reset; map refresh pending BR-06 | activitiesStore, archive-upload, e2e zip-upload                              |
+| AC-16  | BR-01, BR-05, UX-04 | An invalid ZIP, or one without eligible Ride GPS data, shows a clear message | Verified                                                                | archive, importStravaArchive, importMessages, archive-upload, e2e zip-upload |
 
 **Coverage gaps:** BR-06 (pan/zoom) and BR-13 (activity details) have no acceptance criterion.
 Their tests will be derived from the requirement text.
@@ -76,10 +79,10 @@ Their tests will be derived from the requirement text.
 
 | Req ID | Summary                                                     | Related         | Status      |
 | ------ | ----------------------------------------------------------- | --------------- | ----------- |
-| UX-01  | ZIP file upload control                                     | BR-01, AC-01    | Not started |
-| UX-02  | Processing status while the archive is inspected and parsed | BR-02           | Not started |
-| UX-03  | Show the number of Ride activities loaded successfully      | BR-03           | Not started |
-| UX-04  | Clearly indicate activities that could not be processed     | RULE-07, AC-16  | Not started |
+| UX-01  | ZIP file upload control                                     | BR-01, AC-01    | Verified    |
+| UX-02  | Processing status while the archive is inspected and parsed | BR-02           | Verified    |
+| UX-03  | Show the number of Ride activities loaded successfully      | BR-03           | Verified    |
+| UX-04  | Clearly indicate activities that could not be processed     | RULE-07, AC-16  | Verified    |
 | UX-05  | Year, month and ride filter controls                        | BR-07–09        | Not started |
 | UX-06  | Show the currently active filters                           | BR-11           | Not started |
 | UX-07  | Reset-to-all option                                         | BR-15           | Not started |
@@ -88,24 +91,24 @@ Their tests will be derived from the requirement text.
 
 ## Data (BRD §7; IDs assigned)
 
-| Req ID  | Summary                                                                              | Design   | Status      |
-| ------- | ------------------------------------------------------------------------------------ | -------- | ----------- |
-| DATA-01 | Input: the original Strava export ZIP                                                | ADR-0004 | Not started |
-| DATA-02 | Supported GPS formats: GPX and FIT (including Strava's `.gz`-compressed variants)    | ADR-0004 | Not started |
-| DATA-03 | Where available: name, type, date/time, distance, elevation gain, GPS points         | ADR-0007 | Not started |
-| DATA-04 | Inspect archive → identify Rides → associate them with GPS files → parse → normalize | ADR-0004 | Not started |
-| DATA-05 | Missing or malformed files must not terminate the whole import                       | ADR-0004 | Not started |
+| Req ID  | Summary                                                                              | Design   | Status   |
+| ------- | ------------------------------------------------------------------------------------ | -------- | -------- |
+| DATA-01 | Input: the original Strava export ZIP                                                | ADR-0004 | Verified |
+| DATA-02 | Supported GPS formats: GPX and FIT (including Strava's `.gz`-compressed variants)    | ADR-0004 | Verified |
+| DATA-03 | Where available: name, type, date/time, distance, elevation gain, GPS points         | ADR-0007 | Verified |
+| DATA-04 | Inspect archive → identify Rides → associate them with GPS files → parse → normalize | ADR-0004 | Verified |
+| DATA-05 | Missing or malformed files must not terminate the whole import                       | ADR-0004 | Verified |
 
 ## Non-functional and definition of done (BRD §2, §8, §10; IDs assigned)
 
-| Req ID | Summary                                                                                                        | Status                                                      |
-| ------ | -------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
-| NFR-01 | Runs locally as a personal application (§2)                                                                    | Scaffold: client-side only (ADR-0002)                       |
-| NFR-02 | The map stays responsive while filters change (§6)                                                             | Not started (ADR-0004 Web Worker, ADR-0006)                 |
-| NFR-03 | No API secrets committed (§10)                                                                                 | Scaffold: no secrets needed (ADR-0008); `.env*` git-ignored |
-| NFR-04 | Runs locally **without requiring Google Maps billing** (§8, non-binding)                                       | Resolved by ADR-0008: MapLibre + OSM, no key                |
-| NFR-05 | Automated tests cover ZIP processing, classification, GPS parsing, filtering and visualization data prep (§10) | Not started                                                 |
-| NFR-06 | Setup instructions explain how to run the app locally (§10)                                                    | Scaffold: README                                            |
+| Req ID | Summary                                                                                                        | Status                                                                                              |
+| ------ | -------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| NFR-01 | Runs locally as a personal application (§2)                                                                    | Scaffold: client-side only (ADR-0002)                                                               |
+| NFR-02 | The map stays responsive while filters change (§6)                                                             | In progress: import runs in a Web Worker (ADR-0004); map pending                                    |
+| NFR-03 | No API secrets committed (§10)                                                                                 | Scaffold: no secrets needed (ADR-0008); `.env*` git-ignored                                         |
+| NFR-04 | Runs locally **without requiring Google Maps billing** (§8, non-binding)                                       | Resolved by ADR-0008: MapLibre + OSM, no key                                                        |
+| NFR-05 | Automated tests cover ZIP processing, classification, GPS parsing, filtering and visualization data prep (§10) | In progress: ZIP processing, classification and GPS parsing covered; filtering and heat map pending |
+| NFR-06 | Setup instructions explain how to run the app locally (§10)                                                    | Scaffold: README                                                                                    |
 
 ## Out of scope (BRD §2), to guard against scope creep
 

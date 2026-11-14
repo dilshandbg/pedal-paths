@@ -59,3 +59,17 @@ Installed: `fflate` 0.8, `@garmin/fitsdk` 21.218. The lockfile pins exact versio
 - We assume `activities.csv` headers are in English. Header lookup is centralized in one module so
   that a localized export can be supported later if needed.
 - Memory is bounded to the activity files, not the whole archive.
+
+## Amendment 2026-11-14: GPX parsing without `DOMParser`
+
+`DOMParser` is **not available inside Web Workers**, where the import runs. GPX is therefore parsed
+by a small, purpose-built text scanner (`src/services/gpx/parseGpx.ts`) that extracts
+`trkpt`/`rtept` coordinates, `ele`, `time` and the track name. GPX points are flat, well-defined
+elements, so this is robust and fast, and it still needs no third-party dependency. Unit tests cover
+namespaced elements, attribute order, self-closing points, entities and invalid coordinates.
+
+Two implementation notes:
+
+- Vite pre-bundles `fflate` and `@garmin/fitsdk` (`optimizeDeps.include`). Otherwise the dev server
+  discovers them on the first upload and reloads the page.
+- Playwright e2e tests run against the production build, so the bundled worker is what gets tested.

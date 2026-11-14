@@ -58,7 +58,7 @@ inward.** The domain layer never imports from the UI or state layers.
 | Archive reading (unzip, gunzip) | `services/strava-export`                                        | Pure adapter (fflate)         |
 | `activities.csv` parsing        | `services/strava-export`                                        | Pure                          |
 | Ride classification             | `features/activities/services`                                  | Pure                          |
-| GPX parsing                     | `services/gpx`                                                  | Pure (DOMParser)              |
+| GPX parsing                     | `services/gpx`                                                  | Pure (text scanner)           |
 | FIT parsing                     | `services/fit`                                                  | Pure adapter (@garmin/fitsdk) |
 | Activity normalization          | `features/activities/services`                                  | Pure                          |
 | Import orchestration            | `features/activities/workers`                                   | Web Worker                    |
