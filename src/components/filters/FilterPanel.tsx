@@ -2,6 +2,8 @@ import type { ReactNode } from 'react';
 import { Panel } from '@/components/common/Panel';
 
 interface FilterPanelProps {
+  /** Summary of the active filters, supplied by `features/filters`. */
+  summary: ReactNode;
   /** The year filter control, supplied by `features/filters`. */
   years: ReactNode;
   /** The month filter control, supplied by `features/filters`. */
@@ -10,10 +12,11 @@ interface FilterPanelProps {
   rides: ReactNode;
 }
 
-/** Filter panel: lays out the year, month and ride filters passed in by `features/filters`. */
-export function FilterPanel({ years, months, rides }: FilterPanelProps) {
+/** Filter panel: lays out the active-filters summary and the year, month and ride filters. */
+export function FilterPanel({ summary, years, months, rides }: FilterPanelProps) {
   return (
     <Panel title="Filters" description="Narrow down the activities shown on the map.">
+      {summary}
       {years}
       {months}
       {rides}
