@@ -39,6 +39,12 @@ export function ImportStatusView({ status, dataset, pendingFileName }: ImportSta
         </div>
       ) : null}
 
+      {status.stage === 'indexing' ? (
+        <p role="status" className="text-slate-600">
+          Preparing heat map…
+        </p>
+      ) : null}
+
       {status.stage === 'failed' ? (
         <div role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-red-800">
           <p className="font-medium">Could not load {pendingFileName ?? 'this file'}</p>

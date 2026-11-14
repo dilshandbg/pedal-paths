@@ -1,4 +1,5 @@
 import type { ActivityId, CyclingActivity } from './activity';
+import type { SegmentIndex } from './heatmap';
 
 /** Why a single activity was skipped. Skips never abort the import (DATA-05, ADR-0004). */
 export type ImportIssueReason =
@@ -25,6 +26,8 @@ export type ImportResult =
       readonly issues: readonly ImportIssue[];
       /** Number of non-Ride activities excluded by classification (BR-04). */
       readonly excludedNonRideCount: number;
+      /** Road-segment index for the heat map, precomputed in the import worker (ADR-0006). */
+      readonly segmentIndex: SegmentIndex;
     }
   | {
       readonly ok: false;
@@ -36,5 +39,6 @@ export type ImportStatus =
   | { readonly stage: 'idle' }
   | { readonly stage: 'reading-archive' }
   | { readonly stage: 'parsing-activities'; readonly processed: number; readonly total: number }
+  | { readonly stage: 'indexing' }
   | { readonly stage: 'done' }
   | { readonly stage: 'failed'; readonly reason: ImportFailureReason };

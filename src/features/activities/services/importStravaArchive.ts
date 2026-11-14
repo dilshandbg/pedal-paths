@@ -3,6 +3,7 @@ import {
   normalizeActivity,
   type NormalizeOptions,
 } from '@/features/activities/services/normalizeActivity';
+import { buildSegmentIndex } from '@/features/heatmap/services/buildSegmentIndex';
 import { parseFit } from '@/services/fit/parseFit';
 import { parseGpx, type ParsedTrack } from '@/services/gpx/parseGpx';
 import {
@@ -170,5 +171,9 @@ export async function importStravaArchive(
 
   activities.sort((a, b) => b.activityDate.localeCompare(a.activityDate));
 
-  return { ok: true, activities, issues, excludedNonRideCount: excludedCount };
+  // Precompute heat map road segments here, off the main thread (ADR-0006).
+  onStatus?.({ stage: 'indexing' });
+  const segmentIndex = buildSegmentIndex(activities);
+
+  return { ok: true, activities, issues, excludedNonRideCount: excludedCount, segmentIndex };
 }

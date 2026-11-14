@@ -7,6 +7,7 @@ import {
   FIT_BOUNDS_PADDING_PX,
   INITIAL_VIEW,
 } from '@/components/map/mapConfig';
+import { HeatLegend } from '@/components/map/HeatLegend';
 import { createRouteLayer } from '@/components/map/routeLayer';
 import { setupMapLibre } from '@/services/map/setupMapLibre';
 import type { GeoBounds, HeatMapData } from '@/types';
@@ -104,6 +105,10 @@ export function MapView({ styleUrl, data, fitBounds }: MapViewProps) {
         </MapNotice>
       ) : data === null ? (
         <MapNotice>Load your Strava export ZIP to see your rides on the map.</MapNotice>
+      ) : null}
+
+      {data !== null && data.maxFrequency > 0 ? (
+        <HeatLegend maxFrequency={data.maxFrequency} />
       ) : null}
 
       <p role="status" className="sr-only">

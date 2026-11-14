@@ -15,6 +15,7 @@ import { HeatMapView } from '@/features/heatmap/components/HeatMapView';
 export function DashboardRoute() {
   const resetFilter = useFilterStore((state) => state.resetFilter);
   const activities = useActivitiesStore((state) => state.dataset?.activities ?? null);
+  const segmentIndex = useActivitiesStore((state) => state.dataset?.segmentIndex ?? null);
 
   return (
     <DashboardLayout
@@ -26,7 +27,7 @@ export function DashboardRoute() {
           <FilterPanel />
         </div>
       }
-      map={<HeatMapView activities={activities} />}
+      map={<HeatMapView activities={activities} segmentIndex={segmentIndex} />}
       statistics={<StatisticsPanel />}
     />
   );
