@@ -21,6 +21,7 @@ const ride = (activityId: string): CyclingActivity => ({
   month: 1,
   distanceKm: 10,
   elevationGainM: 100,
+  movingTimeS: null,
   // ~1.1 km north in 110 m steps (within the heat map's gap limit).
   gpsTrack: Array.from({ length: 11 }, (_, k) => ({
     latitude: k * 0.001,
@@ -173,5 +174,33 @@ describe('ZIP upload from the UI', () => {
       'Your previously loaded data is still shown.',
     );
     expect(screen.getByText('1 ride loaded')).toBeInTheDocument();
+  });
+});
+
+describe('BR-18: duplicate rides', () => {
+  beforeEach(() => {
+    useActivitiesStore.setState(useActivitiesStore.getInitialState(), true);
+    useFilterStore.setState(useFilterStore.getInitialState(), true);
+    fakeImport.mockReset();
+  });
+
+  it('AC-18: loading the same ZIP twice replaces the rides instead of adding them again', async () => {
+    fakeImport.mockResolvedValue(loaded([ride('1'), ride('2'), ride('3')]));
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.upload(fileInput(), zipFile());
+    expect(await screen.findByText('3 rides loaded')).toBeInTheDocument();
+    await user.upload(fileInput(), zipFile());
+    await waitFor(() => expect(fakeImport).toHaveBeenCalledTimes(2));
+
+    expect(await screen.findByText('3 rides loaded')).toBeInTheDocument();
+    expect(
+      await screen.findByText('Showing 3 rides on the map', {}, { timeout: 15_000 }),
+    ).toBeInTheDocument();
+    const rides = within(screen.getByRole('group', { name: 'Rides' }));
+    expect(rides.getAllByRole('checkbox')).toHaveLength(3);
+    const statistics = within(screen.getByRole('region', { name: 'Statistics' }));
+    expect(statistics.getByText('3 rides')).toBeInTheDocument();
   });
 });

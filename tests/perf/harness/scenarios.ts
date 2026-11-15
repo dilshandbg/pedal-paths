@@ -32,6 +32,7 @@ function ride(index: number, gpsTrack: GPSPoint[]): CyclingActivity {
     month: ((index % 12) + 1) as Month,
     distanceKm: null,
     elevationGainM: null,
+    movingTimeS: null,
     gpsTrack,
   };
 }

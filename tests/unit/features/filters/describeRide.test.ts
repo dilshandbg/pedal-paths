@@ -10,6 +10,7 @@ const ride = (patch: Partial<CyclingActivity> = {}): CyclingActivity => ({
   month: 11,
   distanceKm: 42.195,
   elevationGainM: 512.4,
+  movingTimeS: null,
   gpsTrack: [],
   ...patch,
 });

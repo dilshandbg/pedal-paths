@@ -3,6 +3,7 @@ import {
   runImportInWorker,
   type ArchiveImporter,
 } from '@/features/activities/workers/runImportInWorker';
+import { validateArchiveFile } from '@/features/activities/utils/validateArchiveFile';
 import type {
   CyclingActivity,
   ImportIssue,
@@ -45,6 +46,13 @@ export const useActivitiesStore = create<ActivitiesState>()((set) => ({
   loadArchive: async (file, importer = runImportInWorker) => {
     const importId = ++latestImport;
     const isCurrent = () => importId === latestImport;
+
+    // Reject wrong or oversized files before any work starts (BR-17, AC-17).
+    const rejected = validateArchiveFile(file);
+    if (rejected) {
+      set({ status: { stage: 'failed', reason: rejected }, pendingFileName: file.name });
+      return { ok: false, reason: rejected };
+    }
 
     set({ status: { stage: 'reading-archive' }, pendingFileName: file.name });
 

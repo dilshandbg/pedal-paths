@@ -1,6 +1,8 @@
 # 0002. Client-side GPX processing for the MVP
 
-- Status: Accepted. Confirmed by BRD v1.1 (local use); extended by ADR-0004 (ZIP, FIT, Web Worker)
+- Status: Accepted. Confirmed by BRD v1.1 (local use); extended by ADR-0004 (ZIP, FIT, Web Worker).
+  Amended by ADR-0009: rides are still processed only in the browser, and a local backend stores
+  segment data
 - Date: 2026-11-14
 
 ## Context

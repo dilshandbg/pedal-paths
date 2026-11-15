@@ -16,10 +16,16 @@
     "noUncheckedIndexedAccess": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
-    "noFallthroughCasesInSwitch": true
+    "noFallthroughCasesInSwitch": true,
+
+    "paths": {
+      "@/*": ["./src/*"]
+    }
   },
   "include": [
     "vite.config.ts",
+    "server",
+    "tests/server",
     "playwright.config.ts",
     "tests/e2e",
     "tests/fixtures",

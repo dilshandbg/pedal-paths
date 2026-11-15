@@ -26,6 +26,7 @@ const row = (overrides: Partial<ActivityCsvRow> = {}): ActivityCsvRow => ({
   activityType: 'Ride',
   distanceMetres: 25_310,
   elevationGainMetres: 312.44,
+  movingTimeSeconds: null,
   fileName: 'activities/42.gpx',
   ...overrides,
 });
@@ -46,9 +47,23 @@ describe('normalizeActivity', () => {
         month: 11,
         distanceKm: 25.31,
         elevationGainM: 312.4,
+        movingTimeS: null,
         gpsTrack: points,
       },
     });
+  });
+
+  it("BR-19: keeps Strava's moving time, rounded to whole seconds", () => {
+    const result = normalizeActivity(row({ movingTimeSeconds: 3725.4 }), track(), utc);
+    expect(result.ok && result.activity.movingTimeS).toBe(3725);
+  });
+
+  it('BR-19: has no moving time when the export has none or an invalid one', () => {
+    expect(normalizeActivity(row(), track(), utc)).toMatchObject({
+      activity: { movingTimeS: null },
+    });
+    const negative = normalizeActivity(row({ movingTimeSeconds: -1 }), track(), utc);
+    expect(negative).toMatchObject({ activity: { movingTimeS: null } });
   });
 
   it('falls back to the track for date, distance, elevation and name', () => {

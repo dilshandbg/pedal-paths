@@ -1,14 +1,20 @@
 # Architecture
 
-> Status: **Draft**. Target architecture, aligned with `docs/BRD.md` v1.1.
+> Status: **Accepted**, aligned with `docs/BRD.md` v2.0 (2026-11-15).
 
 ## 1. Goals
 
-- Keep **business logic separate from rendering**. Heat map preparation, filtering, normalization
-  and statistics are pure TypeScript functions that can be unit tested without a browser, React
-  or the map library.
+- Keep **business logic separate from rendering**. Heat map preparation, filtering, normalization,
+  statistics and segment validation are pure TypeScript functions that can be unit tested without a
+  browser, React or the map library.
 - **Feature modules** with explicit boundaries, so features can grow without tangling.
-- **Client-side only.** No backend; the Strava ZIP is processed in the browser, in a Web Worker (see [ADR-0002](decisions/0002-client-side-gpx-processing.md) and [ADR-0004](decisions/0004-strava-zip-ingestion-pipeline.md)).
+- **Rides stay in the browser.** The Strava ZIP is processed in a Web Worker and held in memory
+  only ([ADR-0002](decisions/0002-client-side-gpx-processing.md),
+  [ADR-0004](decisions/0004-strava-zip-ingestion-pipeline.md)).
+- **Segments are stored locally.** A small Node backend, mounted on the Vite dev and preview
+  servers, keeps imported segments in a local SQLite file
+  ([ADR-0009](decisions/0009-local-backend-sqlite.md)). Segment data is uploaded by the user; the
+  application never contacts Strava ([ADR-0010](decisions/0010-manual-segment-import.md), BR-28).
 - **Traceability**: every feature can be traced back to a BRD requirement.
 
 ## 2. Layers
@@ -18,84 +24,152 @@ flowchart TD
     subgraph UI["UI layer (React)"]
         APP["app/ — composition root, routes, providers"]
         CMP["components/ — presentational, domain-agnostic"]
-        FCMP["features/*/components — feature containers"]
+        FCMP["features/*/components + hooks — feature containers"]
     end
 
     subgraph STATE["State layer (Zustand)"]
-        FSTORE["features/filters/store"]
-        ASTORE["store/ — cross-feature stores (if needed)"]
+        STORES["features/*/store — activities, filters, segments"]
     end
 
     subgraph DOMAIN["Domain layer (pure TS, no React / no map libs)"]
         TYPES["types/ — core domain model"]
         FSVC["features/*/services + utils"]
-        UTIL["utils/ — generic helpers (geo, dates)"]
+        UTIL["utils/ — generic helpers (geo, dates, units, polyline)"]
     end
 
     subgraph INFRA["Infrastructure adapters"]
-        GPX["services/gpx — GPX XML → raw tracks"]
-        GMAPS["services/map — MapLibre style config"]
+        GPX["services/gpx, fit, strava-export"]
+        MAPS["services/map — MapLibre style config"]
+        API["services/segments-api — same-origin HTTP client"]
+        WRK["features/*/workers — Web Workers"]
+    end
+
+    subgraph SERVER["Local backend (Node, server/)"]
+        HTTP["http/segmentsApi — JSON API middleware"]
+        REPO["segments/segmentRepository"]
+        DB["db/database — node:sqlite + migrations"]
     end
 
     APP --> FCMP --> CMP
-    FCMP --> FSTORE
+    FCMP --> STORES
     FCMP --> FSVC
-    FSTORE --> TYPES
+    STORES --> API
+    STORES --> WRK
+    WRK --> FSVC
     FSVC --> TYPES
     FSVC --> UTIL
     FSVC --> GPX
-    FCMP --> GMAPS
+    FCMP --> MAPS
+    API -. "HTTP /api/segments" .-> HTTP
+    HTTP --> REPO --> DB
+    REPO --> FSVC
 ```
 
 Arrows point from the dependent module to its dependency. **Dependencies only point downward or
-inward.** The domain layer never imports from the UI or state layers.
+inward.** The domain layer never imports from the UI, state or server layers. The backend reuses
+the same pure segment services as the browser (validation, merge, import plan, personal best), so
+the review the user sees is exactly what gets stored.
 
 ## 3. Separation of responsibilities
 
-| Responsibility                                 | Location                                                                   | Kind                          |
-| ---------------------------------------------- | -------------------------------------------------------------------------- | ----------------------------- |
-| ZIP upload / replacement                       | `features/activities/components`                                           | UI                            |
-| Archive reading (unzip, gunzip)                | `services/strava-export`                                                   | Pure adapter (fflate)         |
-| `activities.csv` parsing                       | `services/strava-export`                                                   | Pure                          |
-| Ride classification                            | `features/activities/services`                                             | Pure                          |
-| GPX parsing                                    | `services/gpx`                                                             | Pure (text scanner)           |
-| FIT parsing                                    | `services/fit`                                                             | Pure adapter (@garmin/fitsdk) |
-| Activity normalization                         | `features/activities/services`                                             | Pure                          |
-| Import orchestration                           | `features/activities/workers`                                              | Web Worker                    |
-| Year and month filtering                       | `features/filters/utils`                                                   | Pure                          |
-| Individual ride selection                      | `features/filters/utils` + `features/filters/store`                        | Pure + state                  |
-| Heat map data preparation                      | `features/heatmap/services`                                                | Pure                          |
-| Road-segment index (built at import, ADR-0006) | `features/heatmap/services/buildSegmentIndex`, called by the import worker | Pure                          |
-| Map rendering                                  | `components/map`, `features/heatmap/components`, `services/map`            | UI / adapter                  |
-| Application state                              | `features/*/store`, `store/`                                               | Zustand                       |
-| Statistics calculation                         | `features/activities/utils`                                                | Pure                          |
+| Responsibility                                 | Location                                                                          | Kind                          |
+| ---------------------------------------------- | --------------------------------------------------------------------------------- | ----------------------------- |
+| ZIP upload / replacement, file check           | `features/activities/components`, `features/activities/utils`                     | UI + pure                     |
+| Archive reading (unzip, gunzip)                | `services/strava-export`                                                          | Pure adapter (fflate)         |
+| `activities.csv` parsing                       | `services/strava-export`                                                          | Pure                          |
+| Ride classification                            | `features/activities/services`                                                    | Pure                          |
+| GPX parsing                                    | `services/gpx`                                                                    | Pure (text scanner)           |
+| FIT parsing                                    | `services/fit`                                                                    | Pure adapter (@garmin/fitsdk) |
+| Activity normalization                         | `features/activities/services`                                                    | Pure                          |
+| Import orchestration                           | `features/activities/workers`                                                     | Web Worker                    |
+| Year and month filtering                       | `features/filters/utils`                                                          | Pure                          |
+| Individual ride selection                      | `features/filters/utils` + `features/filters/store`                               | Pure + state                  |
+| Heat map data preparation                      | `features/heatmap/services`                                                       | Pure                          |
+| Road-segment index (built at import, ADR-0006) | `features/heatmap/services/buildSegmentIndex`, called by the import worker        | Pure                          |
+| Statistics calculation                         | `features/activities/utils`                                                       | Pure                          |
+| Segment file parsing (JSON, GeoJSON, CSV)      | `features/segments/services/parseSegmentFile`, run in `features/segments/workers` | Pure, in a Web Worker         |
+| Segment validation, merge, plan, personal best | `features/segments/services`                                                      | Pure (browser and backend)    |
+| Segment search, filter, sort, display text     | `features/segments/utils`                                                         | Pure                          |
+| Segment map overlay data                       | `features/segments/utils/segmentOverlay`                                          | Pure                          |
+| Segment API client                             | `services/segments-api`                                                           | Adapter (fetch)               |
+| Segment HTTP API                               | `server/http`                                                                     | Node middleware               |
+| Segment persistence                            | `server/segments`, `server/db`                                                    | Node + SQLite                 |
+| Map rendering (heat map and segment overlay)   | `components/map`, `features/heatmap/components`, `services/map`                   | UI / adapter                  |
+| Application state                              | `features/*/store`                                                                | Zustand                       |
 
-## 4. Data flow (target)
+## 4. Data flow
+
+### Rides (in the browser, never persisted)
 
 ```mermaid
 flowchart LR
-    Z["Strava export .zip<br/>(file input)"] --> W
+    Z["Strava export .zip<br/>(file input)"] --> V["validateArchiveFile()<br/>type + size"]
+    V --> W
     subgraph W["Web Worker"]
         R["readStravaArchive()<br/>activities.csv + activities/*"] --> C["parseActivitiesCsv()"]
         C --> K["classifyActivities()<br/>Activity Type = Ride"]
         K --> G["parseGpx() / parseFit()"]
         G --> N["normalizeActivity()<br/>→ CyclingActivity | ImportIssue"]
-        N --> SEG["precomputeSegments()"]
+        N --> SEG["buildSegmentIndex()"]
     end
     W --> S[("activities store<br/>+ ImportStatus / issues")]
-    S --> FL["applyFilter()<br/>pure"]
+    S --> FL["filterActivities()<br/>pure"]
     FS[("filter store<br/>ActivityFilter")] --> FL
-    FL --> H["buildHeatMapData()<br/>→ HeatMapData"]
+    FL --> H["aggregateHeatMap()<br/>→ HeatMapData"]
     FL --> ST["summarizeActivities()<br/>→ ActivitySummary"]
     H --> L["deck.gl LineLayer + ScatterplotLayer<br/>via MapboxOverlay on MapLibre"]
     ST --> SP["StatisticsPanel"]
 ```
 
-Derived data (filtered activities, heat map data, statistics) is **computed, not stored**. It is
-recomputed from `activities + filter` with memoized selectors, so the different views can't drift
-out of sync.
+### Segments (uploaded by the user, stored in local SQLite)
 
-## 5. Dependency rules (enforced)
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant B as Browser (Segments tab)
+    participant W as Segment file worker
+    participant A as /api/segments (Node)
+    participant D as SQLite
+
+    U->>B: choose JSON / GeoJSON / CSV
+    B->>B: checkSegmentFile() type + size
+    B->>W: file + stored segment IDs
+    W-->>B: payload, or every problem (record + field)
+    B->>A: POST /preview (payload)
+    A->>A: validateSegmentPayload() again
+    A->>D: read stored segments and effort keys
+    A-->>B: plan: new / update / unchanged
+    U->>B: confirm (or cancel: nothing stored)
+    B->>A: POST /import (payload)
+    A->>D: one transaction: mergeSegment(), INSERT OR IGNORE efforts
+    A-->>B: applied plan
+    B->>A: GET /api/segments
+    A-->>B: stored segments with personal best
+    B->>B: buildSegmentOverlay() → PathLayers above the heat map
+```
+
+Derived data (filtered activities, heat map data, statistics, the segment list order and the
+segment overlay) is **computed, not stored**. It is recomputed from source state with memoized
+selectors, so the different views can't drift out of sync. Segment state never feeds the ride
+filters, heat map or statistics (RULE-18).
+
+### Local API
+
+| Method and path              | Purpose                                                           | Responses             |
+| ---------------------------- | ----------------------------------------------------------------- | --------------------- |
+| `GET /api/segments`          | All stored segments with route and personal best, without efforts | 200                   |
+| `GET /api/segments/:id`      | One segment with its efforts, fastest first                       | 200, 404              |
+| `POST /api/segments/preview` | Validate a normalized payload and classify it; stores nothing     | 200, 400, 413, 415    |
+| `POST /api/segments/import`  | Validate and apply a payload in one transaction                   | 200, 400, 413, 415    |
+| `DELETE /api/segments/:id`   | Remove one segment and its efforts                                | 204, 404              |
+| `DELETE /api/segments`       | Remove all segment data                                           | 204                   |
+| any                          | Not from this machine, or from another site                       | 403                   |
+| any                          | Database cannot be opened / unexpected failure                    | 503 / 500 (code only) |
+
+Errors are `{ "error": { "code": "…" } }`, plus `problems` for `invalid-payload`; they never
+contain paths, SQL or stack traces (NFR-08).
+
+## 5. Dependency rules
 
 `eslint.config.js` enforces these rules with `no-restricted-imports`:
 
@@ -106,34 +180,45 @@ out of sync.
 These conventions are not enforced by tooling:
 
 - `src/components/**` is presentational. It takes props, holds no business rules, and does not read stores.
-- `src/features/*/components` may read stores and call feature services.
+- `src/features/*/components` and `hooks` may read stores and call feature services.
 - Features don't import each other's internals. Share code through `src/types`, `src/utils`, or by
-  lifting it into `src/store`.
+  lifting it into `src/store`. The composition root (`DashboardRoute`) connects the segment
+  overlay to the map.
 - Only `src/services/map` and the map rendering components touch the MapLibre / deck.gl APIs (ADR-0008).
+- `server/` imports the pure segment services by relative path. Those services may import only
+  types through `@/` (type imports are erased); their value imports must be relative, so the Vite
+  config bundler can load them.
+- Nothing in `src/` imports from `server/`; the browser talks to it only over HTTP.
 
 ## 6. Folder reference
 
 ```text
+server/             Local backend (Node 22.13+): SQLite database, segment repository, API, Vite plugin
 src/
 ├── app/            Composition root: App, routes (screens), providers, app config
-├── components/     Domain-agnostic UI: layout, common, map, filters, statistics (presentational)
+├── components/     Domain-agnostic UI: layout, common, map, filters, statistics, segments
 ├── features/
-│   ├── activities/ Ingestion, normalization, activity list, statistics helpers
+│   ├── activities/ Ingestion, normalization, statistics helpers
 │   ├── filters/    Filter UI, filter store, pure filter predicates
-│   └── heatmap/    Heat map data preparation (pure) + map layer components
+│   ├── heatmap/    Heat map data preparation (pure) + map layer components
+│   └── segments/   Segment import, browsing, map overlay: services, utils, store, worker, UI
 ├── services/
 │   ├── strava-export/ ZIP reading, activities.csv parsing, GPS file association
 │   ├── gpx/        GPX XML parsing
 │   ├── fit/        FIT parsing adapter
-│   └── map/        MapLibre style config and map helpers
+│   ├── map/        MapLibre style config and map helpers
+│   └── segments-api/ Same-origin client for /api/segments
 ├── store/          Cross-feature stores (only when a store truly spans features)
 ├── types/          Core domain model shared across features
-├── utils/          Generic, domain-neutral helpers (geo math, month helpers)
+├── utils/          Generic, domain-neutral helpers (geo math, dates, units, polyline)
 └── styles/         Tailwind entry and global styles
+data/               segments.sqlite (git-ignored; created on first use)
 ```
 
 ## 7. Related documents
 
 - [Technical design](technical-design.md): domain model, algorithms, open decisions
+- [Segment import format](segment-import-format.md)
+- [BRD v2.0 gap analysis and implementation plan](implementation-plan-v2.md)
 - [Architecture decision records](decisions/README.md)
 - [Requirements traceability](traceability.md)

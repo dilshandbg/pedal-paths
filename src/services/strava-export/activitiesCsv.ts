@@ -12,6 +12,8 @@ export interface ActivityCsvRow {
   readonly distanceMetres: number | null;
   /** Elevation gain in metres, or null when missing or not numeric. */
   readonly elevationGainMetres: number | null;
+  /** `Moving Time` in seconds, or null when missing or not numeric (BR-19). */
+  readonly movingTimeSeconds: number | null;
   /** Path of the GPS file inside the archive, e.g. `activities/123.fit.gz`; empty when none. */
   readonly fileName: string;
 }
@@ -69,6 +71,7 @@ export function parseActivitiesCsv(text: string): ActivityCsvRow[] {
     name: first('Activity Name'),
     type: first('Activity Type'),
     elevationGain: first('Elevation Gain'),
+    movingTime: first('Moving Time'),
     fileName: first('Filename'),
   };
   const cell = (record: readonly string[], index: number) =>
@@ -87,6 +90,7 @@ export function parseActivitiesCsv(text: string): ActivityCsvRow[] {
           rawDistance === null ? null : distanceIsMetres ? rawDistance : rawDistance * 1000,
         elevationGainMetres:
           column.elevationGain >= 0 ? parseNumber(record[column.elevationGain]) : null,
+        movingTimeSeconds: column.movingTime >= 0 ? parseNumber(record[column.movingTime]) : null,
         fileName: cell(record, column.fileName),
       };
     });

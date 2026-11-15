@@ -1,9 +1,11 @@
+import { MAX_ARCHIVE_BYTES } from '@/features/activities/utils/validateArchiveFile';
 import type { ImportFailureReason, ImportIssue, ImportIssueReason } from '@/types';
 
-/** User-facing messages for archives that can't be used (AC-16). */
+/** User-facing messages for archives that can't be used (AC-16, AC-17). */
 export const IMPORT_FAILURE_MESSAGES: Readonly<Record<ImportFailureReason, string>> = {
   'not-a-zip':
     'This file is not a ZIP archive. Choose the ZIP file you downloaded from Strava, without extracting it.',
+  'too-large': `This file is larger than ${MAX_ARCHIVE_BYTES / 1024 ** 3} GB, the largest export this app accepts. Check that you chose your Strava export ZIP.`,
   'corrupt-archive':
     'This ZIP archive could not be read. It may be damaged or incomplete. Try downloading your Strava export again.',
   'missing-activities-csv':
