@@ -26,6 +26,9 @@ test-data/**/*.zip
 test-data/**/*.csv
 test-data/**/*.gz
 
+# Local segment database (BR-23): your imported segment data
+data/
+
 # Logs
 *.log
 npm-debug.log*

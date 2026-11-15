@@ -25,5 +25,7 @@ export default defineConfig({
     url: BASE_URL,
     reuseExistingServer: !isCI,
     timeout: 120_000,
+    // A fresh in-memory segment database for every test run: no state leaks between runs.
+    env: { SEGMENTS_DB_PATH: ':memory:' },
   },
 });

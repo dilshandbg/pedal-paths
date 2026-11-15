@@ -2,9 +2,11 @@ import { fileURLToPath, URL } from 'node:url';
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vitest/config';
+import { segmentsApiPlugin } from './server/vitePlugin';
 
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  // The segment API (ADR-0009) runs on the dev and preview servers; Vitest tests it directly.
+  plugins: [react(), tailwindcss(), ...(process.env.VITEST ? [] : [segmentsApiPlugin()])],
   worker: {
     format: 'es',
   },
@@ -34,7 +36,11 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     setupFiles: ['./tests/setup.ts'],
-    include: ['tests/unit/**/*.test.{ts,tsx}', 'tests/integration/**/*.test.{ts,tsx}'],
+    include: [
+      'tests/unit/**/*.test.{ts,tsx}',
+      'tests/integration/**/*.test.{ts,tsx}',
+      'tests/server/**/*.test.ts',
+    ],
     restoreMocks: true,
   },
 });
