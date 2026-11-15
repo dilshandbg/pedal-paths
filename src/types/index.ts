@@ -11,6 +11,7 @@ export type {
 export type {
   Coordinate,
   PersonalBest,
+  SegmentApiErrorCode,
   SegmentDetail,
   SegmentEffortRecord,
   SegmentImportPayload,
@@ -18,6 +19,8 @@ export type {
   SegmentImportPlanItem,
   SegmentImportProblem,
   SegmentImportStatus,
+  SegmentOverlayData,
+  SegmentPath,
   SegmentRecord,
   StoredSegment,
   StoredSegmentEffort,

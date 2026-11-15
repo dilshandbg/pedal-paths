@@ -9,10 +9,14 @@ import {
 } from '@/components/map/mapConfig';
 import { HeatLegend } from '@/components/map/HeatLegend';
 import { createRouteLayers } from '@/components/map/routeLayer';
+import { createSegmentLayers } from '@/components/map/segmentLayer';
 import { setupMapLibre } from '@/services/map/setupMapLibre';
-import type { GeoBounds, HeatMapData } from '@/types';
+import type { GeoBounds, HeatMapData, SegmentOverlayData } from '@/types';
 
 setupMapLibre();
+
+/** Closest zoom when bringing a selected segment into view. */
+const SEGMENT_FOCUS_MAX_ZOOM = 15;
 
 interface MapViewProps {
   /** MapLibre style URL for the base map (ADR-0008). */
@@ -21,18 +25,36 @@ interface MapViewProps {
   data: HeatMapData | null;
   /** When this changes, the view is fitted to these bounds (e.g. a new dataset was loaded). */
   fitBounds: GeoBounds | null;
+  /** Imported segment routes drawn above the heat map (BR-26), or null for none. */
+  segmentOverlay?: SegmentOverlayData | null;
+  /** Called when a segment route on the map is clicked. */
+  onSegmentSelect?: (segmentId: string) => void;
+  /** When this changes, the view is fitted to these bounds (e.g. a selected segment). */
+  focusBounds?: GeoBounds | null;
 }
 
 /**
  * Interactive base map (MapLibre, pan and zoom) with the routes drawn on top by deck.gl (BR-06).
  * It only renders the prepared `data`; it never filters or aggregates.
  */
-// Implements: BR-06
-export function MapView({ styleUrl, data, fitBounds }: MapViewProps) {
+// Implements: BR-06, BR-26
+export function MapView({
+  styleUrl,
+  data,
+  fitBounds,
+  segmentOverlay = null,
+  onSegmentSelect,
+  focusBounds = null,
+}: MapViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const overlayRef = useRef<MapboxOverlay | null>(null);
   const [mapError, setMapError] = useState(false);
+  // The latest callback, so a new function identity never rebuilds the layers.
+  const onSegmentSelectRef = useRef(onSegmentSelect);
+  useEffect(() => {
+    onSegmentSelectRef.current = onSegmentSelect;
+  }, [onSegmentSelect]);
 
   // Create the map once per style URL.
   useEffect(() => {
@@ -56,7 +78,12 @@ export function MapView({ styleUrl, data, fitBounds }: MapViewProps) {
       return;
     }
 
-    const overlay = new MapboxOverlay({ interleaved: false, layers: [] });
+    const overlay = new MapboxOverlay({
+      interleaved: false,
+      layers: [],
+      pickingRadius: 6,
+      getCursor: ({ isHovering }) => (isHovering ? 'pointer' : 'grab'),
+    });
     map.addControl(new NavigationControl({ visualizePitch: false }), 'top-right');
     map.addControl(overlay);
     mapRef.current = map;
@@ -69,10 +96,20 @@ export function MapView({ styleUrl, data, fitBounds }: MapViewProps) {
     };
   }, [styleUrl]);
 
-  // Redraw routes whenever the prepared data changes.
+  // Redraw whenever the prepared data changes. Segment routes are drawn above the heat map and
+  // depend only on the segment overlay, never on the heat map data (RULE-18).
   useEffect(() => {
-    overlayRef.current?.setProps({ layers: data ? createRouteLayers(data) : [] });
-  }, [data]);
+    overlayRef.current?.setProps({
+      layers: [
+        ...(data ? createRouteLayers(data) : []),
+        ...(segmentOverlay
+          ? createSegmentLayers(segmentOverlay, (segmentId) =>
+              onSegmentSelectRef.current?.(segmentId),
+            )
+          : []),
+      ],
+    });
+  }, [data, segmentOverlay]);
 
   // Fit the view when new bounds arrive.
   useEffect(() => {
@@ -86,6 +123,19 @@ export function MapView({ styleUrl, data, fitBounds }: MapViewProps) {
       );
     }
   }, [fitBounds]);
+
+  // Bring a selected segment into view.
+  useEffect(() => {
+    if (focusBounds && mapRef.current) {
+      mapRef.current.fitBounds(
+        [
+          [focusBounds.west, focusBounds.south],
+          [focusBounds.east, focusBounds.north],
+        ],
+        { padding: FIT_BOUNDS_PADDING_PX, maxZoom: SEGMENT_FOCUS_MAX_ZOOM, duration: 600 },
+      );
+    }
+  }, [focusBounds]);
 
   const rideCount = data?.activityIds.length ?? 0;
 

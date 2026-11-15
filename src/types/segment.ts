@@ -1,3 +1,5 @@
+import type { LngLat } from './heatmap';
+
 /**
  * Segment domain types (BRD v2.0 BR-20 – BR-27, ADR-0010). Segments are imported from files the
  * user prepares; the application never contacts Strava (BR-28).
@@ -111,3 +113,29 @@ export interface StoredSegmentEffort extends SegmentEffortRecord {
 export interface SegmentDetail extends StoredSegment {
   readonly efforts: readonly StoredSegmentEffort[];
 }
+
+/** One segment route, ready to draw (`[lng, lat]` positions). */
+export interface SegmentPath {
+  readonly segmentId: string;
+  readonly name: string;
+  readonly path: readonly LngLat[];
+}
+
+/** Render-ready segment overlay for the map (BR-26). Independent of the heat map filters. */
+export interface SegmentOverlayData {
+  /** Routes to draw; the selected one is last so it is drawn on top. */
+  readonly paths: readonly SegmentPath[];
+  readonly selectedSegmentId: string | null;
+}
+
+/** Error codes of the segment API client, including "the backend is not reachable". */
+export type SegmentApiErrorCode =
+  | 'invalid-json'
+  | 'invalid-payload'
+  | 'payload-too-large'
+  | 'unsupported-media-type'
+  | 'forbidden-origin'
+  | 'not-found'
+  | 'method-not-allowed'
+  | 'storage-unavailable'
+  | 'storage-error';

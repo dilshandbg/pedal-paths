@@ -21,3 +21,15 @@ export function formatDuration(seconds: number): string {
   }
   return `${hours.toLocaleString('en-US')} h ${String(minutes).padStart(2, '0')} min`;
 }
+
+/** Elapsed time to the second, as on a stopwatch: "0:45", "9:13", "1:02:03". */
+export function formatElapsedTime(seconds: number): string {
+  const total = Math.round(Math.max(0, seconds));
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const secs = String(total % 60).padStart(2, '0');
+  if (hours > 0) {
+    return `${hours}:${String(minutes).padStart(2, '0')}:${secs}`;
+  }
+  return minutes > 0 ? `${minutes}:${secs}` : `0:${secs}`;
+}

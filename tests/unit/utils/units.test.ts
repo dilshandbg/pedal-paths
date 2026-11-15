@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { formatDistanceKm, formatDuration, formatElevationM } from '@/utils/units';
+import {
+  formatDistanceKm,
+  formatDuration,
+  formatElapsedTime,
+  formatElevationM,
+} from '@/utils/units';
 
 describe('formatDistanceKm', () => {
   it('shows kilometres with one decimal and thousands separators', () => {
@@ -30,5 +35,20 @@ describe('formatDuration', () => {
 
   it('treats a negative duration as zero', () => {
     expect(formatDuration(-5)).toBe('0 min');
+  });
+});
+
+describe('formatElapsedTime', () => {
+  it('formats seconds, minutes and hours like a stopwatch', () => {
+    expect(formatElapsedTime(0)).toBe('0:00');
+    expect(formatElapsedTime(45)).toBe('0:45');
+    expect(formatElapsedTime(553)).toBe('9:13');
+    expect(formatElapsedTime(3600)).toBe('1:00:00');
+    expect(formatElapsedTime(3723)).toBe('1:02:03');
+  });
+
+  it('rounds to whole seconds and clamps negatives', () => {
+    expect(formatElapsedTime(59.6)).toBe('1:00');
+    expect(formatElapsedTime(-5)).toBe('0:00');
   });
 });

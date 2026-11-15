@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import type { SegmentApiErrorCode } from '../../src/types/segment';
 import { ID_PATTERN } from '../../src/features/segments/services/segmentRules';
 import type { SegmentRepository } from '../segments/segmentRepository';
 
@@ -13,16 +14,8 @@ export const API_PREFIX = '/api/segments';
 /** Largest accepted request body. A 20 MB file grows when its routes are expanded to JSON. */
 export const MAX_BODY_BYTES = 64 * 1024 * 1024;
 
-export type ApiErrorCode =
-  | 'invalid-json'
-  | 'invalid-payload'
-  | 'payload-too-large'
-  | 'unsupported-media-type'
-  | 'forbidden-origin'
-  | 'not-found'
-  | 'method-not-allowed'
-  | 'storage-unavailable'
-  | 'storage-error';
+/** Error codes in responses (`{ error: { code } }`). Shared with the browser client. */
+export type ApiErrorCode = SegmentApiErrorCode;
 
 type Next = (error?: unknown) => void;
 

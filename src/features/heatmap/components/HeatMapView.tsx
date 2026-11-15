@@ -3,7 +3,7 @@ import { aggregateHeatMap } from '@/features/heatmap/services/aggregateHeatMap';
 import { buildHeatMapGeometry } from '@/features/heatmap/services/buildHeatMapGeometry';
 import { computeBounds } from '@/features/heatmap/utils/bounds';
 import { getMapStyleUrl } from '@/services/map';
-import type { CyclingActivity, SegmentIndex } from '@/types';
+import type { CyclingActivity, GeoBounds, SegmentIndex, SegmentOverlayData } from '@/types';
 
 // MapLibre + deck.gl are large; load them in their own chunk so the rest of the dashboard
 // (header, upload panel, filters) renders immediately.
@@ -18,6 +18,11 @@ interface HeatMapViewProps {
   selectedActivities: readonly CyclingActivity[] | null;
   /** Segment index of the loaded dataset (ADR-0006), or null when no export is loaded. */
   segmentIndex: SegmentIndex | null;
+  /** Imported segment routes to draw above the heat map (BR-26); passed through unchanged. */
+  segmentOverlay?: SegmentOverlayData | null;
+  onSegmentSelect?: (segmentId: string) => void;
+  /** Bounds to bring into view, e.g. of a selected segment. */
+  focusBounds?: GeoBounds | null;
 }
 
 /**
@@ -27,7 +32,14 @@ interface HeatMapViewProps {
  * view is fitted to all loaded activities, so it only moves when a new dataset arrives, not on
  * every filter change.
  */
-export function HeatMapView({ activities, selectedActivities, segmentIndex }: HeatMapViewProps) {
+export function HeatMapView({
+  activities,
+  selectedActivities,
+  segmentIndex,
+  segmentOverlay = null,
+  onSegmentSelect,
+  focusBounds = null,
+}: HeatMapViewProps) {
   // Built once per loaded export; every filter change reuses it (NFR-02).
   const geometry = useMemo(
     () => (segmentIndex ? buildHeatMapGeometry(segmentIndex) : null),
@@ -48,7 +60,14 @@ export function HeatMapView({ activities, selectedActivities, segmentIndex }: He
 
   return (
     <Suspense fallback={<MapLoading />}>
-      <MapView styleUrl={getMapStyleUrl()} data={data} fitBounds={bounds} />
+      <MapView
+        styleUrl={getMapStyleUrl()}
+        data={data}
+        fitBounds={bounds}
+        segmentOverlay={segmentOverlay}
+        focusBounds={focusBounds}
+        {...(onSegmentSelect ? { onSegmentSelect } : {})}
+      />
     </Suspense>
   );
 }

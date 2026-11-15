@@ -1,4 +1,4 @@
-import { LineLayer, ScatterplotLayer } from '@deck.gl/layers';
+import { LineLayer, PathLayer, ScatterplotLayer } from '@deck.gl/layers';
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import {
@@ -9,8 +9,9 @@ import {
 import { MapView } from '@/components/map/MapView';
 import { heatColor, heatWidth } from '@/components/map/heatStyle';
 import { JOINT_LAYER_ID, SEGMENT_LAYER_ID } from '@/components/map/routeLayer';
+import { SEGMENT_CASING_LAYER_ID, SEGMENT_OVERLAY_LAYER_ID } from '@/components/map/segmentLayer';
 import { frequencyToIntensity } from '@/features/heatmap/services/aggregateHeatMap';
-import type { GeoBounds, HeatMapData, HeatMapGeometry } from '@/types';
+import type { GeoBounds, HeatMapData, HeatMapGeometry, SegmentOverlayData } from '@/types';
 import {
   FakeMap,
   FakeMapboxOverlay,
@@ -220,5 +221,124 @@ describe('BR-06: MapView', () => {
     render(<MapView styleUrl={STYLE} data={null} fitBounds={null} />);
 
     expect(screen.getByRole('alert')).toHaveTextContent('The map could not be started');
+  });
+});
+
+describe('BR-26 / AC-27: MapView segment overlay', () => {
+  const overlay: SegmentOverlayData = {
+    paths: [
+      {
+        segmentId: '1',
+        name: 'A',
+        path: [
+          [0, 0],
+          [0.01, 0.01],
+        ],
+      },
+      {
+        segmentId: '2',
+        name: 'B',
+        path: [
+          [1, 1],
+          [1.01, 1.01],
+        ],
+      },
+    ],
+    selectedSegmentId: '2',
+  };
+  type Layer = { id: string; props: Record<string, unknown> };
+  const layers = () => (onlyOverlay().props.layers ?? []) as Layer[];
+  const layer = (id: string) => layers().find((entry) => entry.id === id);
+  const accessor = (id: string, prop: string) =>
+    layer(id)?.props[prop] as (d: SegmentOverlayData['paths'][number]) => unknown;
+
+  it('draws segment routes as cased paths above the heat map', () => {
+    render(<MapView styleUrl={STYLE} data={twoRides} fitBounds={null} segmentOverlay={overlay} />);
+    expect(layers().map((entry) => entry.id)).toEqual([
+      SEGMENT_LAYER_ID,
+      JOINT_LAYER_ID,
+      SEGMENT_CASING_LAYER_ID,
+      SEGMENT_OVERLAY_LAYER_ID,
+    ]);
+    expect(layer(SEGMENT_OVERLAY_LAYER_ID)).toBeInstanceOf(PathLayer);
+    expect(layer(SEGMENT_OVERLAY_LAYER_ID)?.props.data).toBe(overlay.paths);
+  });
+
+  it('draws the selected segment wider and darker, so it does not rely on colour alone', () => {
+    render(<MapView styleUrl={STYLE} data={null} fitBounds={null} segmentOverlay={overlay} />);
+    const [plain, selected] = overlay.paths as [
+      SegmentOverlayData['paths'][number],
+      SegmentOverlayData['paths'][number],
+    ];
+    const width = accessor(SEGMENT_OVERLAY_LAYER_ID, 'getWidth');
+    const color = accessor(SEGMENT_OVERLAY_LAYER_ID, 'getColor');
+    expect(width(selected)).toBeGreaterThan(width(plain) as number);
+    expect(color(selected)).not.toEqual(color(plain));
+    expect(accessor(SEGMENT_CASING_LAYER_ID, 'getWidth')(plain)).toBeGreaterThan(
+      width(plain) as number,
+    );
+  });
+
+  it('draws segments without any rides loaded, and nothing when there are none', () => {
+    const { rerender } = render(
+      <MapView styleUrl={STYLE} data={null} fitBounds={null} segmentOverlay={overlay} />,
+    );
+    expect(layers().map((entry) => entry.id)).toEqual([
+      SEGMENT_CASING_LAYER_ID,
+      SEGMENT_OVERLAY_LAYER_ID,
+    ]);
+    rerender(<MapView styleUrl={STYLE} data={null} fitBounds={null} segmentOverlay={null} />);
+    expect(layers()).toEqual([]);
+  });
+
+  it('reports a click on a segment route', () => {
+    const selections: string[] = [];
+    render(
+      <MapView
+        styleUrl={STYLE}
+        data={null}
+        fitBounds={null}
+        segmentOverlay={overlay}
+        onSegmentSelect={(id) => selections.push(id)}
+      />,
+    );
+    const onClick = layer(SEGMENT_OVERLAY_LAYER_ID)?.props.onClick as (info: {
+      object?: unknown;
+    }) => void;
+    expect(layer(SEGMENT_OVERLAY_LAYER_ID)?.props.pickable).toBe(true);
+    onClick({ object: overlay.paths[0] });
+    onClick({}); // a click next to every route selects nothing
+    expect(selections).toEqual(['1']);
+  });
+
+  it('does not rebuild the layers when only the click handler changes', () => {
+    const { rerender } = render(
+      <MapView styleUrl={STYLE} data={twoRides} fitBounds={null} segmentOverlay={overlay} />,
+    );
+    const before = layer(SEGMENT_OVERLAY_LAYER_ID);
+    rerender(
+      <MapView
+        styleUrl={STYLE}
+        data={twoRides}
+        fitBounds={null}
+        segmentOverlay={overlay}
+        onSegmentSelect={() => undefined}
+      />,
+    );
+    expect(layer(SEGMENT_OVERLAY_LAYER_ID)).toBe(before);
+  });
+
+  it('brings a selected segment into view', () => {
+    const focus: GeoBounds = { west: 1, south: 1, east: 1.01, north: 1.01 };
+    render(<MapView styleUrl={STYLE} data={null} fitBounds={null} focusBounds={focus} />);
+    expect(onlyMap().fitBoundsCalls).toEqual([
+      [
+        [
+          [1, 1],
+          [1.01, 1.01],
+        ],
+        expect.objectContaining({ padding: FIT_BOUNDS_PADDING_PX }),
+      ],
+    ]);
   });
 });

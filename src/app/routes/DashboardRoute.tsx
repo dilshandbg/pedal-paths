@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import { APP_TITLE } from '@/app/config';
+import { Tabs } from '@/components/common/Tabs';
 import { FilterPanel } from '@/components/filters/FilterPanel';
 import { AppHeader } from '@/components/layout/AppHeader';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
@@ -12,6 +14,8 @@ import { YearFilter } from '@/features/filters/components/YearFilter';
 import { useFilteredActivities } from '@/features/filters/hooks/useFilteredActivities';
 import { useFilterStore } from '@/features/filters/store/filterStore';
 import { HeatMapView } from '@/features/heatmap/components/HeatMapView';
+import { SegmentsSection } from '@/features/segments/components/SegmentsSection';
+import { useSegmentOverlay } from '@/features/segments/hooks/useSegmentOverlay';
 
 /**
  * The single dashboard screen and the composition root that wires features together.
@@ -22,27 +26,49 @@ export function DashboardRoute() {
   const activities = useActivitiesStore((state) => state.dataset?.activities ?? null);
   const segmentIndex = useActivitiesStore((state) => state.dataset?.segmentIndex ?? null);
   const selectedActivities = useFilteredActivities(activities);
+  const segmentMap = useSegmentOverlay();
+  const [sidebarTab, setSidebarTab] = useState<'rides' | 'segments'>('rides');
 
   return (
     <DashboardLayout
       header={<AppHeader title={APP_TITLE} />}
       filters={
-        <div className="flex flex-col gap-4">
-          {/* A new dataset invalidates the previous filter selection (ADR-0005, AC-15). */}
-          <ArchiveUploadPanel onDatasetReplaced={resetFilter} />
-          <FilterPanel
-            summary={<ActiveFiltersSummary />}
-            years={<YearFilter />}
-            months={<MonthFilter />}
-            rides={<RideFilter />}
-          />
-        </div>
+        <Tabs
+          label="Sidebar"
+          selected={sidebarTab}
+          onSelect={setSidebarTab}
+          tabs={[
+            {
+              key: 'rides',
+              label: 'Rides',
+              content: (
+                <div className="flex flex-col gap-4">
+                  {/* A new dataset invalidates the previous filter selection (ADR-0005, AC-15). */}
+                  <ArchiveUploadPanel onDatasetReplaced={resetFilter} />
+                  <FilterPanel
+                    summary={<ActiveFiltersSummary />}
+                    years={<YearFilter />}
+                    months={<MonthFilter />}
+                    rides={<RideFilter />}
+                  />
+                </div>
+              ),
+            },
+            { key: 'segments', label: 'Segments', content: <SegmentsSection /> },
+          ]}
+        />
       }
       map={
         <HeatMapView
           activities={activities}
           selectedActivities={selectedActivities}
           segmentIndex={segmentIndex}
+          segmentOverlay={segmentMap.overlay}
+          focusBounds={segmentMap.focusBounds}
+          onSegmentSelect={(segmentId) => {
+            setSidebarTab('segments'); // show the selected segment's details (AC-27)
+            segmentMap.selectSegment(segmentId);
+          }}
         />
       }
       statistics={<ActivityStatistics activities={selectedActivities} />}
