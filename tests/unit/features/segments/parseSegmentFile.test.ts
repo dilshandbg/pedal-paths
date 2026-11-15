@@ -68,6 +68,8 @@ describe('BR-20 / AC-20: parseSegmentFile reads JSON', () => {
           { latitude: 40.7, longitude: -120.95 },
           { latitude: 43.252, longitude: -126.453 },
         ],
+        altitudeSamplesM: null,
+        distanceSamplesM: null,
         prElapsedTimeS: 553,
         prDate: '1993-04-03',
         effortCount: 2,
@@ -192,7 +194,10 @@ describe('BR-20 / AC-20: parseSegmentFile reads GeoJSON', () => {
       features: [feature({ geometry: { type: 'Point', coordinates: [0, 0] } })],
     });
     expect(problemsOf(result)).toEqual([
-      expect.objectContaining({ location: 'feature 1 (ID 42)', field: 'geometry / map.polyline' }),
+      expect.objectContaining({
+        location: 'feature 1 (ID 42)',
+        field: 'streams.latlng / geometry / map.polyline',
+      }),
     ]);
   });
 
@@ -200,6 +205,92 @@ describe('BR-20 / AC-20: parseSegmentFile reads GeoJSON', () => {
     expect(problemsOf(parse('s.geojson', { type: 'FeatureCollection' }))[0]?.message).toMatch(
       /features/,
     );
+  });
+});
+
+describe('BR-29: parseSegmentFile reads altitude and distance samples', () => {
+  const streamsKeyed = {
+    latlng: {
+      data: [
+        [1, 2],
+        [1.001, 2.001],
+        [1.002, 2.002],
+      ],
+    },
+    altitude: { data: [100, 104.5, 110] },
+    distance: { data: [0, 140.2, 280.4] },
+  };
+
+  it('reads Strava streams keyed by type, using the latlng stream as the route', () => {
+    const result = parse('s.json', [{ ...stravaSegment, streams: streamsKeyed }]);
+    if (!result.ok) throw new Error(JSON.stringify(result.problems));
+    expect(result.payload.segments[0]).toMatchObject({
+      route: [
+        { latitude: 1, longitude: 2 },
+        { latitude: 1.001, longitude: 2.001 },
+        { latitude: 1.002, longitude: 2.002 },
+      ],
+      altitudeSamplesM: [100, 104.5, 110],
+      distanceSamplesM: [0, 140.2, 280.4],
+    });
+  });
+
+  it('reads streams given as a list of typed streams', () => {
+    const streams = Object.entries(streamsKeyed).map(([type, { data }]) => ({ type, data }));
+    const result = parse('s.json', [{ ...stravaSegment, streams }]);
+    expect(result.ok && result.payload.segments[0]?.altitudeSamplesM).toEqual([100, 104.5, 110]);
+  });
+
+  it('takes altitude from the third GeoJSON coordinate, only when every position has one', () => {
+    const line = (coordinates: number[][]) => ({
+      type: 'FeatureCollection',
+      features: [
+        {
+          type: 'Feature',
+          id: 5,
+          properties: { name: 'G' },
+          geometry: { type: 'LineString', coordinates },
+        },
+      ],
+    });
+    const withZ = parse(
+      'g.geojson',
+      line([
+        [2, 1, 50],
+        [2.1, 1.1, 55],
+      ]),
+    );
+    expect(withZ.ok && withZ.payload.segments[0]?.altitudeSamplesM).toEqual([50, 55]);
+    const partial = parse(
+      'g.geojson',
+      line([
+        [2, 1, 50],
+        [2.1, 1.1],
+      ]),
+    );
+    expect(partial.ok && partial.payload.segments[0]?.altitudeSamplesM).toBeNull();
+  });
+
+  it('rejects samples that do not match the route, naming the stream', () => {
+    const result = parse('s.json', [
+      { ...stravaSegment, efforts: [], streams: { ...streamsKeyed, altitude: { data: [1, 2] } } },
+    ]);
+    expect(problemsOf(result)).toEqual([
+      {
+        location: 'segment 1 (ID 229781)',
+        field: 'streams.altitude / geometry altitude',
+        message: 'Must have one value per route point (3), not 2.',
+      },
+    ]);
+  });
+
+  it('rejects an invalid latlng stream', () => {
+    const result = parse('s.json', [
+      { ...stravaSegment, streams: { latlng: { data: [[1, 2], []] } } },
+    ]);
+    expect(problemsOf(result)[0]).toMatchObject({
+      field: 'streams.latlng / geometry / map.polyline',
+    });
   });
 });
 
@@ -292,7 +383,7 @@ describe('BR-21 / AC-21: parseSegmentFile reports problems by record and field',
       { location: 'segment 2 (ID 2)', field: 'name', message: expect.any(String) },
       {
         location: 'segment 2 (ID 2)',
-        field: 'geometry / map.polyline',
+        field: 'streams.latlng / geometry / map.polyline',
         message: expect.any(String),
       },
       { location: 'segment 1 (ID 1), effort 1', field: 'start_date', message: expect.any(String) },

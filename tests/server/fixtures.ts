@@ -23,6 +23,8 @@ export const segment = (patch: Partial<SegmentRecord> = {}): SegmentRecord => ({
     { latitude: 10, longitude: 20 },
     { latitude: 10.01, longitude: 20.01 },
   ],
+  altitudeSamplesM: null,
+  distanceSamplesM: null,
   prElapsedTimeS: 320,
   prDate: '2024-01-01',
   effortCount: 2,

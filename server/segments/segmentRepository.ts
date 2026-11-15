@@ -1,11 +1,8 @@
 import type { DatabaseSync } from 'node:sqlite';
 import type {
   Coordinate,
-  SegmentDetail,
   SegmentEffortRecord,
   SegmentImportPayload,
-  SegmentImportPlan,
-  SegmentImportProblem,
   SegmentRecord,
   StoredSegment,
   StoredSegmentEffort,
@@ -20,26 +17,9 @@ import {
   personalBest,
 } from '../../src/features/segments/services/segmentRules';
 import { validateSegmentPayload } from '../../src/features/segments/services/validateSegmentPayload';
+import type { SegmentRepository } from './repository';
 
-export type ImportResult =
-  | { readonly ok: true; readonly plan: SegmentImportPlan }
-  | { readonly ok: false; readonly problems: readonly SegmentImportProblem[] };
-
-export interface SegmentRepository {
-  /** Every stored segment with route and personal best, without efforts, by name. */
-  list(): StoredSegment[];
-  /** One stored segment with its efforts, fastest first; null when not stored. */
-  get(segmentId: string): SegmentDetail | null;
-  /** Validates an import and classifies it against what is stored. Stores nothing (AC-22). */
-  preview(input: unknown): ImportResult;
-  /** Validates and stores an import in one transaction (BR-23, BR-24). */
-  importPayload(input: unknown, now?: Date): ImportResult;
-  /** Removes one segment and its efforts. False when it was not stored (BR-27). */
-  remove(segmentId: string): boolean;
-  /** Removes all segment data. Returns the number of segments removed (BR-27). */
-  removeAll(): number;
-  close(): void;
-}
+export type { ImportResult, SegmentRepository } from './repository';
 
 type Row = Record<string, unknown>;
 
@@ -74,6 +54,9 @@ function toRecord(row: Row): SegmentRecord {
     start: point(row.start_lat, row.start_lng),
     end: point(row.end_lat, row.end_lng),
     route: parseRoute(row.route_json),
+    // The legacy schema has no samples (BR-29 came with the JSON catalog, ADR-0011).
+    altitudeSamplesM: null,
+    distanceSamplesM: null,
     prElapsedTimeS: num(row.pr_elapsed_time_s),
     prDate: str(row.pr_date),
     effortCount: num(row.effort_count),
@@ -176,10 +159,10 @@ function bestOf(row: Row): SegmentEffortRecord | null {
 }
 
 /**
- * SQLite repository for imported segments (ADR-0009, ADR-0010). Every write goes through the same
- * pure validation and import plan the browser uses, so the review matches what is stored.
+ * Legacy SQLite repository for imported segments (ADR-0009, superseded by ADR-0011). The app now
+ * stores segments in the JSON catalog; this is read only to migrate an existing database into it
+ * (BR-30). Its writes remain because its tests seed databases with them.
  */
-// Implements: BR-23, BR-24, BR-27, RULE-16, RULE-17
 export function createSegmentRepository(db: DatabaseSync): SegmentRepository {
   const listStatement = db.prepare(
     `${SELECT_SEGMENTS} ORDER BY s.name COLLATE NOCASE, s.segment_id`,

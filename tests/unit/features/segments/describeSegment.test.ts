@@ -64,6 +64,7 @@ describe('AC-26 / RULE-17: describeSegmentDetail', () => {
         { label: 'Distance', value: '1.5 km' },
         { label: 'Average grade', value: '5.3 %' },
         { label: 'Elevation range', value: '100 m – 180 m' },
+        { label: 'Altitude and distance samples', value: 'Not available' },
         { label: 'Location', value: 'Testville, Nowhere' },
         { label: 'Personal best', value: '4:50 on May 1, 2024' },
         { label: 'Efforts', value: '2' },
@@ -86,6 +87,17 @@ describe('AC-26 / RULE-17: describeSegmentDetail', () => {
       },
     ]);
     expect(view.personalBestNote).toBeNull();
+  });
+
+  it('BR-29: counts the altitude and distance samples of the route', () => {
+    const facts = (patch: Parameters<typeof segmentDetail>[0]) =>
+      describeSegmentDetail(segmentDetail(patch), 'UTC').facts.find(
+        (fact) => fact.label === 'Altitude and distance samples',
+      )?.value;
+    expect(facts({ altitudeSamplesM: [1, 2, 3], distanceSamplesM: [0, 1, 2] })).toBe(
+      '3 altitude, 3 distance',
+    );
+    expect(facts({ altitudeSamplesM: [1, 2, 3] })).toBe('3 altitude');
   });
 
   it('explains a personal best stated by the file and shows unknown values', () => {

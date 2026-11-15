@@ -66,14 +66,19 @@ export const SEGMENT_FIELDS = [
   'start',
   'end',
   'route',
+  'altitudeSamplesM',
+  'distanceSamplesM',
   'prElapsedTimeS',
   'prDate',
   'effortCount',
 ] as const satisfies readonly (keyof SegmentRecord)[];
 
+const sameValue = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+
 /**
  * The stored record after an update (RULE-16): every value present in the new file replaces the
- * stored one; values absent from it (null) keep the stored value.
+ * stored one; values absent from it (null) keep the stored value. Samples belong to their route
+ * (RULE-19): a new, different route replaces the stored samples too, with none if it has none.
  */
 export function mergeSegment(stored: SegmentRecord | null, incoming: SegmentRecord): SegmentRecord {
   if (!stored) {
@@ -86,10 +91,12 @@ export function mergeSegment(stored: SegmentRecord | null, incoming: SegmentReco
       merged[field] = value;
     }
   }
+  if (incoming.route !== null && !sameValue(incoming.route, stored.route)) {
+    merged.altitudeSamplesM = incoming.altitudeSamplesM;
+    merged.distanceSamplesM = incoming.distanceSamplesM;
+  }
   return merged as unknown as SegmentRecord;
 }
-
-const sameValue = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
 /** Fields whose stored value differs from `next`. */
 export function changedFields(stored: SegmentRecord, next: SegmentRecord): string[] {
