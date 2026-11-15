@@ -4,7 +4,7 @@ A personal, local web app that turns your **original Strava export ZIP** into an
 map of your rides. It shows how often each road was ridden, filtered by year, month and individual
 ride. You can also import details of Strava segments you care about from a file, browse your
 efforts and personal bests, and see the segments on the same map. Rides are processed in your
-browser; segments are stored in a local SQLite file. Nothing leaves your machine, and the app never
+browser; segments are stored in a local JSON catalog file. Nothing leaves your machine, and the app never
 connects to Strava.
 
 ## Status
@@ -28,7 +28,8 @@ matrix.
   prepare. Every record is validated, you review what is new or updated before confirming, and
   re-importing updates segments instead of duplicating them. Search, filter by distance, sort,
   open a segment to see its effort history with the personal best marked, show the routes on the
-  map, and remove one segment or all segment data.
+  map, and remove one segment or all segment data. Segments are kept in a local JSON catalog with
+  their routes and altitude and distance samples.
 - **Performance:** a filter change reaches the screen in 27–121 ms for 2,000 synthetic rides
   (budget 250 ms, NFR-02). Re-measure with `npm run perf`.
 
@@ -39,7 +40,7 @@ the provisional size limits (OD-24). The alternative visualization modes in BRD 
 ## Tech stack
 
 React 19 · TypeScript (strict) · Vite 6 · Tailwind CSS 4 · Zustand · MapLibre GL JS +
-OpenStreetMap tiles · deck.gl · fflate · @garmin/fitsdk · Node's built-in SQLite (`node:sqlite`) for segments · Vitest + React Testing Library · Playwright · ESLint · Prettier
+OpenStreetMap tiles · deck.gl · fflate · @garmin/fitsdk · a local JSON segment catalog (Node's built-in `node:sqlite` only to migrate older data) · Vitest + React Testing Library · Playwright · ESLint · Prettier
 
 ## Prerequisites
 
@@ -63,10 +64,11 @@ unavailable.
 Nothing needs configuring: there are no API keys or secrets. Optional settings go in
 `.env.local` (copy `.env.example`; `.env.local` is git-ignored):
 
-| Variable             | Default                                        | Purpose                                          |
-| -------------------- | ---------------------------------------------- | ------------------------------------------------ |
-| `VITE_MAP_STYLE_URL` | `https://tiles.openfreemap.org/styles/liberty` | MapLibre style for the base map                  |
-| `SEGMENTS_DB_PATH`   | `data/segments.sqlite`                         | Segment database file (`:memory:` keeps nothing) |
+| Variable               | Default                                        | Purpose                                          |
+| ---------------------- | ---------------------------------------------- | ------------------------------------------------ |
+| `VITE_MAP_STYLE_URL`   | `https://tiles.openfreemap.org/styles/liberty` | MapLibre style for the base map                  |
+| `SEGMENT_CATALOG_PATH` | `data/segment-catalog.json`                    | Segment catalog file (`:memory:` keeps nothing)  |
+| `SEGMENTS_DB_PATH`     | `data/segments.sqlite`                         | Older SQLite database, migrated once (see below) |
 
 Restart the dev or preview server after changing them.
 
@@ -99,17 +101,17 @@ contributors) stays visible on the map, as the tile licence requires.
 | `npm run format`           | Format with Prettier                                   |
 | `npm run perf`             | Time filter changes against the 250 ms budget (NFR-02) |
 
-`npm run test` includes the backend tests in `tests/server` (SQLite in memory). `npm run test:e2e`
-starts `vite preview` with an in-memory segment database, so it never touches your data.
+`npm run test` includes the backend tests in `tests/server` (catalog in memory and in temporary files). `npm run test:e2e`
+starts `vite preview` with an in-memory segment catalog, so it never touches your data.
 
 ## Project structure
 
 ```text
 docs/          BRD (source of truth), architecture, technical design, ADRs, traceability,
-               segment import format
+               segment import and catalog formats
 public/        Static assets
-server/        Local backend: SQLite database, segment repository, /api/segments, Vite plugin
-data/          segments.sqlite with your imported segments (git-ignored)
+server/        Local backend: JSON segment catalog, SQLite migration, /api/segments, Vite plugin
+data/          segment-catalog.json with your imported segments (git-ignored)
 src/
   app/         App root, routes, providers
   components/  Presentational UI (layout, map, filters, statistics, segments, common)
@@ -148,7 +150,8 @@ Keep your own export in `test-data/`, which is git-ignored for privacy.
 The app does not connect to Strava. You prepare a file with the segments you want and upload it
 in the **Segments** tab. The format is specified in
 [`docs/segment-import-format.md`](docs/segment-import-format.md); field names follow the Strava
-API, so a segment object copied from Strava usually works as-is.
+API, so a segment object copied from Strava usually works as-is. Add Strava `streams`
+(`latlng`, `altitude`, `distance`) to a segment to store its altitude and distance samples too.
 
 1. Open the **Segments** tab and choose a `.json`, `.geojson` or `.csv` file (at most 20 MB).
 2. If anything is wrong, every problem is listed with its record and field, and nothing is
@@ -168,16 +171,22 @@ already stored.
 
 - **Rides** are read from the ZIP in your browser and kept in memory only. Reloading the page or
   closing the tab removes them. The app never uploads them.
-- **Segments** are stored in `data/segments.sqlite` in the project folder (or at
-  `SEGMENTS_DB_PATH`). They only travel between your browser and the local server on your machine.
+- **Segments** are stored in `data/segment-catalog.json` in the project folder (or at
+  `SEGMENT_CATALOG_PATH`), with their routes, altitude and distance samples, and efforts
+  ([format](docs/segment-catalog-format.md)). The app loads the catalog when it starts. Segments only
+  travel between your browser and the local server on your machine.
+- **Upgrading from SQLite:** if you used an earlier version, your segments are in
+  `data/segments.sqlite`. On the first start without a catalog file, the app copies all of them
+  into the catalog, checks the copy, and renames the database to `segments.sqlite.migrated`. That
+  file is no longer used; delete it once you have checked your segments.
 
 To remove segment data:
 
 - **In the app:** open a segment and choose **Remove segment**, or choose **Remove all segment
   data** under the list. Both ask for confirmation.
-- **On disk:** stop the app and delete `data/segments.sqlite` (and `segments.sqlite-wal` and
-  `segments.sqlite-shm` if present). This removes all segment data; a new, empty database is
-  created on the next start.
+- **On disk:** stop the app and delete `data/segment-catalog.json`, and any
+  `segments.sqlite.migrated` file. This removes all segment data. If an old `data/segments.sqlite`
+  is still there, delete it too; otherwise it is migrated again on the next start.
 
 There is no Strava connection to disconnect: the app has no Strava login and stores no tokens.
 

@@ -2,16 +2,13 @@
 import { createServer, request, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { openDatabase } from '../../../server/db/database';
+import { openCatalogRepository } from '../../../server/catalog/catalogRepository';
 import {
   createSegmentsApi,
   isLoopbackAddress,
   MAX_BODY_BYTES,
 } from '../../../server/http/segmentsApi';
-import {
-  createSegmentRepository,
-  type SegmentRepository,
-} from '../../../server/segments/segmentRepository';
+import type { SegmentRepository } from '../../../server/segments/repository';
 import { effort, payload, segment } from '../fixtures';
 
 let server: Server;
@@ -31,7 +28,7 @@ async function start(getRepository: () => SegmentRepository) {
 }
 
 beforeEach(async () => {
-  repository = createSegmentRepository(openDatabase(':memory:'));
+  repository = openCatalogRepository(':memory:');
   await start(() => repository);
 });
 afterEach(async () => {

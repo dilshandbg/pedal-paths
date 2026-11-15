@@ -24,6 +24,8 @@ const FIELD_LABELS: Readonly<Record<string, string>> = {
   start: 'start',
   end: 'end',
   route: 'route',
+  altitudeSamplesM: 'altitude samples',
+  distanceSamplesM: 'distance samples',
   prElapsedTimeS: 'personal best',
   prDate: 'personal best date',
   effortCount: 'effort count',
@@ -36,6 +38,18 @@ const elevation = (m: number | null) => (m === null ? null : formatElevationM(m)
 const grade = (pct: number | null) => (pct === null ? null : `${pct.toFixed(1)} %`);
 /** "YYYY-MM-DD" as a short date, read as a calendar date (no time zone shift). */
 const calendarDate = (day: string) => formatShortDate(`${day}T12:00:00Z`, 'UTC');
+
+/** How many altitude and distance samples a route has (BR-29), e.g. "120 altitude, 120 distance". */
+function describeSamples(
+  altitude: readonly number[] | null,
+  distance: readonly number[] | null,
+): string {
+  const parts = [
+    altitude && `${altitude.length.toLocaleString('en-US')} altitude`,
+    distance && `${distance.length.toLocaleString('en-US')} distance`,
+  ].filter(Boolean);
+  return parts.length > 0 ? parts.join(', ') : NOT_AVAILABLE;
+}
 
 export function describePersonalBest(best: PersonalBest | null): string | null {
   if (!best) return null;
@@ -98,6 +112,10 @@ export function describeSegmentDetail(detail: SegmentDetail, timeZone?: string):
         detail.elevationLowM === null || detail.elevationHighM === null
           ? NOT_AVAILABLE
           : `${elevation(detail.elevationLowM)} – ${elevation(detail.elevationHighM)}`,
+    },
+    {
+      label: 'Altitude and distance samples',
+      value: describeSamples(detail.altitudeSamplesM, detail.distanceSamplesM),
     },
     { label: 'Location', value: location || NOT_AVAILABLE },
     { label: 'Personal best', value: describePersonalBest(detail.personalBest) ?? NOT_AVAILABLE },

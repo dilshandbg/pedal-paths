@@ -13,17 +13,17 @@ filter by year, month and individual ride, and the heat map updates to match.
   explicitly asks.
 - Architecture: `docs/architecture.md` · Design and open decisions: `docs/technical-design.md` ·
   ADRs: `docs/decisions/` · Traceability: `docs/traceability.md`
-- Current phase: **BRD v2.0 implemented** (rides in the browser; manually imported segments in a
-  local SQLite backend, ADR-0009 / ADR-0010; no Strava connection). Implement further
-  requirements one at a time with `/implement-requirement`, and only after the user approves.
+- Current phase: **BRD v2.1 implemented** (rides in the browser; manually imported segments in a
+  local JSON segment catalog, ADR-0009 / ADR-0010 / ADR-0011; no Strava connection). Implement
+  further requirements one at a time with `/implement-requirement`, and only after the user approves.
 
 ## Technology stack
 
 React 19 · TypeScript (strict) · Vite 6 · Tailwind CSS 4 · Zustand 5 · deck.gl 9 · MapLibre GL JS +
 OpenStreetMap tiles (ADR-0008) · fflate (ZIP/gunzip) · @garmin/fitsdk (FIT) · local GPX
-scanner (no library) · Web Workers for imports · Node 22.13+ local backend in `server/` with the
-built-in `node:sqlite` (ADR-0009), mounted on the Vite dev/preview server · Vitest 4 + React Testing
-Library · Playwright · ESLint 9 · Prettier · npm.
+scanner (no library) · Web Workers for imports · Node 22.13+ local backend in `server/` keeping a
+JSON segment catalog (ADR-0011; `node:sqlite` only to migrate v2.0 data), mounted on the Vite
+dev/preview server · Vitest 4 + React Testing Library · Playwright · ESLint 9 · Prettier · npm.
 
 ## Commands
 

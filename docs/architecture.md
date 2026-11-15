@@ -12,8 +12,8 @@
   only ([ADR-0002](decisions/0002-client-side-gpx-processing.md),
   [ADR-0004](decisions/0004-strava-zip-ingestion-pipeline.md)).
 - **Segments are stored locally.** A small Node backend, mounted on the Vite dev and preview
-  servers, keeps imported segments in a local SQLite file
-  ([ADR-0009](decisions/0009-local-backend-sqlite.md)). Segment data is uploaded by the user; the
+  servers, keeps imported segments in a local JSON segment catalog file
+  ([ADR-0009](decisions/0009-local-backend-sqlite.md), [ADR-0011](decisions/0011-json-segment-catalog.md)). Segment data is uploaded by the user; the
   application never contacts Strava ([ADR-0010](decisions/0010-manual-segment-import.md), BR-28).
 - **Traceability**: every feature can be traced back to a BRD requirement.
 
@@ -46,8 +46,8 @@ flowchart TD
 
     subgraph SERVER["Local backend (Node, server/)"]
         HTTP["http/segmentsApi — JSON API middleware"]
-        REPO["segments/segmentRepository"]
-        DB["db/database — node:sqlite + migrations"]
+        REPO["catalog/catalogRepository — JSON segment catalog"]
+        DB["catalog/migrateLegacyDatabase — one-time import from SQLite"]
     end
 
     APP --> FCMP --> CMP
@@ -72,30 +72,30 @@ the review the user sees is exactly what gets stored.
 
 ## 3. Separation of responsibilities
 
-| Responsibility                                 | Location                                                                          | Kind                          |
-| ---------------------------------------------- | --------------------------------------------------------------------------------- | ----------------------------- |
-| ZIP upload / replacement, file check           | `features/activities/components`, `features/activities/utils`                     | UI + pure                     |
-| Archive reading (unzip, gunzip)                | `services/strava-export`                                                          | Pure adapter (fflate)         |
-| `activities.csv` parsing                       | `services/strava-export`                                                          | Pure                          |
-| Ride classification                            | `features/activities/services`                                                    | Pure                          |
-| GPX parsing                                    | `services/gpx`                                                                    | Pure (text scanner)           |
-| FIT parsing                                    | `services/fit`                                                                    | Pure adapter (@garmin/fitsdk) |
-| Activity normalization                         | `features/activities/services`                                                    | Pure                          |
-| Import orchestration                           | `features/activities/workers`                                                     | Web Worker                    |
-| Year and month filtering                       | `features/filters/utils`                                                          | Pure                          |
-| Individual ride selection                      | `features/filters/utils` + `features/filters/store`                               | Pure + state                  |
-| Heat map data preparation                      | `features/heatmap/services`                                                       | Pure                          |
-| Road-segment index (built at import, ADR-0006) | `features/heatmap/services/buildSegmentIndex`, called by the import worker        | Pure                          |
-| Statistics calculation                         | `features/activities/utils`                                                       | Pure                          |
-| Segment file parsing (JSON, GeoJSON, CSV)      | `features/segments/services/parseSegmentFile`, run in `features/segments/workers` | Pure, in a Web Worker         |
-| Segment validation, merge, plan, personal best | `features/segments/services`                                                      | Pure (browser and backend)    |
-| Segment search, filter, sort, display text     | `features/segments/utils`                                                         | Pure                          |
-| Segment map overlay data                       | `features/segments/utils/segmentOverlay`                                          | Pure                          |
-| Segment API client                             | `services/segments-api`                                                           | Adapter (fetch)               |
-| Segment HTTP API                               | `server/http`                                                                     | Node middleware               |
-| Segment persistence                            | `server/segments`, `server/db`                                                    | Node + SQLite                 |
-| Map rendering (heat map and segment overlay)   | `components/map`, `features/heatmap/components`, `services/map`                   | UI / adapter                  |
-| Application state                              | `features/*/store`                                                                | Zustand                       |
+| Responsibility                                 | Location                                                                           | Kind                          |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------- | ----------------------------- |
+| ZIP upload / replacement, file check           | `features/activities/components`, `features/activities/utils`                      | UI + pure                     |
+| Archive reading (unzip, gunzip)                | `services/strava-export`                                                           | Pure adapter (fflate)         |
+| `activities.csv` parsing                       | `services/strava-export`                                                           | Pure                          |
+| Ride classification                            | `features/activities/services`                                                     | Pure                          |
+| GPX parsing                                    | `services/gpx`                                                                     | Pure (text scanner)           |
+| FIT parsing                                    | `services/fit`                                                                     | Pure adapter (@garmin/fitsdk) |
+| Activity normalization                         | `features/activities/services`                                                     | Pure                          |
+| Import orchestration                           | `features/activities/workers`                                                      | Web Worker                    |
+| Year and month filtering                       | `features/filters/utils`                                                           | Pure                          |
+| Individual ride selection                      | `features/filters/utils` + `features/filters/store`                                | Pure + state                  |
+| Heat map data preparation                      | `features/heatmap/services`                                                        | Pure                          |
+| Road-segment index (built at import, ADR-0006) | `features/heatmap/services/buildSegmentIndex`, called by the import worker         | Pure                          |
+| Statistics calculation                         | `features/activities/utils`                                                        | Pure                          |
+| Segment file parsing (JSON, GeoJSON, CSV)      | `features/segments/services/parseSegmentFile`, run in `features/segments/workers`  | Pure, in a Web Worker         |
+| Segment validation, merge, plan, personal best | `features/segments/services`                                                       | Pure (browser and backend)    |
+| Segment search, filter, sort, display text     | `features/segments/utils`                                                          | Pure                          |
+| Segment map overlay data                       | `features/segments/utils/segmentOverlay`                                           | Pure                          |
+| Segment API client                             | `services/segments-api`                                                            | Adapter (fetch)               |
+| Segment HTTP API                               | `server/http`                                                                      | Node middleware               |
+| Segment persistence                            | `server/catalog`, `server/segments` (interface, legacy SQLite reader), `server/db` | Node + JSON file              |
+| Map rendering (heat map and segment overlay)   | `components/map`, `features/heatmap/components`, `services/map`                    | UI / adapter                  |
+| Application state                              | `features/*/store`                                                                 | Zustand                       |
 
 ## 4. Data flow
 
@@ -121,7 +121,7 @@ flowchart LR
     ST --> SP["StatisticsPanel"]
 ```
 
-### Segments (uploaded by the user, stored in local SQLite)
+### Segments (uploaded by the user, stored in the local JSON catalog)
 
 ```mermaid
 sequenceDiagram
@@ -129,7 +129,7 @@ sequenceDiagram
     participant B as Browser (Segments tab)
     participant W as Segment file worker
     participant A as /api/segments (Node)
-    participant D as SQLite
+    participant D as segment-catalog.json
 
     U->>B: choose JSON / GeoJSON / CSV
     B->>B: checkSegmentFile() type + size
@@ -137,11 +137,11 @@ sequenceDiagram
     W-->>B: payload, or every problem (record + field)
     B->>A: POST /preview (payload)
     A->>A: validateSegmentPayload() again
-    A->>D: read stored segments and effort keys
+    A->>A: plan against the catalog in memory (loaded from D at start)
     A-->>B: plan: new / update / unchanged
     U->>B: confirm (or cancel: nothing stored)
     B->>A: POST /import (payload)
-    A->>D: one transaction: mergeSegment(), INSERT OR IGNORE efforts
+    A->>D: mergeSegment(), add new efforts, write temp file + rename
     A-->>B: applied plan
     B->>A: GET /api/segments
     A-->>B: stored segments with personal best
@@ -193,7 +193,7 @@ These conventions are not enforced by tooling:
 ## 6. Folder reference
 
 ```text
-server/             Local backend (Node 22.13+): SQLite database, segment repository, API, Vite plugin
+server/             Local backend (Node 22.13+): JSON segment catalog, SQLite migration, API, Vite plugin
 src/
 ├── app/            Composition root: App, routes (screens), providers, app config
 ├── components/     Domain-agnostic UI: layout, common, map, filters, statistics, segments
@@ -212,7 +212,7 @@ src/
 ├── types/          Core domain model shared across features
 ├── utils/          Generic, domain-neutral helpers (geo math, dates, units, polyline)
 └── styles/         Tailwind entry and global styles
-data/               segments.sqlite (git-ignored; created on first use)
+data/               segment-catalog.json (git-ignored; created on the first import)
 ```
 
 ## 7. Related documents

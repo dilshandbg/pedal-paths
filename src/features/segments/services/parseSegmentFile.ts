@@ -28,7 +28,9 @@ const JSON_FIELDS: Readonly<Record<string, string>> = {
   elevationLowM: 'elevation_low',
   start: 'start_latlng',
   end: 'end_latlng',
-  route: 'geometry / map.polyline',
+  route: 'streams.latlng / geometry / map.polyline',
+  altitudeSamplesM: 'streams.altitude / geometry altitude',
+  distanceSamplesM: 'streams.distance',
   prElapsedTimeS: 'athlete_segment_stats.pr_elapsed_time',
   prDate: 'athlete_segment_stats.pr_date',
   effortCount: 'athlete_segment_stats.effort_count',
@@ -186,34 +188,76 @@ const latLngPair = (value: unknown): unknown => {
   return INVALID;
 };
 
-/** GeoJSON LineString / MultiLineString → route; MultiLineString parts are joined in order. */
-function geoJsonRoute(geometry: unknown): unknown {
-  if (geometry === null || geometry === undefined) return null;
-  if (!isObject(geometry) || !Array.isArray(geometry.coordinates)) return INVALID;
+interface Line {
+  readonly route: unknown;
+  readonly altitude: unknown;
+}
+const INVALID_LINE: Line = { route: INVALID, altitude: null };
+
+/**
+ * GeoJSON LineString / MultiLineString → route; MultiLineString parts are joined in order. When
+ * every position has a third value, those are the altitude samples (BR-29).
+ */
+function geoJsonLine(geometry: unknown): Line {
+  if (geometry === null || geometry === undefined) return { route: null, altitude: null };
+  if (!isObject(geometry) || !Array.isArray(geometry.coordinates)) return INVALID_LINE;
   const lines =
     geometry.type === 'LineString'
       ? [geometry.coordinates]
       : geometry.type === 'MultiLineString'
         ? geometry.coordinates
         : null;
-  if (!lines) return INVALID;
+  if (!lines) return INVALID_LINE;
   const route: Coordinate[] = [];
+  const altitude: unknown[] = [];
   for (const line of lines) {
-    if (!Array.isArray(line)) return INVALID;
+    if (!Array.isArray(line)) return INVALID_LINE;
     for (const position of line) {
       if (
         !Array.isArray(position) ||
         typeof position[0] !== 'number' ||
         typeof position[1] !== 'number'
       ) {
-        return INVALID;
+        return INVALID_LINE;
       }
       route.push({ latitude: position[1], longitude: position[0] });
+      altitude.push(position[2]);
     }
-    if (route.length > LIMITS.routePoints) return INVALID;
+    if (route.length > LIMITS.routePoints) return INVALID_LINE;
   }
-  return route;
+  const hasAltitude = altitude.length > 0 && altitude.every((value) => value !== undefined);
+  return { route, altitude: hasAltitude ? altitude : null };
 }
+
+/**
+ * Strava segment streams (BR-29), keyed by type (`{ latlng: { data } }`) or as a list
+ * (`[{ type: 'latlng', data }]`). Returns the `data` of each stream type present.
+ */
+function readStreams(value: unknown): Readonly<Record<string, unknown>> {
+  const streams: Record<string, unknown> = {};
+  if (Array.isArray(value)) {
+    for (const entry of value) {
+      if (isObject(entry) && typeof entry.type === 'string') streams[entry.type] = entry.data;
+    }
+  } else if (isObject(value)) {
+    for (const [type, entry] of Object.entries(value)) {
+      streams[type] = isObject(entry) ? entry.data : entry;
+    }
+  }
+  return streams;
+}
+
+/** `latlng` stream data (`[[lat, lng], …]`) → route. */
+const latLngRoute = (data: unknown): unknown => {
+  if (data === null || data === undefined) return null;
+  if (!Array.isArray(data) || data.length > LIMITS.routePoints) return INVALID;
+  return data.map((pair) => {
+    const point = latLngPair(pair);
+    return point === null ? INVALID : point;
+  });
+};
+
+const samples = (data: unknown): unknown => (data === undefined ? null : data);
 
 const polylineRoute = (value: unknown): unknown => {
   const encoded = text(value);
@@ -227,12 +271,17 @@ const polylineRoute = (value: unknown): unknown => {
 function segmentFromStrava(raw: Obj, geometry: unknown): Obj {
   const stats = isObject(raw.athlete_segment_stats) ? raw.athlete_segment_stats : {};
   const map = isObject(raw.map) ? raw.map : {};
-  const route =
-    geometry !== undefined && geometry !== null
-      ? geoJsonRoute(geometry)
-      : raw.geometry !== undefined
-        ? geoJsonRoute(raw.geometry)
-        : polylineRoute(map.polyline ?? map.summary_polyline);
+  const streams = readStreams(raw.streams);
+  // The full-resolution latlng stream is the route the other streams are aligned with.
+  const line: Line =
+    streams.latlng !== undefined
+      ? { route: latLngRoute(streams.latlng), altitude: null }
+      : geometry !== undefined && geometry !== null
+        ? geoJsonLine(geometry)
+        : raw.geometry !== undefined
+          ? geoJsonLine(raw.geometry)
+          : { route: polylineRoute(map.polyline ?? map.summary_polyline), altitude: null };
+  const route = line.route;
   return {
     segmentId: id(raw.id ?? raw.segment_id),
     name: text(raw.name) ?? '',
@@ -248,6 +297,8 @@ function segmentFromStrava(raw: Obj, geometry: unknown): Obj {
     start: latLngPair(raw.start_latlng),
     end: latLngPair(raw.end_latlng),
     route,
+    altitudeSamplesM: streams.altitude !== undefined ? samples(streams.altitude) : line.altitude,
+    distanceSamplesM: samples(streams.distance),
     prElapsedTimeS: number(stats.pr_elapsed_time),
     prDate: date(stats.pr_date),
     effortCount: number(stats.effort_count),
@@ -360,6 +411,8 @@ function readCsv(content: string): Draft | { error: string } {
         start: pair('start_lat', 'start_lng'),
         end: pair('end_lat', 'end_lng'),
         route: polylineRoute(c('polyline')),
+        altitudeSamplesM: null,
+        distanceSamplesM: null,
         prElapsedTimeS: number(c('pr_elapsed_time_s')),
         prDate: date(c('pr_date')),
         effortCount: number(c('effort_count')),

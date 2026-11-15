@@ -103,7 +103,7 @@ export function validateSegmentPayload(
   };
 }
 
-type Report = (field: string, message: string) => void;
+export type Report = (field: string, message: string) => void;
 
 function nullableNumber(
   obj: Obj,
@@ -154,7 +154,47 @@ function toCoordinate(value: unknown): Coordinate | null {
   return isValidCoordinate(coordinate) ? coordinate : null;
 }
 
-function checkSegment(raw: unknown, report: Report): SegmentRecord | null {
+/**
+ * Samples aligned with the route (BR-29, RULE-19): one finite number per route point, within
+ * range, and for distances never decreasing.
+ */
+function nullableSamples(
+  obj: Obj,
+  field: string,
+  report: Report,
+  route: readonly Coordinate[] | null,
+  routeAbsent: boolean,
+  { min, max, nonDecreasing = false }: { min: number; max: number; nonDecreasing?: boolean },
+): number[] | null {
+  const value = obj[field];
+  if (value === null || value === undefined) return null;
+  if (!Array.isArray(value) || value.some((n) => typeof n !== 'number' || !Number.isFinite(n))) {
+    report(field, 'Must be a list of numbers.');
+    return null;
+  }
+  const samples = value as number[];
+  if (route === null) {
+    // An invalid route is already reported; a missing one is this field's problem.
+    if (routeAbsent) report(field, 'Needs a route with one point per sample.');
+    return null;
+  }
+  if (samples.length !== route.length) {
+    report(field, `Must have one value per route point (${route.length}), not ${samples.length}.`);
+    return null;
+  }
+  if (samples.some((n) => n < min || n > max)) {
+    report(field, `Values must be between ${min} and ${max}.`);
+    return null;
+  }
+  if (nonDecreasing && samples.some((n, i) => i > 0 && n < (samples[i - 1] ?? n))) {
+    report(field, 'Must never decrease along the route.');
+    return null;
+  }
+  return samples;
+}
+
+/** Validates one normalized segment; reports problems by field. Also used for the catalog file. */
+export function checkSegment(raw: unknown, report: Report): SegmentRecord | null {
   if (!isObject(raw)) {
     report('segment', 'Must be an object.');
     return null;
@@ -192,6 +232,17 @@ function checkSegment(raw: unknown, report: Report): SegmentRecord | null {
     }
   }
 
+  const routeAbsent = raw.route === null || raw.route === undefined;
+  const altitudeSamplesM = nullableSamples(raw, 'altitudeSamplesM', fail, route, routeAbsent, {
+    min: -500,
+    max: 9000,
+  });
+  const distanceSamplesM = nullableSamples(raw, 'distanceSamplesM', fail, route, routeAbsent, {
+    min: 0,
+    max: 1_000_000,
+    nonDecreasing: true,
+  });
+
   const prDate = nullableText(raw, 'prDate', fail, 10);
   if (prDate !== null && !isCalendarDate(prDate)) {
     fail('prDate', 'Must be a date as YYYY-MM-DD.');
@@ -212,6 +263,8 @@ function checkSegment(raw: unknown, report: Report): SegmentRecord | null {
     start: nullableCoordinate(raw, 'start', fail),
     end: nullableCoordinate(raw, 'end', fail),
     route,
+    altitudeSamplesM,
+    distanceSamplesM,
     prElapsedTimeS: nullableNumber(raw, 'prElapsedTimeS', fail, {
       min: 1,
       max: 7 * 24 * 3600,
@@ -227,7 +280,8 @@ function checkSegment(raw: unknown, report: Report): SegmentRecord | null {
   return valid ? record : null;
 }
 
-function checkEffort(raw: unknown, report: Report): SegmentEffortRecord | null {
+/** Validates one normalized effort; reports problems by field. Also used for the catalog file. */
+export function checkEffort(raw: unknown, report: Report): SegmentEffortRecord | null {
   if (!isObject(raw)) {
     report('effort', 'Must be an object.');
     return null;
