@@ -196,7 +196,7 @@ describe('BR-20 / AC-20: parseSegmentFile reads GeoJSON', () => {
     expect(problemsOf(result)).toEqual([
       expect.objectContaining({
         location: 'feature 1 (ID 42)',
-        field: 'streams.latlng / geometry / map.polyline',
+        field: 'streams.latlng / route.latlng / geometry / map.polyline',
       }),
     ]);
   });
@@ -278,7 +278,7 @@ describe('BR-29: parseSegmentFile reads altitude and distance samples', () => {
     expect(problemsOf(result)).toEqual([
       {
         location: 'segment 1 (ID 229781)',
-        field: 'streams.altitude / geometry altitude',
+        field: 'streams.altitude / route.altitude / geometry altitude',
         message: 'Must have one value per route point (3), not 2.',
       },
     ]);
@@ -289,8 +289,121 @@ describe('BR-29: parseSegmentFile reads altitude and distance samples', () => {
       { ...stravaSegment, streams: { latlng: { data: [[1, 2], []] } } },
     ]);
     expect(problemsOf(result)[0]).toMatchObject({
-      field: 'streams.latlng / geometry / map.polyline',
+      field: 'streams.latlng / route.latlng / geometry / map.polyline',
     });
+  });
+});
+
+describe('BR-20 / AC-20: parseSegmentFile reads the segment catalog format', () => {
+  /** Shaped like docs/segment-catalog-format.md; synthetic values. */
+  const catalogSegment = (patch: Record<string, unknown> = {}) => ({
+    id: '35710081',
+    name: 'Synthetic Climb',
+    distanceKm: 0.685,
+    elevationMinM: 508.8,
+    elevationMaxM: 527.8,
+    start: { lat: 7.29, lng: 80.63 },
+    end: { lat: 7.3, lng: 80.64 },
+    route: { latlng: [], altitude: [], distance: [] },
+    ...patch,
+  });
+  const catalogFile = (...segments: unknown[]) => ({ version: 1, segments });
+
+  it('keeps the name and maps distance, elevation range and start/end, without a route', () => {
+    const result = parse('strava_segments_catalog.json', catalogFile(catalogSegment()));
+    if (!result.ok) throw new Error(JSON.stringify(result.problems));
+    expect(result.payload.segments).toEqual([
+      {
+        segmentId: '35710081',
+        name: 'Synthetic Climb',
+        distanceM: 685,
+        elevationGainM: null,
+        averageGradePct: null,
+        maximumGradePct: null,
+        elevationHighM: 527.8,
+        elevationLowM: 508.8,
+        city: null,
+        state: null,
+        country: null,
+        start: { latitude: 7.29, longitude: 80.63 },
+        end: { latitude: 7.3, longitude: 80.64 },
+        route: null, // empty route lists mean "not known"
+        altitudeSamplesM: null,
+        distanceSamplesM: null,
+        prElapsedTimeS: null,
+        prDate: null,
+        effortCount: null,
+      },
+    ]);
+  });
+
+  it('reads route.latlng with its altitude and distance samples', () => {
+    const route = {
+      latlng: [
+        [7.29, 80.63],
+        [7.3, 80.64],
+      ],
+      altitude: [508.8, 527.8],
+      distance: [0, 685],
+    };
+    const result = parse('c.json', catalogFile(catalogSegment({ route })));
+    expect(result.ok && result.payload.segments[0]).toMatchObject({
+      route: [
+        { latitude: 7.29, longitude: 80.63 },
+        { latitude: 7.3, longitude: 80.64 },
+      ],
+      altitudeSamplesM: [508.8, 527.8],
+      distanceSamplesM: [0, 685],
+    });
+  });
+
+  it('reads the additional catalog fields and efforts', () => {
+    const result = parse(
+      'c.json',
+      catalogFile(
+        catalogSegment({
+          elevationGainM: 19,
+          prElapsedTimeS: 120,
+          prDate: '2024-05-01',
+          efforts: [{ effortId: '77', startDate: '2024-05-01T07:00:00.000Z', elapsedTimeS: 120 }],
+        }),
+      ),
+    );
+    if (!result.ok) throw new Error(JSON.stringify(result.problems));
+    expect(result.payload.segments[0]).toMatchObject({
+      elevationGainM: 19,
+      prElapsedTimeS: 120,
+      prDate: '2024-05-01',
+    });
+    expect(result.payload.efforts).toEqual([
+      {
+        segmentId: '35710081',
+        effortId: '77',
+        activityId: null,
+        startDate: '2024-05-01T07:00:00.000Z',
+        elapsedTimeS: 120,
+        movingTimeS: null,
+      },
+    ]);
+  });
+
+  it('prefers Strava field names when both are given', () => {
+    const result = parse('c.json', [catalogSegment({ distance: 700, start_latlng: [1, 2] })]);
+    expect(result.ok && result.payload.segments[0]).toMatchObject({
+      distanceM: 700,
+      start: { latitude: 1, longitude: 2 },
+    });
+  });
+
+  it('reports invalid catalog values under their own names', () => {
+    const result = parse(
+      'c.json',
+      catalogFile(catalogSegment({ distanceKm: 'far', start: { lat: 'x', lng: 1 } })),
+    );
+    expect(problemsOf(result).map((p) => p.field)).toEqual([
+      'distance / distanceKm',
+      'start_latlng / start',
+    ]);
   });
 });
 
@@ -379,11 +492,11 @@ describe('BR-21 / AC-21: parseSegmentFile reports problems by record and field',
     ]);
     // Segments are reported first, then efforts.
     expect(problemsOf(result)).toEqual([
-      { location: 'segment 1 (ID 1)', field: 'distance', message: expect.any(String) },
+      { location: 'segment 1 (ID 1)', field: 'distance / distanceKm', message: expect.any(String) },
       { location: 'segment 2 (ID 2)', field: 'name', message: expect.any(String) },
       {
         location: 'segment 2 (ID 2)',
-        field: 'streams.latlng / geometry / map.polyline',
+        field: 'streams.latlng / route.latlng / geometry / map.polyline',
         message: expect.any(String),
       },
       { location: 'segment 1 (ID 1), effort 1', field: 'start_date', message: expect.any(String) },

@@ -98,6 +98,24 @@ or `"streams": [{ "type": "latlng", "data": [...] }, { "type": "altitude", "data
   samples.
 - The CSV formats carry no samples.
 
+### Segment catalog format
+
+A file in the catalog format (`docs/segment-catalog-format.md`, `{ "version": 1, "segments": [...] }`)
+can be uploaded as it is. Its fields map to the same segment details:
+
+| Catalog field                                                                                     | Same as                                      |
+| ------------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| `distanceKm`                                                                                      | `distance` (converted to metres)             |
+| `elevationMinM`, `elevationMaxM`                                                                  | `elevation_low`, `elevation_high`            |
+| `start`, `end` as `{ "lat", "lng" }`                                                              | `start_latlng`, `end_latlng`                 |
+| `route.latlng`, `route.altitude`, `route.distance`                                                | the `latlng`, `altitude`, `distance` streams |
+| `elevationGainM`, `averageGradePct`, `maximumGradePct`, `prElapsedTimeS`, `prDate`, `effortCount` | the Strava fields above                      |
+| `efforts[]` with `effortId`, `activityId`, `startDate`, `elapsedTimeS`, `movingTimeS`             | Strava effort fields                         |
+
+Where a Strava field and a catalog field are both given, the Strava field is used. Empty lists
+(`"latlng": []`) mean "not known". The `name` is stored exactly as given. Anything the file does
+not provide is shown as "Not available".
+
 ## GeoJSON
 
 A `FeatureCollection` with one `Feature` per segment. The geometry is the segment route
