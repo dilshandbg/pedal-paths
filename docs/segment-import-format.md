@@ -6,6 +6,9 @@ ADR-0010). You prepare the file yourself; the application never contacts Strava.
 Field names follow the Strava API, so a segment object copied from Strava can usually be uploaded
 as-is. Unknown fields are ignored.
 
+`npm run fetch-segments` (ADR-0012) writes a file in this JSON format, with Strava's details and
+streams, for segments you name.
+
 ## Limits
 
 | Limit      | Value                               |
@@ -97,6 +100,24 @@ or `"streams": [{ "type": "latlng", "data": [...] }, { "type": "altitude", "data
 - In GeoJSON, a third coordinate on every position (`[lng, lat, altitude]`) is read as the altitude
   samples.
 - The CSV formats carry no samples.
+
+### Segment catalog format
+
+A file in the catalog format (`docs/segment-catalog-format.md`, `{ "version": 1, "segments": [...] }`)
+can be uploaded as it is. Its fields map to the same segment details:
+
+| Catalog field                                                                                     | Same as                                      |
+| ------------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| `distanceKm`                                                                                      | `distance` (converted to metres)             |
+| `elevationMinM`, `elevationMaxM`                                                                  | `elevation_low`, `elevation_high`            |
+| `start`, `end` as `{ "lat", "lng" }`                                                              | `start_latlng`, `end_latlng`                 |
+| `route.latlng`, `route.altitude`, `route.distance`                                                | the `latlng`, `altitude`, `distance` streams |
+| `elevationGainM`, `averageGradePct`, `maximumGradePct`, `prElapsedTimeS`, `prDate`, `effortCount` | the Strava fields above                      |
+| `efforts[]` with `effortId`, `activityId`, `startDate`, `elapsedTimeS`, `movingTimeS`             | Strava effort fields                         |
+
+Where a Strava field and a catalog field are both given, the Strava field is used. Empty lists
+(`"latlng": []`) mean "not known". The `name` is stored exactly as given. Anything the file does
+not provide is shown as "Not available".
 
 ## GeoJSON
 

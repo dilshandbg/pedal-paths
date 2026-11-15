@@ -8,6 +8,7 @@ export type {
   ImportResult,
   ImportStatus,
 } from './import';
+export type { BaseMapOption, BaseMapTheme, HeatPaletteId } from './mapStyle';
 export type {
   Coordinate,
   PersonalBest,
@@ -19,6 +20,7 @@ export type {
   SegmentImportPlanItem,
   SegmentImportProblem,
   SegmentImportStatus,
+  SegmentMarker,
   SegmentOverlayData,
   SegmentPath,
   SegmentRecord,

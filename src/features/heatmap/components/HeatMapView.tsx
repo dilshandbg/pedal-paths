@@ -2,11 +2,18 @@ import { Suspense, lazy, useMemo } from 'react';
 import { aggregateHeatMap } from '@/features/heatmap/services/aggregateHeatMap';
 import { buildHeatMapGeometry } from '@/features/heatmap/services/buildHeatMapGeometry';
 import { computeBounds } from '@/features/heatmap/utils/bounds';
-import { getMapStyleUrl } from '@/services/map';
+import { HEAT_PALETTE_OPTIONS } from '@/components/map/heatStyle';
+import { MapOptionSelect } from '@/components/map/MapOptionSelect';
+import { useMapStyleStore } from '@/features/heatmap/store/mapStyleStore';
+import { resolveChoice } from '@/features/heatmap/utils/baseMap';
+import { getBaseMapOptions } from '@/services/map';
 import type { CyclingActivity, GeoBounds, SegmentIndex, SegmentOverlayData } from '@/types';
 
 // MapLibre + deck.gl are large; load them in their own chunk so the rest of the dashboard
 // (header, upload panel, filters) renders immediately.
+/** Base maps on offer; fixed for the session (they depend only on build-time configuration). */
+const BASE_MAP_OPTIONS = getBaseMapOptions();
+
 const MapView = lazy(() =>
   import('@/components/map/MapView').then((module) => ({ default: module.MapView })),
 );
@@ -30,7 +37,8 @@ interface HeatMapViewProps {
  * result to the map (BR-12). A new selection only replaces the deck.gl layer on the existing map:
  * the map is never recreated and the page never reloads (BR-10). Re-aggregation happens when the selection or the index changes. The
  * view is fitted to all loaded activities, so it only moves when a new dataset arrives, not on
- * every filter change.
+ * every filter change. The user picks the base map style, and the heat map colours follow its
+ * theme (BR-32).
  */
 export function HeatMapView({
   activities,
@@ -57,18 +65,50 @@ export function HeatMapView({
     [selectedActivities, segmentIndex, geometry],
   );
   const bounds = useMemo(() => (activities ? computeBounds(activities) : null), [activities]);
+  const baseMapId = useMapStyleStore((state) => state.baseMapId);
+  const setBaseMap = useMapStyleStore((state) => state.setBaseMap);
+  const heatPaletteId = useMapStyleStore((state) => state.heatPaletteId);
+  const setHeatPalette = useMapStyleStore((state) => state.setHeatPalette);
+  // Both option lists include their default, so neither result is null.
+  const baseMap = resolveChoice(BASE_MAP_OPTIONS, baseMapId) as (typeof BASE_MAP_OPTIONS)[number];
+  const heatPalette = resolveChoice(
+    HEAT_PALETTE_OPTIONS,
+    heatPaletteId,
+  ) as (typeof HEAT_PALETTE_OPTIONS)[number];
 
   return (
-    <Suspense fallback={<MapLoading />}>
-      <MapView
-        styleUrl={getMapStyleUrl()}
-        data={data}
-        fitBounds={bounds}
-        segmentOverlay={segmentOverlay}
-        focusBounds={focusBounds}
-        {...(onSegmentSelect ? { onSegmentSelect } : {})}
-      />
-    </Suspense>
+    <div className="relative h-full min-h-[inherit]">
+      <Suspense fallback={<MapLoading />}>
+        <MapView
+          styleUrl={baseMap.url}
+          baseMapTheme={baseMap.theme}
+          heatPalette={heatPalette.id}
+          data={data}
+          fitBounds={bounds}
+          segmentOverlay={segmentOverlay}
+          focusBounds={focusBounds}
+          {...(onSegmentSelect ? { onSegmentSelect } : {})}
+        />
+      </Suspense>
+      <div
+        role="group"
+        aria-label="Map display"
+        className="absolute top-3 left-3 z-10 flex flex-col gap-1.5 rounded-lg bg-white/90 px-3 py-2 shadow-sm backdrop-blur"
+      >
+        <MapOptionSelect
+          label="Map style"
+          options={BASE_MAP_OPTIONS}
+          selectedId={baseMap.id}
+          onSelect={setBaseMap}
+        />
+        <MapOptionSelect
+          label="Heat colours"
+          options={HEAT_PALETTE_OPTIONS}
+          selectedId={heatPalette.id}
+          onSelect={setHeatPalette}
+        />
+      </div>
+    </div>
   );
 }
 

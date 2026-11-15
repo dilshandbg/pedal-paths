@@ -55,7 +55,8 @@ climb produces more points than a fast descent, so density misrepresents frequen
   centre, so drawn roads follow the real track.
 - **Intensity is log-scaled**: `log(1 + f) / log(1 + max)`. This replaces item 3's linear ratio,
   which made once-ridden roads nearly invisible next to a daily commute (1/300 → 0.003, versus
-  ≈ 0.12 on the log scale). The ramp runs from orange to dark red (`components/map/heatStyle.ts`),
+  ≈ 0.12 on the log scale). The ramp ran from orange to dark red; the user now chooses magenta–purple (default) or
+  that original fire ramp, adjusted to the chosen base map (technical design §6b, OD-27; `components/map/heatStyle.ts`),
   and line width (2–6 px) also grows with intensity, so colour is not the only signal. A legend
   shows the range from 1 ride to the maximum.
 - **No `activityIds` per path** (changes item 4). Storing ride IDs on every merged path cost

@@ -20,7 +20,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "typecheck": "tsc -b",
-    "perf": "node tests/perf/run.mjs"
+    "perf": "node tests/perf/run.mjs",
+    "fetch-segments": "node server/strava/fetchSegmentsCli.mjs"
   },
   "dependencies": {
     "@deck.gl/core": "^9.1.0",

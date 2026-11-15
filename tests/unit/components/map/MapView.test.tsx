@@ -1,5 +1,5 @@
 import { LineLayer, PathLayer, ScatterplotLayer } from '@deck.gl/layers';
-import { render, screen } from '@testing-library/react';
+import { cleanup, render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import {
   FIT_BOUNDS_MAX_ZOOM,
@@ -9,13 +9,18 @@ import {
 import { MapView } from '@/components/map/MapView';
 import { heatColor, heatWidth } from '@/components/map/heatStyle';
 import { JOINT_LAYER_ID, SEGMENT_LAYER_ID } from '@/components/map/routeLayer';
-import { SEGMENT_CASING_LAYER_ID, SEGMENT_OVERLAY_LAYER_ID } from '@/components/map/segmentLayer';
+import {
+  SEGMENT_CASING_LAYER_ID,
+  SEGMENT_MARKER_LAYER_ID,
+  SEGMENT_OVERLAY_LAYER_ID,
+} from '@/components/map/segmentLayer';
 import { frequencyToIntensity } from '@/features/heatmap/services/aggregateHeatMap';
 import type { GeoBounds, HeatMapData, HeatMapGeometry, SegmentOverlayData } from '@/types';
 import {
   FakeMap,
   FakeMapboxOverlay,
   FakeNavigationControl,
+  resetMapFakes,
   workerUrls,
 } from '../../../mocks/mapLibraries';
 
@@ -224,6 +229,56 @@ describe('BR-06: MapView', () => {
   });
 });
 
+describe('BR-32: MapView base map style', () => {
+  const DARK_STYLE = 'https://tiles.example.org/dark.json';
+
+  it('switches the style in place, keeping the map, its overlay and the heat map', () => {
+    const { rerender } = render(<MapView styleUrl={STYLE} data={twoRides} fitBounds={null} />);
+    rerender(
+      <MapView styleUrl={DARK_STYLE} baseMapTheme="dark" data={twoRides} fitBounds={null} />,
+    );
+    const map = onlyMap();
+    expect(map.removed).toBe(false);
+    expect(map.setStyleCalls).toEqual([DARK_STYLE]);
+    expect(onlyOverlay().props.layers).toHaveLength(2);
+  });
+
+  it('does not reload the style when only other props change', () => {
+    const { rerender } = render(<MapView styleUrl={STYLE} data={null} fitBounds={null} />);
+    rerender(<MapView styleUrl={STYLE} data={twoRides} fitBounds={null} />);
+    expect(onlyMap().setStyleCalls).toEqual([]);
+  });
+
+  it('colours the heat map for the theme: the busiest road is lighter than the quietest on a dark map', () => {
+    const colours = (theme: 'light' | 'dark') => {
+      render(<MapView styleUrl={STYLE} baseMapTheme={theme} data={twoRides} fitBounds={null} />);
+      const layer = (onlyOverlay().props.layers ?? [])[0];
+      const color = attributes(layer).attributes.getColor;
+      const result = { once: rgba(color, 0), five: rgba(color, 1) };
+      cleanup();
+      resetMapFakes();
+      return result;
+    };
+    const lum = ([r, g, b]: number[]) => 0.2126 * (r ?? 0) + 0.7152 * (g ?? 0) + 0.0722 * (b ?? 0);
+    const light = colours('light');
+    const dark = colours('dark');
+    expect(lum(light.five)).toBeLessThan(lum(light.once));
+    expect(lum(dark.five)).toBeGreaterThan(lum(dark.once));
+    expect(light.five.slice(0, 3)).toEqual(heatColor(1, 'light').slice(0, 3));
+  });
+
+  it('draws the chosen heat colours on the map and in the legend', () => {
+    render(<MapView styleUrl={STYLE} heatPalette="fire" data={twoRides} fitBounds={null} />);
+    const layer = (onlyOverlay().props.layers ?? [])[0];
+    const color = attributes(layer).attributes.getColor;
+    expect(rgba(color, 1)).toEqual(heatColor(1, 'light', 'fire'));
+    // Segment 0 is ridden once: its intensity on the log scale, not 0.
+    expect(rgba(color, 0)).toEqual(
+      heatColor(twoRides.intensityByFrequency[1] ?? 0, 'light', 'fire'),
+    );
+  });
+});
+
 describe('BR-26 / AC-27: MapView segment overlay', () => {
   const overlay: SegmentOverlayData = {
     paths: [
@@ -244,6 +299,7 @@ describe('BR-26 / AC-27: MapView segment overlay', () => {
         ],
       },
     ],
+    markers: [],
     selectedSegmentId: '2',
   };
   type Layer = { id: string; props: Record<string, unknown> };
@@ -259,6 +315,7 @@ describe('BR-26 / AC-27: MapView segment overlay', () => {
       JOINT_LAYER_ID,
       SEGMENT_CASING_LAYER_ID,
       SEGMENT_OVERLAY_LAYER_ID,
+      SEGMENT_MARKER_LAYER_ID,
     ]);
     expect(layer(SEGMENT_OVERLAY_LAYER_ID)).toBeInstanceOf(PathLayer);
     expect(layer(SEGMENT_OVERLAY_LAYER_ID)?.props.data).toBe(overlay.paths);
@@ -286,9 +343,41 @@ describe('BR-26 / AC-27: MapView segment overlay', () => {
     expect(layers().map((entry) => entry.id)).toEqual([
       SEGMENT_CASING_LAYER_ID,
       SEGMENT_OVERLAY_LAYER_ID,
+      SEGMENT_MARKER_LAYER_ID,
     ]);
     rerender(<MapView styleUrl={STYLE} data={null} fitBounds={null} segmentOverlay={null} />);
     expect(layers()).toEqual([]);
+  });
+
+  it('draws start and end markers, by shape, for segments without a route, and reports a click', () => {
+    const markers: SegmentOverlayData = {
+      paths: [],
+      markers: [
+        { segmentId: '7', name: 'C', kind: 'start', position: [2, 2] },
+        { segmentId: '7', name: 'C', kind: 'end', position: [2.01, 2.01] },
+      ],
+      selectedSegmentId: null,
+    };
+    const selections: string[] = [];
+    render(
+      <MapView
+        styleUrl={STYLE}
+        data={null}
+        fitBounds={null}
+        segmentOverlay={markers}
+        onSegmentSelect={(id) => selections.push(id)}
+      />,
+    );
+    const markerLayer = layer(SEGMENT_MARKER_LAYER_ID);
+    expect(markerLayer).toBeInstanceOf(ScatterplotLayer);
+    expect(markerLayer?.props.data).toBe(markers.markers);
+    expect(layer(SEGMENT_OVERLAY_LAYER_ID)?.props.data).toEqual([]); // no line between them
+    const fill = markerLayer?.props.getFillColor as (d: unknown) => unknown;
+    expect(fill(markers.markers[0])).not.toEqual(fill(markers.markers[1]));
+    (markerLayer?.props.onClick as (info: { object?: unknown }) => void)({
+      object: markers.markers[1],
+    });
+    expect(selections).toEqual(['7']);
   });
 
   it('reports a click on a segment route', () => {

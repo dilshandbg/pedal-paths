@@ -11,7 +11,13 @@ import { HeatLegend } from '@/components/map/HeatLegend';
 import { createRouteLayers } from '@/components/map/routeLayer';
 import { createSegmentLayers } from '@/components/map/segmentLayer';
 import { setupMapLibre } from '@/services/map/setupMapLibre';
-import type { GeoBounds, HeatMapData, SegmentOverlayData } from '@/types';
+import type {
+  BaseMapTheme,
+  GeoBounds,
+  HeatMapData,
+  HeatPaletteId,
+  SegmentOverlayData,
+} from '@/types';
 
 setupMapLibre();
 
@@ -19,8 +25,12 @@ setupMapLibre();
 const SEGMENT_FOCUS_MAX_ZOOM = 15;
 
 interface MapViewProps {
-  /** MapLibre style URL for the base map (ADR-0008). */
+  /** MapLibre style URL for the base map (ADR-0008). Changing it switches the style in place. */
   styleUrl: string;
+  /** Whether the base map is light or dark; the heat map colours follow it (BR-32). */
+  baseMapTheme?: BaseMapTheme;
+  /** Heat map colour ramp (OD-27); the default when omitted. */
+  heatPalette?: HeatPaletteId;
   /** Render-ready routes, or null when no rides are loaded. */
   data: HeatMapData | null;
   /** When this changes, the view is fitted to these bounds (e.g. a new dataset was loaded). */
@@ -40,6 +50,8 @@ interface MapViewProps {
 // Implements: BR-06, BR-26
 export function MapView({
   styleUrl,
+  baseMapTheme = 'light',
+  heatPalette,
   data,
   fitBounds,
   segmentOverlay = null,
@@ -56,7 +68,10 @@ export function MapView({
     onSegmentSelectRef.current = onSegmentSelect;
   }, [onSegmentSelect]);
 
-  // Create the map once per style URL.
+  // The style the map currently shows; later changes are applied with setStyle (BR-32).
+  const styleRef = useRef(styleUrl);
+
+  // Create the map once. Switching the base map keeps the map, its view and the deck.gl overlay.
   useEffect(() => {
     const container = containerRef.current;
     if (!container) {
@@ -67,7 +82,7 @@ export function MapView({
     try {
       map = new MapLibreMap({
         container,
-        style: styleUrl,
+        style: styleRef.current,
         center: INITIAL_VIEW.center,
         zoom: INITIAL_VIEW.zoom,
         attributionControl: { compact: true },
@@ -94,6 +109,14 @@ export function MapView({
       mapRef.current = null;
       overlayRef.current = null;
     };
+  }, []);
+
+  // Switch the base map style in place (BR-32).
+  useEffect(() => {
+    if (mapRef.current && styleRef.current !== styleUrl) {
+      mapRef.current.setStyle(styleUrl);
+    }
+    styleRef.current = styleUrl;
   }, [styleUrl]);
 
   // Redraw whenever the prepared data changes. Segment routes are drawn above the heat map and
@@ -101,7 +124,7 @@ export function MapView({
   useEffect(() => {
     overlayRef.current?.setProps({
       layers: [
-        ...(data ? createRouteLayers(data) : []),
+        ...(data ? createRouteLayers(data, baseMapTheme, heatPalette) : []),
         ...(segmentOverlay
           ? createSegmentLayers(segmentOverlay, (segmentId) =>
               onSegmentSelectRef.current?.(segmentId),
@@ -109,7 +132,7 @@ export function MapView({
           : []),
       ],
     });
-  }, [data, segmentOverlay]);
+  }, [data, segmentOverlay, baseMapTheme, heatPalette]);
 
   // Fit the view when new bounds arrive.
   useEffect(() => {
@@ -158,7 +181,11 @@ export function MapView({
       ) : null}
 
       {data !== null && data.maxFrequency > 0 ? (
-        <HeatLegend maxFrequency={data.maxFrequency} />
+        <HeatLegend
+          maxFrequency={data.maxFrequency}
+          theme={baseMapTheme}
+          {...(heatPalette ? { palette: heatPalette } : {})}
+        />
       ) : null}
 
       <p role="status" className="sr-only">
