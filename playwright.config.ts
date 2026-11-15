@@ -11,6 +11,9 @@ export default defineConfig({
   forbidOnly: isCI,
   retries: isCI ? 2 : 0,
   reporter: isCI ? 'github' : 'list',
+  // ZIP imports run in a Web Worker; with every test in parallel on an emulated phone they can
+  // take longer than the 5 s default on a busy machine.
+  expect: { timeout: 10_000 },
   use: {
     baseURL: BASE_URL,
     trace: 'on-first-retry',
