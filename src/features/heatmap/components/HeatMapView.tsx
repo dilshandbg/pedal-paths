@@ -2,11 +2,17 @@ import { Suspense, lazy, useMemo } from 'react';
 import { aggregateHeatMap } from '@/features/heatmap/services/aggregateHeatMap';
 import { buildHeatMapGeometry } from '@/features/heatmap/services/buildHeatMapGeometry';
 import { computeBounds } from '@/features/heatmap/utils/bounds';
-import { getMapStyleUrl } from '@/services/map';
+import { BaseMapSelect } from '@/components/map/BaseMapSelect';
+import { useMapStyleStore } from '@/features/heatmap/store/mapStyleStore';
+import { resolveBaseMap } from '@/features/heatmap/utils/baseMap';
+import { getBaseMapOptions } from '@/services/map';
 import type { CyclingActivity, GeoBounds, SegmentIndex, SegmentOverlayData } from '@/types';
 
 // MapLibre + deck.gl are large; load them in their own chunk so the rest of the dashboard
 // (header, upload panel, filters) renders immediately.
+/** Base maps on offer; fixed for the session (they depend only on build-time configuration). */
+const BASE_MAP_OPTIONS = getBaseMapOptions();
+
 const MapView = lazy(() =>
   import('@/components/map/MapView').then((module) => ({ default: module.MapView })),
 );
@@ -30,7 +36,8 @@ interface HeatMapViewProps {
  * result to the map (BR-12). A new selection only replaces the deck.gl layer on the existing map:
  * the map is never recreated and the page never reloads (BR-10). Re-aggregation happens when the selection or the index changes. The
  * view is fitted to all loaded activities, so it only moves when a new dataset arrives, not on
- * every filter change.
+ * every filter change. The user picks the base map style, and the heat map colours follow its
+ * theme (BR-32).
  */
 export function HeatMapView({
   activities,
@@ -57,18 +64,30 @@ export function HeatMapView({
     [selectedActivities, segmentIndex, geometry],
   );
   const bounds = useMemo(() => (activities ? computeBounds(activities) : null), [activities]);
+  const baseMapId = useMapStyleStore((state) => state.baseMapId);
+  const setBaseMap = useMapStyleStore((state) => state.setBaseMap);
+  // The options always include the default, so this is never null.
+  const baseMap = resolveBaseMap(BASE_MAP_OPTIONS, baseMapId) as NonNullable<
+    ReturnType<typeof resolveBaseMap>
+  >;
 
   return (
-    <Suspense fallback={<MapLoading />}>
-      <MapView
-        styleUrl={getMapStyleUrl()}
-        data={data}
-        fitBounds={bounds}
-        segmentOverlay={segmentOverlay}
-        focusBounds={focusBounds}
-        {...(onSegmentSelect ? { onSegmentSelect } : {})}
-      />
-    </Suspense>
+    <div className="relative h-full min-h-[inherit]">
+      <Suspense fallback={<MapLoading />}>
+        <MapView
+          styleUrl={baseMap.url}
+          baseMapTheme={baseMap.theme}
+          data={data}
+          fitBounds={bounds}
+          segmentOverlay={segmentOverlay}
+          focusBounds={focusBounds}
+          {...(onSegmentSelect ? { onSegmentSelect } : {})}
+        />
+      </Suspense>
+      <div className="absolute top-3 left-3 z-10">
+        <BaseMapSelect options={BASE_MAP_OPTIONS} selectedId={baseMap.id} onSelect={setBaseMap} />
+      </div>
+    </div>
   );
 }
 

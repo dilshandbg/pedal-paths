@@ -1,15 +1,18 @@
-import { HEAT_LEGEND_GRADIENT } from '@/components/map/heatStyle';
+import { heatLegendGradient } from '@/components/map/heatStyle';
+import type { BaseMapTheme } from '@/types';
 
 interface HeatLegendProps {
   /** Highest number of rides on any road segment. */
   maxFrequency: number;
+  /** Base map theme the heat map colours follow (BR-32). */
+  theme?: BaseMapTheme;
 }
 
 const rides = (count: number) =>
   `${count.toLocaleString('en-US')} ${count === 1 ? 'ride' : 'rides'}`;
 
 /** Explains the heat map colours: how many rides used a road (BR-12, AC-12). */
-export function HeatLegend({ maxFrequency }: HeatLegendProps) {
+export function HeatLegend({ maxFrequency, theme = 'light' }: HeatLegendProps) {
   return (
     <figure
       aria-label="Heat map legend"
@@ -19,7 +22,7 @@ export function HeatLegend({ maxFrequency }: HeatLegendProps) {
       <div
         aria-hidden="true"
         className="h-2 w-36 rounded-full"
-        style={{ background: HEAT_LEGEND_GRADIENT }}
+        style={{ background: heatLegendGradient(theme) }}
       />
       <div className="mt-1 flex justify-between gap-4">
         <span>{rides(1)}</span>

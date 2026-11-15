@@ -8,6 +8,7 @@ export type {
   ImportResult,
   ImportStatus,
 } from './import';
+export type { BaseMapOption, BaseMapTheme } from './mapStyle';
 export type {
   Coordinate,
   PersonalBest,

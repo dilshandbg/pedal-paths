@@ -52,6 +52,12 @@ The Tests columns name test files without their suffix: unit and integration tes
 | BR-30  | Migrate segments stored in SQLite into the catalog once, without loss                               | ADR-0011           | Verified | `migrateLegacyDatabase`, `vitePlugin`                                                                                                     | migrateLegacyDatabase                                                                                              |
 | BR-31  | Optional command downloads segment details and streams with the user's token into an upload file    | ADR-0012           | Verified | `fetchStravaSegments`, `toImportFile`, `segmentIdsFromFile`, `parseFetchArguments`, `fetchSegmentsCli.mjs`                                | fetchSegments (mocked Strava responses)                                                                            |
 
+### Owner-approved, not yet in the BRD
+
+| Req ID                  | Summary                                                                                           | Design                         | Status   | Implementation                                                                                                                                                                           | Tests                                                |
+| ----------------------- | ------------------------------------------------------------------------------------------------- | ------------------------------ | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| BR-32 (proposed, OD-27) | Choose the base map style; magenta–purple heat ramp per light/dark map; remembered in the browser | ADR-0008, technical design §6b | Verified | `getBaseMapOptions`, `resolveBaseMap`, `loadBaseMapId`/`saveBaseMapId`, `mapStyleStore`, `BaseMapSelect`, `HeatMapView`, `MapView` (`setStyle`), `heatStyle`, `routeLayer`, `HeatLegend` | baseMap, heatStyle, MapView, map-style (integration) |
+
 ## Acceptance criteria (BRD §5)
 
 | Req ID | Verifies            | Summary                                                                                              | Status            | Tests                                                                                             |
