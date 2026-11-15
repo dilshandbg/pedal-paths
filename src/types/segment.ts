@@ -29,6 +29,16 @@ export interface SegmentRecord {
   readonly end: Coordinate | null;
   /** Route geometry in order, or null when the file has none. */
   readonly route: readonly Coordinate[] | null;
+  /**
+   * Altitude in metres at each route point (Strava `altitude` stream), aligned with `route`, or
+   * null when the file has none (BRD v2.1 BR-29).
+   */
+  readonly altitudeSamplesM: readonly number[] | null;
+  /**
+   * Distance from the segment start in metres at each route point (Strava `distance` stream),
+   * aligned with `route`, or null when the file has none (BR-29).
+   */
+  readonly distanceSamplesM: readonly number[] | null;
   /** Personal best stated by the source, in seconds. */
   readonly prElapsedTimeS: number | null;
   /** Date of the stated personal best (`YYYY-MM-DD`). */

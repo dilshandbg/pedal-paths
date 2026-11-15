@@ -64,6 +64,25 @@ describe('BR-21 / NFR-08: validateSegmentPayload', () => {
     expect(problems.some((problem) => problem.field === field)).toBe(true);
   });
 
+  it('BR-29: accepts altitude and distance samples aligned with the route', () => {
+    const samples = { altitudeSamplesM: [100, 105, 103], distanceSamplesM: [0, 50, 100] };
+    const result = validateSegmentPayload(payload({ segments: [segmentRecord(samples)] }));
+    expect(result.ok && result.payload.segments[0]).toMatchObject(samples);
+  });
+
+  it.each([
+    [{ altitudeSamplesM: [1, 2] }, 'Must have one value per route point (3), not 2.'],
+    [{ altitudeSamplesM: [1, 2, 'x'] }, 'Must be a list of numbers.'],
+    [{ altitudeSamplesM: [1, 2, 9001] }, 'Values must be between -500 and 9000.'],
+    [{ distanceSamplesM: 'far' }, 'Must be a list of numbers.'],
+    [{ distanceSamplesM: [0, 60, 50] }, 'Must never decrease along the route.'],
+    [{ distanceSamplesM: [-1, 0, 1] }, 'Values must be between 0 and 1000000.'],
+    [{ distanceSamplesM: [0, 1, 2], route: null }, 'Needs a route with one point per sample.'],
+  ])('BR-29: rejects samples %j', (patch, message) => {
+    const problems = problemsOf(payload({ segments: [segmentRecord(patch as never)] }));
+    expect(problems.map((p) => p.message)).toContain(message);
+  });
+
   it('AC-24: rejects a segment ID that appears twice in one import', () => {
     const problems = problemsOf(payload({ segments: [segmentRecord(), segmentRecord()] }));
     expect(problems).toEqual([

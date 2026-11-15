@@ -5,6 +5,9 @@ implemented and verified.
 
 **Status: all tasks done** on `feature/segment-import` (see `docs/traceability.md`). Open: OD-24.
 
+> **Superseded storage (BRD v2.1, ADR-0011):** segments are now stored in a JSON segment catalog.
+> The SQLite schema below is what v2.0 shipped; it is now only read once, to migrate (BR-30).
+
 ## 1. Gap analysis
 
 ### Already implemented (BRD v1.1, unchanged in v2.0)

@@ -1,6 +1,8 @@
 # 0009. Local Node backend with SQLite for segment data
 
-- Status: Accepted (owner requirement, BRD v2.0, 2026-11-15)
+- Status: Accepted (owner requirement, BRD v2.0, 2026-11-15). Storage superseded by
+  [ADR-0011](0011-json-segment-catalog.md) (BRD v2.1): segments are now kept in a JSON catalog;
+  SQLite is only read once, to migrate them.
 - Date: 2026-11-15
 - Amends: [ADR-0002](0002-client-side-gpx-processing.md) (the app is no longer client-only)
 - Related requirements: BR-23, BR-24, BR-27, BR-28, NFR-01, NFR-03, NFR-07, NFR-08, NFR-09

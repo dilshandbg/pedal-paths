@@ -36,6 +36,34 @@ describe('RULE-16: mergeSegment', () => {
     expect(merged.segmentId).toBe(stored.segmentId);
   });
 
+  it('RULE-19: keeps stored samples while the route stays the same', () => {
+    const stored = segmentRecord({ altitudeSamplesM: [1, 2, 3], distanceSamplesM: [0, 1, 2] });
+    expect(mergeSegment(stored, segmentRecord({ name: 'Renamed' }))).toMatchObject({
+      name: 'Renamed',
+      altitudeSamplesM: [1, 2, 3],
+      distanceSamplesM: [0, 1, 2],
+    });
+    expect(mergeSegment(stored, segmentRecord({ route: null }))).toMatchObject({
+      altitudeSamplesM: [1, 2, 3],
+    });
+  });
+
+  it('RULE-19: drops stored samples when a different route arrives without samples', () => {
+    const stored = segmentRecord({ altitudeSamplesM: [1, 2, 3], distanceSamplesM: [0, 1, 2] });
+    const newRoute = [
+      { latitude: 5, longitude: 5 },
+      { latitude: 5.1, longitude: 5.1 },
+    ];
+    expect(mergeSegment(stored, segmentRecord({ route: newRoute }))).toMatchObject({
+      route: newRoute,
+      altitudeSamplesM: null,
+      distanceSamplesM: null,
+    });
+    expect(
+      mergeSegment(stored, segmentRecord({ route: newRoute, altitudeSamplesM: [7, 8] })),
+    ).toMatchObject({ altitudeSamplesM: [7, 8], distanceSamplesM: null });
+  });
+
   it('does not mutate its inputs', () => {
     const stored = Object.freeze(segmentRecord());
     const incoming = Object.freeze(segmentRecord({ distanceM: 9 }));

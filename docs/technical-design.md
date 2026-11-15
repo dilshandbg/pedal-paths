@@ -51,23 +51,23 @@ worth doing: re-measure NFR-02 with a real Strava export, and confirm the OD-24 
 
 ## 2. Technology stack
 
-| Concern         | Choice                                                         | Decision              |
-| --------------- | -------------------------------------------------------------- | --------------------- |
-| UI              | React 19 + TypeScript (strict)                                 | Project brief         |
-| Build           | Vite 6                                                         | Project brief         |
-| Styling         | Tailwind CSS 4                                                 | Project brief         |
-| State           | Zustand 5                                                      | Project brief, BRD §8 |
-| Base map        | MapLibre GL JS + OpenFreeMap (OSM) tiles                       | ADR-0008              |
-| Route rendering | deck.gl 9 `LineLayer` + `ScatterplotLayer` via `MapboxOverlay` | ADR-0006, ADR-0008    |
-| ZIP + gunzip    | `fflate`                                                       | ADR-0004              |
-| FIT parsing     | `@garmin/fitsdk`                                               | ADR-0004              |
-| GPX parsing     | Local text scanner (no library)                                | ADR-0004 amendment    |
-| CSV parsing     | Local pure parser                                              | ADR-0004              |
-| Background work | Web Worker (Vite `?worker` import)                             | ADR-0004              |
-| Local backend   | Node 22.13+ middleware on the Vite dev / preview server        | ADR-0009              |
-| Segment storage | SQLite via Node's built-in `node:sqlite` (no dependency)       | ADR-0009              |
-| Segment overlay | deck.gl 9 `PathLayer` (casing + line) above the heat map       | ADR-0010              |
-| Testing         | Vitest 4 + jsdom + RTL; Playwright                             | Project brief         |
+| Concern         | Choice                                                                      | Decision              |
+| --------------- | --------------------------------------------------------------------------- | --------------------- |
+| UI              | React 19 + TypeScript (strict)                                              | Project brief         |
+| Build           | Vite 6                                                                      | Project brief         |
+| Styling         | Tailwind CSS 4                                                              | Project brief         |
+| State           | Zustand 5                                                                   | Project brief, BRD §8 |
+| Base map        | MapLibre GL JS + OpenFreeMap (OSM) tiles                                    | ADR-0008              |
+| Route rendering | deck.gl 9 `LineLayer` + `ScatterplotLayer` via `MapboxOverlay`              | ADR-0006, ADR-0008    |
+| ZIP + gunzip    | `fflate`                                                                    | ADR-0004              |
+| FIT parsing     | `@garmin/fitsdk`                                                            | ADR-0004              |
+| GPX parsing     | Local text scanner (no library)                                             | ADR-0004 amendment    |
+| CSV parsing     | Local pure parser                                                           | ADR-0004              |
+| Background work | Web Worker (Vite `?worker` import)                                          | ADR-0004              |
+| Local backend   | Node 22.13+ middleware on the Vite dev / preview server                     | ADR-0009              |
+| Segment storage | JSON catalog file written by the local backend; SQLite read once to migrate | ADR-0011              |
+| Segment overlay | deck.gl 9 `PathLayer` (casing + line) above the heat map                    | ADR-0010              |
+| Testing         | Vitest 4 + jsdom + RTL; Playwright                                          | Project brief         |
 
 ## 3. Domain model (`src/types`)
 
@@ -146,28 +146,36 @@ never stored.
 
 The segment list's search, distance range and sort order are local UI state of `SegmentsSection`.
 
-## 7a. Segments (ADR-0009, ADR-0010)
+## 7a. Segments (ADR-0009, ADR-0010, ADR-0011)
 
 - **Import format:** `docs/segment-import-format.md`. JSON (Strava field names), GeoJSON
   FeatureCollection, segments CSV or efforts CSV; at most 20 MB (OD-24).
 - **Parsing** runs in a Web Worker (`segmentFileWorker`): `parseSegmentFile` maps each format to
   the normalized payload and reports problems in the file's own terms ("row 4", "segment 2 (ID 7)",
   `distance`). Encoded polylines are decoded with the precision-5 algorithm (`utils/polyline`).
+  Strava `streams` (`latlng`, `altitude`, `distance`) and a third GeoJSON coordinate give the
+  altitude and distance samples (BR-29); the `latlng` stream is the route they are aligned with.
 - **Validation** (`validateSegmentPayload`) runs in the browser and again on the server: IDs are
   digit strings, numbers are finite and in range, dates are real calendar dates or ISO date-times
-  with a zone (normalized to UTC), coordinates are valid, routes have 2 – 100,000 points, IDs are
+  with a zone (normalized to UTC), coordinates are valid, routes have 2 – 100,000 points, samples have one value per route point (distances never
+  decreasing, RULE-19), IDs are
   unique within an import, efforts reference a segment in the import or already stored. Every
   problem is reported; nothing is stored if any exists (RULE-15).
 - **Plan and merge** (`planSegmentImport`, `mergeSegment`): a segment is `new`, an `update` (it
   changes a stored field or adds efforts) or `unchanged`. On update, values in the new file replace
   stored ones and absent (null) values keep them; efforts are only added, identified by effort ID,
   or by UTC start time and elapsed time (RULE-16).
-- **Storage** (`server/db/database.ts`): tables `segments` and `segment_efforts` (`STRICT`,
-  `ON DELETE CASCADE`), schema version in `PRAGMA user_version`, WAL for file databases. The
-  schema is in `docs/implementation-plan-v2.md` §2. The import runs in one `BEGIN IMMEDIATE`
-  transaction that re-plans against the current database.
-- **Personal best** (RULE-17): fastest stored effort, earliest on a tie (SQL window function plus
-  `personalBest`); otherwise the PR stated in the file.
+- **Storage** (ADR-0011, `server/catalog`): the JSON segment catalog
+  (`docs/segment-catalog-format.md`), loaded and fully validated on the first API request and kept
+  in memory. Each change is planned against the current catalog, written to a temporary file that
+  is renamed over the catalog, and applied in memory only after the write succeeded. An invalid
+  file is never loaded or overwritten (`storage-unavailable`). A new route without samples clears
+  the stored samples (RULE-19).
+- **Migration** (BR-30, `migrateLegacyDatabase`): when the catalog file is missing and a v2.0
+  SQLite database exists, its segments are copied into the catalog, the file is read back and
+  compared, and the database is renamed to `segments.sqlite.migrated`. The legacy schema is in
+  `docs/implementation-plan-v2.md` §2.
+- **Personal best** (RULE-17): fastest stored effort, earliest on a tie (`personalBest`); otherwise the PR stated in the file.
 - **Map overlay** (BR-26): `buildSegmentOverlay` turns stored routes (or start → end when only
   those are known) into `[lng, lat]` paths; `segmentLayer` draws them as blue lines with a white
   casing above the heat map. The selected segment is wider and darker and drawn last. A click
@@ -225,8 +233,9 @@ validation, segment persistence and the segment UI. Component tests can't reach 
 
 ### Open
 
-| ID    | Decision                                                                                                                                                                                   | Blocks    |
-| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------- |
-| OD-18 | Visualization modes (BRD §9) are deferred from the initial release. Revisit after the heat map ships.                                                                                      | —         |
-| OD-23 | `activities.csv` headers are assumed to be in English. If the export is localized, header mapping will need extending. Confirm with a real export.                                         | Ingestion |
-| OD-24 | BR-17 and the segment import require size limits but the BRD gives no numbers. Provisional: ZIP ≤ 5 GB (`MAX_ARCHIVE_BYTES`), segment file ≤ 20 MB (`LIMITS.fileBytes`). Owner to confirm. | —         |
+| ID    | Decision                                                                                                                                                                                                                                                                    | Blocks    |
+| ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| OD-18 | Visualization modes (BRD §9) are deferred from the initial release. Revisit after the heat map ships.                                                                                                                                                                       | —         |
+| OD-23 | `activities.csv` headers are assumed to be in English. If the export is localized, header mapping will need extending. Confirm with a real export.                                                                                                                          | Ingestion |
+| OD-26 | The owner asked to use the segment catalog for segment matching and ride analysis, but neither is specified yet (what to match, and what to show). Not implemented; the catalog stores the route, altitude and distance samples such analysis would need. Owner to specify. | Matching  |
+| OD-24 | BR-17 and the segment import require size limits but the BRD gives no numbers. Provisional: ZIP ≤ 5 GB (`MAX_ARCHIVE_BYTES`), segment file ≤ 20 MB (`LIMITS.fileBytes`). Owner to confirm.                                                                                  | —         |

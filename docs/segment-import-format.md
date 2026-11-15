@@ -71,9 +71,32 @@ Either an array of segments, or an object with a `segments` array.
 | `athlete_segment_stats.pr_date`          | date (`YYYY-MM-DD` or ISO date-time)     | no       |                                                         |
 | `athlete_segment_stats.effort_count`     | integer ≥ 0                              | no       |                                                         |
 | `efforts[]`                              | array                                    | no       | see below                                               |
+| `streams`                                | Strava segment streams                   | no       | `latlng`, `altitude`, `distance`; see below             |
 
 Effort fields: `start_date` (ISO 8601 date-time, required), `elapsed_time` (integer seconds > 0,
 required), `moving_time` (integer seconds ≥ 0), `id` (effort ID), `activity_id` or `activity.id`.
+
+### Streams (altitude and distance samples)
+
+Optional, BR-29. Strava's segment streams, either keyed by type or as a list of typed streams:
+
+```json
+"streams": {
+  "latlng":   { "data": [[37.8331, -122.4834], [37.8302, -122.4901], [37.8281, -122.4981]] },
+  "altitude": { "data": [92.4, 160.1, 245.3] },
+  "distance": { "data": [0, 1320.5, 2684.8] }
+}
+```
+
+or `"streams": [{ "type": "latlng", "data": [...] }, { "type": "altitude", "data": [...] }, …]`.
+
+- A `latlng` stream is the route, and takes precedence over `geometry` and `map`, because the
+  other streams are aligned with it.
+- `altitude` (metres, -500 – 9000) and `distance` (metres from the start, never decreasing) need
+  a route and must have exactly one value per route point (RULE-19). Otherwise the file is rejected.
+- In GeoJSON, a third coordinate on every position (`[lng, lat, altitude]`) is read as the altitude
+  samples.
+- The CSV formats carry no samples.
 
 ## GeoJSON
 

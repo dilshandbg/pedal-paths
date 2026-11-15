@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { SegmentApiErrorCode } from '../../src/types/segment';
 import { ID_PATTERN } from '../../src/features/segments/services/segmentRules';
-import type { SegmentRepository } from '../segments/segmentRepository';
+import type { SegmentRepository } from '../segments/repository';
 
 /*
  * Same-origin JSON API for imported segments (ADR-0009, docs/implementation-plan-v2.md §2).
