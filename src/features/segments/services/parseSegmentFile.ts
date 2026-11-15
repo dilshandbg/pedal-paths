@@ -20,17 +20,17 @@ const isObject = (value: unknown): value is Obj =>
 /** Normalized field name → the file's own field name, per format, for messages (AC-21). */
 const JSON_FIELDS: Readonly<Record<string, string>> = {
   segmentId: 'id',
-  distanceM: 'distance',
+  distanceM: 'distance / distanceKm',
   elevationGainM: 'total_elevation_gain',
   averageGradePct: 'average_grade',
   maximumGradePct: 'maximum_grade',
-  elevationHighM: 'elevation_high',
-  elevationLowM: 'elevation_low',
-  start: 'start_latlng',
-  end: 'end_latlng',
-  route: 'streams.latlng / geometry / map.polyline',
-  altitudeSamplesM: 'streams.altitude / geometry altitude',
-  distanceSamplesM: 'streams.distance',
+  elevationHighM: 'elevation_high / elevationMaxM',
+  elevationLowM: 'elevation_low / elevationMinM',
+  start: 'start_latlng / start',
+  end: 'end_latlng / end',
+  route: 'streams.latlng / route.latlng / geometry / map.polyline',
+  altitudeSamplesM: 'streams.altitude / route.altitude / geometry altitude',
+  distanceSamplesM: 'streams.distance / route.distance',
   prElapsedTimeS: 'athlete_segment_stats.pr_elapsed_time',
   prDate: 'athlete_segment_stats.pr_date',
   effortCount: 'athlete_segment_stats.effort_count',
@@ -268,40 +268,88 @@ const polylineRoute = (value: unknown): unknown => {
 // ---------------------------------------------------------------------------------------------
 // JSON and GeoJSON (Strava field names)
 
+/** The first value that is present: Strava's field name, then the catalog format's. */
+const either = (strava: unknown, catalog: unknown): unknown =>
+  strava !== undefined && strava !== null ? strava : catalog;
+
+/** Catalog `distanceKm` → metres (kept to the millimetre); a non-number is passed on as invalid. */
+const kilometres = (value: unknown): unknown => {
+  const km = number(value);
+  return typeof km === 'number' ? Math.round(km * 1e6) / 1000 : km;
+};
+
+/** Catalog `{ lat, lng }` → coordinate; anything else is invalid. */
+const latLngObject = (value: unknown): unknown => {
+  if (value === null || value === undefined) return null;
+  if (!isObject(value)) return INVALID;
+  const latitude = number(value.lat);
+  const longitude = number(value.lng);
+  return typeof latitude === 'number' && typeof longitude === 'number'
+    ? { latitude, longitude }
+    : INVALID;
+};
+
+/** An empty list means "not known", as Strava uses `[]` for unknown coordinates. */
+const nonEmpty = (value: unknown): unknown =>
+  Array.isArray(value) && value.length === 0 ? undefined : value;
+
+/**
+ * One segment from Strava field names, or from the segment catalog format
+ * (`docs/segment-catalog-format.md`: `distanceKm`, `elevationMinM`, `route.latlng`, …), so a
+ * catalog file can be uploaded as it is. Where both are given, Strava's field wins.
+ */
 function segmentFromStrava(raw: Obj, geometry: unknown): Obj {
   const stats = isObject(raw.athlete_segment_stats) ? raw.athlete_segment_stats : {};
   const map = isObject(raw.map) ? raw.map : {};
   const streams = readStreams(raw.streams);
-  // The full-resolution latlng stream is the route the other streams are aligned with.
+  const catalogRoute = isObject(raw.route) ? raw.route : {};
+  const catalogLatLng = nonEmpty(catalogRoute.latlng);
+  // The full-resolution latlng stream is the route the other streams are aligned with; the
+  // catalog's route.latlng is the same kind of list.
   const line: Line =
     streams.latlng !== undefined
       ? { route: latLngRoute(streams.latlng), altitude: null }
-      : geometry !== undefined && geometry !== null
-        ? geoJsonLine(geometry)
-        : raw.geometry !== undefined
-          ? geoJsonLine(raw.geometry)
-          : { route: polylineRoute(map.polyline ?? map.summary_polyline), altitude: null };
+      : catalogLatLng !== undefined
+        ? { route: latLngRoute(catalogLatLng), altitude: null }
+        : geometry !== undefined && geometry !== null
+          ? geoJsonLine(geometry)
+          : raw.geometry !== undefined
+            ? geoJsonLine(raw.geometry)
+            : { route: polylineRoute(map.polyline ?? map.summary_polyline), altitude: null };
   const route = line.route;
   return {
     segmentId: id(raw.id ?? raw.segment_id),
     name: text(raw.name) ?? '',
-    distanceM: number(raw.distance),
-    elevationGainM: number(raw.total_elevation_gain),
-    averageGradePct: number(raw.average_grade),
-    maximumGradePct: number(raw.maximum_grade),
-    elevationHighM: number(raw.elevation_high),
-    elevationLowM: number(raw.elevation_low),
+    distanceM:
+      raw.distance !== undefined && raw.distance !== null
+        ? number(raw.distance)
+        : kilometres(raw.distanceKm),
+    elevationGainM: number(either(raw.total_elevation_gain, raw.elevationGainM)),
+    averageGradePct: number(either(raw.average_grade, raw.averageGradePct)),
+    maximumGradePct: number(either(raw.maximum_grade, raw.maximumGradePct)),
+    elevationHighM: number(either(raw.elevation_high, raw.elevationMaxM)),
+    elevationLowM: number(either(raw.elevation_low, raw.elevationMinM)),
     city: text(raw.city),
     state: text(raw.state),
     country: text(raw.country),
-    start: latLngPair(raw.start_latlng),
-    end: latLngPair(raw.end_latlng),
+    start: raw.start_latlng !== undefined ? latLngPair(raw.start_latlng) : latLngObject(raw.start),
+    end: raw.end_latlng !== undefined ? latLngPair(raw.end_latlng) : latLngObject(raw.end),
     route,
-    altitudeSamplesM: streams.altitude !== undefined ? samples(streams.altitude) : line.altitude,
-    distanceSamplesM: samples(streams.distance),
-    prElapsedTimeS: number(stats.pr_elapsed_time),
-    prDate: date(stats.pr_date),
-    effortCount: number(stats.effort_count),
+    altitudeSamplesM:
+      streams.altitude !== undefined
+        ? samples(streams.altitude)
+        : catalogLatLng !== undefined
+          ? samples(nonEmpty(catalogRoute.altitude))
+          : line.altitude,
+    distanceSamplesM: samples(
+      either(
+        streams.distance,
+        catalogLatLng !== undefined ? nonEmpty(catalogRoute.distance) : null,
+      ),
+    ),
+    prElapsedTimeS: number(either(stats.pr_elapsed_time, raw.prElapsedTimeS)),
+    prDate: date(either(stats.pr_date, raw.prDate)),
+    effortCount: number(either(stats.effort_count, raw.effortCount)),
   };
 }
 
@@ -310,11 +358,11 @@ function effortFromStrava(raw: unknown, segmentId: unknown): Obj {
   const activity = isObject(effort.activity) ? effort.activity : {};
   return {
     segmentId,
-    effortId: id(effort.id),
-    activityId: id(effort.activity_id ?? activity.id),
-    startDate: text(effort.start_date),
-    elapsedTimeS: number(effort.elapsed_time),
-    movingTimeS: number(effort.moving_time),
+    effortId: id(either(effort.id, effort.effortId)),
+    activityId: id(either(effort.activity_id ?? activity.id, effort.activityId)),
+    startDate: text(either(effort.start_date, effort.startDate)),
+    elapsedTimeS: number(either(effort.elapsed_time, effort.elapsedTimeS)),
+    movingTimeS: number(either(effort.moving_time, effort.movingTimeS)),
   };
 }
 
