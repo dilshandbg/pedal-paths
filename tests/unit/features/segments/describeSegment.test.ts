@@ -89,6 +89,54 @@ describe('AC-26 / RULE-17: describeSegmentDetail', () => {
     expect(view.personalBestNote).toBeNull();
   });
 
+  it('BR-26: describes the route geometry, or says it is missing', () => {
+    const route = (patch: Parameters<typeof segmentDetail>[0]) =>
+      describeSegmentDetail(segmentDetail(patch), 'UTC').facts.find((f) => f.label === 'Route')
+        ?.value;
+    expect(route({})).toBe('3 GPS points');
+    expect(route({ route: null })).toBe(
+      'Not available: the file has no route geometry, so the map shows only the start and end',
+    );
+    expect(route({ route: null, start: null, end: null })).toBe(
+      'Not available: the file has no route geometry',
+    );
+  });
+
+  it('BR-29: marks statistics computed from the route samples, and shows the rest as not available', () => {
+    const view = describeSegmentDetail(
+      segmentDetail({
+        distanceM: null,
+        elevationGainM: null,
+        averageGradePct: null,
+        maximumGradePct: null,
+        elevationLowM: null,
+        elevationHighM: null,
+        altitudeSamplesM: [100, 110, 120],
+        distanceSamplesM: [0, 100, 200],
+      }),
+      'UTC',
+    );
+    expect(view.facts).toEqual(
+      expect.arrayContaining([
+        { label: 'Distance', value: '0.2 km (from route samples)' },
+        { label: 'Elevation gain', value: '20 m (from route samples)' },
+        { label: 'Average grade', value: '10.0 % (from route samples)' },
+        { label: 'Maximum grade', value: '10.0 % (from route samples)' },
+        { label: 'Elevation range', value: '100 m – 120 m (from route samples)' },
+      ]),
+    );
+    const noSamples = describeSegmentDetail(
+      segmentDetail({ elevationGainM: null, averageGradePct: null }),
+      'UTC',
+    );
+    expect(noSamples.facts).toEqual(
+      expect.arrayContaining([
+        { label: 'Elevation gain', value: 'Not available' },
+        { label: 'Average grade', value: 'Not available' },
+      ]),
+    );
+  });
+
   it('BR-29: counts the altitude and distance samples of the route', () => {
     const facts = (patch: Parameters<typeof segmentDetail>[0]) =>
       describeSegmentDetail(segmentDetail(patch), 'UTC').facts.find(

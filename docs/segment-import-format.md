@@ -6,6 +6,9 @@ ADR-0010). You prepare the file yourself; the application never contacts Strava.
 Field names follow the Strava API, so a segment object copied from Strava can usually be uploaded
 as-is. Unknown fields are ignored.
 
+`npm run fetch-segments` (ADR-0012) writes a file in this JSON format, with Strava's details and
+streams, for segments you name.
+
 ## Limits
 
 | Limit      | Value                               |

@@ -9,7 +9,11 @@ import {
 import { MapView } from '@/components/map/MapView';
 import { heatColor, heatWidth } from '@/components/map/heatStyle';
 import { JOINT_LAYER_ID, SEGMENT_LAYER_ID } from '@/components/map/routeLayer';
-import { SEGMENT_CASING_LAYER_ID, SEGMENT_OVERLAY_LAYER_ID } from '@/components/map/segmentLayer';
+import {
+  SEGMENT_CASING_LAYER_ID,
+  SEGMENT_MARKER_LAYER_ID,
+  SEGMENT_OVERLAY_LAYER_ID,
+} from '@/components/map/segmentLayer';
 import { frequencyToIntensity } from '@/features/heatmap/services/aggregateHeatMap';
 import type { GeoBounds, HeatMapData, HeatMapGeometry, SegmentOverlayData } from '@/types';
 import {
@@ -244,6 +248,7 @@ describe('BR-26 / AC-27: MapView segment overlay', () => {
         ],
       },
     ],
+    markers: [],
     selectedSegmentId: '2',
   };
   type Layer = { id: string; props: Record<string, unknown> };
@@ -259,6 +264,7 @@ describe('BR-26 / AC-27: MapView segment overlay', () => {
       JOINT_LAYER_ID,
       SEGMENT_CASING_LAYER_ID,
       SEGMENT_OVERLAY_LAYER_ID,
+      SEGMENT_MARKER_LAYER_ID,
     ]);
     expect(layer(SEGMENT_OVERLAY_LAYER_ID)).toBeInstanceOf(PathLayer);
     expect(layer(SEGMENT_OVERLAY_LAYER_ID)?.props.data).toBe(overlay.paths);
@@ -286,9 +292,41 @@ describe('BR-26 / AC-27: MapView segment overlay', () => {
     expect(layers().map((entry) => entry.id)).toEqual([
       SEGMENT_CASING_LAYER_ID,
       SEGMENT_OVERLAY_LAYER_ID,
+      SEGMENT_MARKER_LAYER_ID,
     ]);
     rerender(<MapView styleUrl={STYLE} data={null} fitBounds={null} segmentOverlay={null} />);
     expect(layers()).toEqual([]);
+  });
+
+  it('draws start and end markers, by shape, for segments without a route, and reports a click', () => {
+    const markers: SegmentOverlayData = {
+      paths: [],
+      markers: [
+        { segmentId: '7', name: 'C', kind: 'start', position: [2, 2] },
+        { segmentId: '7', name: 'C', kind: 'end', position: [2.01, 2.01] },
+      ],
+      selectedSegmentId: null,
+    };
+    const selections: string[] = [];
+    render(
+      <MapView
+        styleUrl={STYLE}
+        data={null}
+        fitBounds={null}
+        segmentOverlay={markers}
+        onSegmentSelect={(id) => selections.push(id)}
+      />,
+    );
+    const markerLayer = layer(SEGMENT_MARKER_LAYER_ID);
+    expect(markerLayer).toBeInstanceOf(ScatterplotLayer);
+    expect(markerLayer?.props.data).toBe(markers.markers);
+    expect(layer(SEGMENT_OVERLAY_LAYER_ID)?.props.data).toEqual([]); // no line between them
+    const fill = markerLayer?.props.getFillColor as (d: unknown) => unknown;
+    expect(fill(markers.markers[0])).not.toEqual(fill(markers.markers[1]));
+    (markerLayer?.props.onClick as (info: { object?: unknown }) => void)({
+      object: markers.markers[1],
+    });
+    expect(selections).toEqual(['7']);
   });
 
   it('reports a click on a segment route', () => {

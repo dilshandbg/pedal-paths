@@ -178,11 +178,20 @@ The segment list's search, distance range and sort order are local UI state of `
   compared, and the database is renamed to `segments.sqlite.migrated`. The legacy schema is in
   `docs/implementation-plan-v2.md` §2.
 - **Personal best** (RULE-17): fastest stored effort, earliest on a tie (`personalBest`); otherwise the PR stated in the file.
-- **Map overlay** (BR-26): `buildSegmentOverlay` turns stored routes (or start → end when only
-  those are known) into `[lng, lat]` paths; `segmentLayer` draws them as blue lines with a white
+- **Map overlay** (BR-26, AC-33): `buildSegmentOverlay` turns stored routes into `[lng, lat]`
+  paths. A segment without a route becomes start and end markers (filled dot, ring), never a
+  straight line; `segmentLayer` draws them as blue lines with a white
   casing above the heat map. The selected segment is wider and darker and drawn last. A click
   selects a segment and opens its details; selecting one in the list fits the map to it. The
   overlay depends only on segment state (RULE-18).
+- **Statistics** (RULE-20, `segmentStatistics`): values stated in the file are shown as given; a
+  missing one is computed from the samples and marked "(from route samples)": elevation gain = sum
+  of rises, average grade = net rise / distance, maximum grade = steepest stretch of at least
+  `MAX_GRADE_WINDOW_M` (100 m; the whole segment if shorter), range = lowest/highest altitude
+  sample, distance = last distance sample. Otherwise "Not available".
+- **Download command** (BR-31, ADR-0012): `npm run fetch-segments` fetches `/segments/{id}` and
+  its `latlng,altitude,distance` streams with `STRAVA_ACCESS_TOKEN` and writes an upload file.
+  Not part of the app; tests use mocked responses.
 - **Security (NFR-07, NFR-08):** answers loopback peers only; rejects a foreign `Origin` or
   `Sec-Fetch-Site: cross-site`; JSON content type required for writes; 64 MB body limit; error
   codes only.

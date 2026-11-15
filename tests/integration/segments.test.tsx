@@ -304,17 +304,23 @@ describe('BR-20 – BR-27: segments from the UI', () => {
       let found: Layer | undefined;
       await waitFor(() => {
         const layers = (FakeMapboxOverlay.instances[0]?.props.layers ?? []) as Layer[];
-        found = layers.find((layer) => layer.id === 'segment-overlay');
+        found = layers.find((layer) => layer.id === 'segment-overlay-markers');
         expect(found).toBeDefined();
       });
       return found as Layer;
     };
     const layer = await segmentLayer();
-    const paths = layer.props.data as { segmentId: string }[];
-    // Bridge Sprint has no geometry, so only Hawk Hill is drawn.
-    expect(paths.map((p) => p.segmentId)).toEqual(['229781']);
+    const markers = layer.props.data as { segmentId: string; kind: string }[];
+    // Hawk Hill has start and end but no route: two markers, never a line. Bridge Sprint has no
+    // geometry, so it is not drawn.
+    expect(markers.map((m) => [m.segmentId, m.kind])).toEqual([
+      ['229781', 'start'],
+      ['229781', 'end'],
+    ]);
+    const layers = (FakeMapboxOverlay.instances[0]?.props.layers ?? []) as Layer[];
+    expect(layers.find((entry) => entry.id === 'segment-overlay')?.props.data).toEqual([]);
 
-    layer.props.onClick?.({ object: paths[0] });
+    layer.props.onClick?.({ object: markers[0] });
     expect(
       await screen.findByRole('tab', { name: 'Segments', selected: true }),
     ).toBeInTheDocument();
