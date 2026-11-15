@@ -72,6 +72,11 @@ export function normalizeActivity(
       month: yearMonth.month,
       distanceKm: roundTo(distanceKm, 3),
       elevationGainM: elevationGainM === null ? null : roundTo(elevationGainM, 1),
+      // Strava's own value only: its moving-time rules are not published, so no track estimate.
+      movingTimeS:
+        row.movingTimeSeconds === null || row.movingTimeSeconds < 0
+          ? null
+          : Math.round(row.movingTimeSeconds),
       gpsTrack: track.points,
     },
   };

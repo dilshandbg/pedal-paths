@@ -12,6 +12,7 @@ const northbound = (steps: number): CyclingActivity => ({
   month: 1,
   distanceKm: null,
   elevationGainM: null,
+  movingTimeS: null,
   gpsTrack: Array.from({ length: steps + 1 }, (_, k) => ({
     latitude: 0.001 + (k * 10) / METRES_PER_DEGREE_LAT,
     longitude: 0.001,

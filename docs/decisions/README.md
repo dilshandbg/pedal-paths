@@ -12,6 +12,8 @@ Significant, hard-to-reverse technical decisions are recorded here as ADRs.
 | [0006](0006-heatmap-traversal-frequency.md)        | Heat map traversal-frequency model              | Accepted                   |
 | [0007](0007-activity-normalization-rules.md)       | Activity classification and normalization rules | Accepted                   |
 | [0008](0008-maplibre-osm-base-map.md)              | MapLibre + OpenStreetMap base map               | Accepted                   |
+| [0009](0009-local-backend-sqlite.md)               | Local Node backend with SQLite for segment data | Accepted                   |
+| [0010](0010-manual-segment-import.md)              | Manual segment import                           | Accepted                   |
 
 ## Template
 

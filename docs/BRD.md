@@ -1,8 +1,16 @@
 # Business Requirements Document (BRD)
-## Strava Cycling Ride Analyzer — Personal Heatmap
+## Strava Cycling Ride Analyzer — Personal Heatmap and Segments
 
-**Version:** 1.1  
-**Status:** Draft
+**Version:** 2.0  
+**Status:** Draft — approved for implementation by the owner (2026-11-15)
+
+### Change History
+
+| Version | Date | Summary |
+|---|---|---|
+| 1.0 | 2026-11-14 | Initial BRD: heatmap from a Strava activities CSV. |
+| 1.1 | 2026-11-14 | Input changed to the original Strava export ZIP archive. |
+| 2.0 | 2026-11-15 | Adds ZIP file validation (BR-17), duplicate-ride protection (BR-18), extended ride statistics (BR-19) and a manually imported **Segments** capability stored in local SQLite (BR-20 – BR-28). Strava OAuth and Strava API access are explicitly out of scope: segment data is uploaded by the user. Adds user stories, non-functional, security and privacy requirements, and updates the technical direction to the implemented stack. |
 
 ## 1. Business Objective
 
@@ -10,10 +18,13 @@ Build a personal web application that visualizes cycling activities from a Strav
 
 The application must automatically extract the ZIP archive, identify activities classified as Ride, and process their GPS tracks. Users should not need to manually extract files or prepare a separate data file.
 
+In addition, users can manually import details of Strava segments they care about (metadata, route geometry and their own efforts and personal bests), keep them in a local database, browse them, and see their routes on the same map. The application never connects to Strava.
+
 ## 2. Scope
 
 ### In Scope
 - Accept the original Strava export ZIP archive as the primary input.
+- Validate the archive's file type and size before processing it.
 - Automatically extract and inspect the ZIP archive.
 - Identify activities classified as Ride.
 - Process the GPS tracks of cycling activities from supported GPX and FIT files.
@@ -24,15 +35,27 @@ The application must automatically extract the ZIP archive, identify activities 
 - Dynamically update the map when filters change.
 - Display basic activity details and summary statistics.
 - Allow users to load or replace their Strava export ZIP file.
+- Manually import Strava segment details from JSON, CSV or GeoJSON files.
+- Store imported segment data locally in SQLite; browse, search, filter, inspect and remove it.
+- Display segment routes on the map.
 - Run locally as a personal application.
 
-### Out of Scope (Initial Release)
-- Strava OAuth integration.
-- Automatic synchronization with Strava.
+### Out of Scope
+- Strava OAuth authentication and any Strava API access, including segment discovery or retrieval.
+- Automatic synchronization or refresh of activities or segments from Strava; background sync.
+- Automatic discovery of segments from the imported rides.
+- Persisting imported ride activities between sessions (rides are held in memory until the page is reloaded or a new ZIP is loaded).
 - Social sharing.
-- Mobile application support.
+- Mobile application support (native app).
 - Live GPS tracking.
 - Heart-rate or power analysis.
+
+### Data Sources by Capability
+
+| Capability | Data source | Strava API needed |
+|---|---|---|
+| Heatmap, filters, ride details, statistics | Strava export ZIP (activities.csv + GPX/FIT files) | No |
+| Segments | Files the user prepares and uploads (JSON, CSV, GeoJSON) | No |
 
 ## 3. Business Requirements
 
@@ -54,11 +77,23 @@ The application must automatically extract the ZIP archive, identify activities 
 | BR-14 | Activity Count | Display the number of activities matching the active filters. |
 | BR-15 | Reset Filters | Provide an option to reset filters and display all Ride activities. |
 | BR-16 | ZIP Replacement | Allow the user to load a different Strava export ZIP archive and refresh the application dataset. |
+| BR-17 | ZIP File Validation | Before processing, validate that the selected file is a ZIP archive and does not exceed the maximum supported size. |
+| BR-18 | Duplicate Ride Protection | Each Strava activity appears at most once in the loaded dataset, even if the export lists it more than once. Loading the same or another ZIP replaces the dataset instead of adding to it. |
+| BR-19 | Ride Statistics | For the filtered rides, display the number of rides, total distance, total elevation gain, total moving time, and average distance per ride, where the data is available. |
+| BR-20 | Segment File Import | Provide a dedicated UI to upload segment details from a JSON, CSV or GeoJSON file that the user prepared outside the application. |
+| BR-21 | Segment Validation | Validate the uploaded file and every record against the segment import schema before anything is stored, and report each problem clearly. |
+| BR-22 | Segment Import Review | Show the validated segments, and whether each is new, an update or unchanged, for review. Store nothing until the user confirms; allow cancelling. |
+| BR-23 | Segment Persistence | Store imported segment metadata, route geometry, and personal efforts and personal bests (when provided) in a local SQLite database, so they are available in later sessions. |
+| BR-24 | Segment Duplicate Detection and Update | Identify segments by their Strava segment ID. Importing a segment that already exists updates its details instead of creating a duplicate. Efforts are not duplicated either. |
+| BR-25 | Segment Browsing | Let the user view the imported segments, search them by name, filter them by distance, sort them by distance, elevation gain and personal best, and open a segment's details including its effort history with the personal best identified. |
+| BR-26 | Segment Map Overlay | Display segment routes on the existing map, visually distinct from the ride heatmap and independent of the heatmap filters. The user can select a segment on the map to inspect it. |
+| BR-27 | Segment Data Removal | Let the user remove a single imported segment or all imported segment data. |
+| BR-28 | No Strava Connection | The application must work without Strava API access: it must not authenticate with Strava, call the Strava API, or synchronize data automatically. |
 
 ## 4. Business Rules
 
-- The original Strava export ZIP archive is the primary data source.
-- The application must not require a separately prepared input file.
+- The original Strava export ZIP archive is the primary data source for rides.
+- The application must not require a separately prepared input file for rides.
 - The application must identify Ride activities based on the activity classification information available in the export archive.
 - Only Ride activities contribute to the heatmap and cycling statistics.
 - Non-Ride activities must be excluded.
@@ -68,6 +103,13 @@ The application must automatically extract the ZIP archive, identify activities 
 - If a year or month filter is unrestricted, all values for that dimension are included.
 - Heatmap intensity must reflect repeated route traversal.
 - Filter changes must update the visualization without a full page reload.
+- A Strava activity ID appears at most once in the loaded ride dataset (RULE-12).
+- Statistics include only rides for which the value is known; a ride without a known value still counts as a ride (RULE-13).
+- A segment is identified by its Strava segment ID; there is at most one stored record per ID (RULE-14).
+- A segment import is all-or-nothing: if any record is invalid, nothing from that file is stored (RULE-15).
+- Re-importing a segment replaces the details provided in the new file and keeps existing efforts; an effort is identified by its effort ID, or by its start time and elapsed time when it has no ID (RULE-16).
+- A segment's personal best is its fastest recorded effort; if no efforts are provided, the personal best stated in the file is used (RULE-17).
+- Segment data never changes the ride heatmap or ride statistics (RULE-18).
 
 ## 5. Acceptance Criteria
 
@@ -89,10 +131,24 @@ The application must automatically extract the ZIP archive, identify activities 
 | AC-14 | Resetting filters restores the view of all eligible Ride activities. |
 | AC-15 | Loading a new ZIP archive replaces the existing dataset and refreshes the visualization. |
 | AC-16 | Invalid ZIP files or archives without eligible Ride GPS data produce a clear user-facing message. |
+| AC-17 | A file that is not a ZIP archive, or is larger than the maximum supported size, is rejected before processing with a message that states the reason. |
+| AC-18 | An activity listed more than once in the export appears once in the heatmap, ride list and statistics. Loading the same ZIP twice does not double any count. |
+| AC-19 | The statistics show ride count, total distance, total elevation gain, total moving time and average distance per ride for the filtered rides, and update when filters change. |
+| AC-20 | The user can choose a JSON, CSV or GeoJSON segment file from a dedicated Segments section. |
+| AC-21 | A file with an unsupported type, invalid content or schema errors is rejected with a message that identifies the problem and the affected record; nothing is stored. |
+| AC-22 | Before storing, the user sees each segment's ID, name, key figures and import status (new, update, unchanged), and can confirm or cancel. Cancelling stores nothing. |
+| AC-23 | Confirmed segments, their route geometry and efforts are still available after the page is reloaded or the application restarted. |
+| AC-24 | Importing a segment ID that already exists updates that segment; the segment list never shows the same ID twice and efforts are not duplicated. |
+| AC-25 | The user can search segments by name, filter them by distance range, and sort them by distance, elevation gain or personal best. |
+| AC-26 | A segment's detail view shows its metadata, its effort history, and identifies the personal best. The user can return to the list. |
+| AC-27 | A segment's route is drawn on the map in a style distinct from the heatmap; changing heatmap filters does not change the segment overlay, and selecting a segment on the map opens its details. |
+| AC-28 | The user can remove one segment or all segment data after confirming; removed data no longer appears after reload. |
+| AC-29 | The application performs no network requests to Strava. |
 
 ## 6. User Experience
 
 - Provide a ZIP file upload control.
+- Reject unsupported or oversized files immediately, before processing starts.
 - Display processing status while the archive is being inspected and parsed.
 - Display the number of Ride activities successfully loaded.
 - Clearly indicate if some activities could not be processed.
@@ -101,11 +157,25 @@ The application must automatically extract the ZIP archive, identify activities 
 - Provide a reset-to-all option.
 - Display activity count and relevant summary statistics.
 - Keep the map responsive while filters change.
+- Provide a dedicated Segments section with: file upload, validation results, an import review step with confirm and cancel, a searchable, filterable and sortable segment list, a segment detail view with effort history and personal best, and remove actions that ask for confirmation.
+- Show segment routes on the same map as the heatmap, in a distinct style, with the selected segment highlighted.
+
+### User Stories
+
+| ID | Story |
+|---|---|
+| US-01 | As a cyclist, I upload my Strava export ZIP and see where I ride most often, without preparing any files. |
+| US-02 | As a cyclist, I narrow the heatmap to particular years, months or rides and see statistics for exactly those rides. |
+| US-03 | As a cyclist, I upload a file with details of segments I care about, check what will be imported, and confirm it. |
+| US-04 | As a cyclist, I later upload a newer file for the same segments to update their details and add new efforts, without creating duplicates. |
+| US-05 | As a cyclist, I find a segment by name or distance, see my effort history and personal best, and see where it lies on the map next to my heatmap. |
+| US-06 | As a cyclist, I remove segment data I no longer want stored on my machine. |
 
 ## 7. Data Requirements
 
 ### Input
-- Original Strava export ZIP archive.
+- Original Strava export ZIP archive (rides).
+- Segment import files prepared by the user (segments): JSON, CSV or GeoJSON.
 
 ### Supported GPS Formats
 - GPX
@@ -118,29 +188,58 @@ Where available:
 - Activity date and time.
 - Distance.
 - Elevation gain.
+- Moving time.
 - GPS track points.
 
 ### Data Processing
+- Validate the file type and size.
 - Inspect the archive contents.
 - Identify Ride activities using activity classification metadata.
 - Associate Ride activities with their GPS files.
 - Parse supported GPS formats.
 - Normalize activity metadata and GPS tracks into an internal application data model.
+- Keep each activity ID once.
 - Exclude non-Ride activities from the visualization.
 - Handle missing or malformed activity files without terminating the entire import process.
 
-## 8. Proposed Technical Direction (Non-binding)
+### Segment Data
+Field names follow the Strava API where a Strava equivalent exists, so that segment details obtained from Strava can be used with little or no change. The full file specification is in `docs/segment-import-format.md`.
+
+| Field | Required | Notes |
+|---|---|---|
+| Segment ID | Yes | Strava segment ID (positive integer). The unique key. |
+| Name | Yes | |
+| Distance (m), elevation gain (m), average and maximum grade (%), highest and lowest elevation (m) | No | |
+| City, state, country | No | |
+| Start and end coordinates | No | Latitude/longitude in degrees. |
+| Route geometry | No | GeoJSON LineString/MultiLineString, or an encoded polyline. |
+| Personal best time (s), personal best date, effort count | No | As stated by the source. |
+| Efforts | No | Per effort: start date-time and elapsed time (required), moving time, effort ID and activity ID (optional). |
+
+Accepted file types:
+- **JSON:** an array of segments, or an object with a `segments` array.
+- **GeoJSON:** a FeatureCollection with one Feature per segment; segment fields are in `properties`.
+- **CSV:** either one segment per row, or one effort per row (efforts must reference a segment that is in the same import or already stored).
+
+### Data Storage
+- Ride data is processed in the browser and held in memory only; it is not persisted.
+- Segment data is stored in a local SQLite database file on the user's machine. It is never sent to any external service.
+
+## 8. Technical Direction
+
+Recorded in the ADRs (`docs/decisions/`):
 
 - Frontend: React + TypeScript + Vite.
-- Mapping: Leaflet.
-- Map tiles: OpenStreetMap-compatible tile provider.
-- Heatmap: Leaflet.heat or a suitable alternative.
-- ZIP processing: JSZip or an equivalent ZIP library.
-- GPX parsing: suitable GPX parsing library.
-- FIT parsing: suitable FIT parsing library.
-- State management: Zustand or an equivalent lightweight solution.
+- Mapping: MapLibre GL JS (ADR-0008).
+- Map tiles: OpenStreetMap-based tiles from OpenFreeMap, a free provider without keys that permits this use (ADR-0008). The public tile.openstreetmap.org service is not used.
+- Route visualization: deck.gl (ADR-0006).
+- ZIP processing: fflate, an equivalent of JSZip with streaming support (ADR-0004).
+- GPX parsing: a small local parser; FIT parsing: Garmin FIT SDK (ADR-0004).
+- State management: Zustand.
+- Local backend: Node.js, serving a small JSON API on the local machine only (ADR-0009).
+- Database: SQLite for segment data, via Node's built-in SQLite module (ADR-0009).
 - Testing: Vitest and Playwright.
-- Application should run locally without requiring Google Maps billing.
+- No Google Maps APIs or paid mapping services.
 
 ## 9. Visualization Modes — Open Design Decision
 
@@ -149,14 +248,45 @@ Consider supporting:
 1. **Heatmap mode:** Emphasizes frequently traversed roads.
 2. **Individual route mode:** Displays selected rides as distinct paths.
 
-## 10. Definition of Done
+## 10. Non-Functional, Security and Privacy Requirements
+
+| ID | Requirement |
+|---|---|
+| NFR-01 | The application runs locally as a personal application. |
+| NFR-02 | The map stays responsive while filters change (about 2,000 rides, under 250 ms per filter change). |
+| NFR-03 | No credentials, tokens or secrets are hardcoded or committed. Configuration uses environment variables, documented in `.env.example`. |
+| NFR-04 | No Google Maps billing or paid mapping services are required. |
+| NFR-05 | Automated tests cover ZIP processing, classification, GPS parsing, filtering, visualization data preparation, segment validation, segment persistence and the segment UI. |
+| NFR-06 | Setup instructions explain how to run the application locally. |
+| NFR-07 | Ride and segment data are processed and stored only on the user's machine. The local backend listens only on the local machine. |
+| NFR-08 | The backend validates every request independently of the UI, limits request size, and returns errors without internal details. |
+| NFR-09 | The user can remove all stored segment data from the application. The documentation explains where the database file is and that deleting it also removes all segment data. |
+
+### Dependencies and Limitations
+- Segment data is only as complete and current as the files the user uploads; the application never refreshes it from Strava.
+- Encoded polylines are decoded with the common encoded polyline algorithm (precision 5) used by Strava. Other encodings are not supported; GeoJSON is the recommended geometry format.
+- Personal best and effort history reflect only the efforts included in the uploaded files.
+- The segment features need the local backend to be running; the ride heatmap works without it.
+
+### Error Scenarios
+| Scenario | Expected behaviour |
+|---|---|
+| ZIP file not a ZIP, corrupt, too large, or without eligible rides | Clear message; previous dataset kept where possible (AC-16, AC-17). |
+| Segment file of an unsupported type, unreadable, or not matching the schema | Rejected with the problems listed per record; nothing stored (AC-21). |
+| Efforts that reference an unknown segment | Rejected as a schema error (AC-21). |
+| Local backend not running or database unavailable | The Segments section explains that segment storage is unavailable; the heatmap keeps working. |
+
+## 11. Definition of Done
 
 - The application accepts the original Strava export ZIP archive.
+- File type and size are validated before processing.
 - ZIP extraction and activity identification are automated.
 - Only Ride activities are included in cycling visualization and statistics.
 - GPX and FIT GPS tracks are processed.
 - Filters combine correctly and update the map dynamically.
 - Heatmap intensity reflects route traversal frequency.
-- Automated tests cover ZIP processing, activity classification, GPS parsing, filtering, and visualization data preparation.
-- Setup instructions explain how to run the application locally.
+- Segment files can be validated, reviewed, imported, updated, browsed, shown on the map and removed, with data persisted in local SQLite.
+- The application makes no Strava API calls.
+- Automated tests cover ZIP processing, activity classification, GPS parsing, filtering, visualization data preparation, and the segment capability.
+- Setup instructions explain how to run the application locally, where segment data is stored and how to remove it.
 - No API secrets are committed to the repository.

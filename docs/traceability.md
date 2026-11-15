@@ -1,11 +1,11 @@
 # Requirements Traceability Matrix
 
-> Source: `docs/BRD.md` **v1.1** (Draft). Analysed 2026-11-14. This replaces the v1.0 analysis: the
-> BRD renumbered every BR and AC.
+> Source: `docs/BRD.md` **v2.0**. Updated 2026-11-15. v2.0 keeps every v1.1 ID and adds BR-17 –
+> BR-28, AC-17 – AC-29, RULE-12 – RULE-18, NFR-07 – NFR-09 and US-01 – US-06.
 >
-> `BR-xx` and `AC-xx` IDs come **from the BRD**. The BRD gives no IDs for business rules (§4),
-> user experience (§6), data (§7) or definition of done (§10), so the `RULE`, `UX`, `DATA` and `NFR`
-> IDs were **assigned here**. They are stable: never renumber them.
+> `BR`, `AC`, `NFR`, `US` and RULE-12 – RULE-18 IDs come **from the BRD**. RULE-01 – RULE-11, `UX`
+> and `DATA` IDs were **assigned here**, because the BRD lists those items without IDs. They are
+> stable: never renumber them.
 >
 > Design decisions referenced below are recorded in `docs/decisions/` (ADR-xxxx).
 
@@ -34,32 +34,57 @@ The Tests columns name test files without their suffix: unit and integration tes
 | BR-14  | Show the number of activities matching the active filters                     | ADR-0005, ADR-0007 | Verified | `summarizeActivities`, `describeSummary`, `ActivityStatistics`, `StatisticsPanel`                                      | summarizeActivities, StatisticsPanel, filters (integration), e2e statistics                                        |
 | BR-15  | Reset filters to show all Ride activities                                     | ADR-0005           | Verified | `ActiveFiltersSummary`, `ActiveFilters`, `isFilterActive`, `filterStore.resetFilter`                                   | ActiveFilters, isFilterActive, filterStore, filters (integration), e2e reset-filters                               |
 | BR-16  | Load a different ZIP and refresh the dataset                                  | ADR-0004           | Verified | `activitiesStore.loadArchive`, `DashboardRoute`, `HeatMapView`                                                         | activitiesStore, archive-upload, e2e zip-upload, e2e map                                                           |
+| BR-17  | Validate ZIP type and size before processing                                  | OD-24              | Verified | `validateArchiveFile`, `activitiesStore.loadArchive`, `importMessages`                                                 | validateArchiveFile, activitiesStore, importMessages, archive-upload                                               |
+| BR-18  | Each activity appears once; a new ZIP replaces the dataset                    | ADR-0004           | Verified | `importStravaArchive` (first row per activity ID), `activitiesStore.loadArchive`                                       | importStravaArchive, archive-upload                                                                                |
+| BR-19  | Ride count, distance, elevation gain, moving time, average distance           | ADR-0007           | Verified | `activitiesCsv` (Moving Time), `normalizeActivity`, `summarizeActivities`, `describeSummary`, `units`                  | activitiesCsv, normalizeActivity, summarizeActivities, units, filters (integration), e2e statistics                |
+| BR-20  | Dedicated UI to upload segment details (JSON, CSV, GeoJSON)                   | ADR-0010           | Verified | `SegmentsSection`, `Tabs`, `parseSegmentFile`, `segmentFileWorker`, `segmentsStore.chooseFile`                         | parseSegmentFile, segmentsStore, Tabs, segments (integration), e2e segments                                        |
+| BR-21  | Validate the file and every record before storing; report each problem        | ADR-0010           | Verified | `checkSegmentFile`, `parseSegmentFile`, `validateSegmentPayload` (browser and backend), `SegmentImportProblems`        | validateSegmentPayload, parseSegmentFile, describeSegment, segmentRepository, segmentsApi, segments (integration)  |
+| BR-22  | Review new / update / unchanged before confirming; cancel stores nothing      | ADR-0010           | Verified | `planSegmentImport`, `POST /api/segments/preview`, `SegmentImportReview`, `segmentsStore.confirmImport`                | planSegmentImport, segmentRepository, segmentsApi, segmentsStore, segments (integration), e2e segments             |
+| BR-23  | Store metadata, geometry, efforts and personal bests in local SQLite          | ADR-0009           | Verified | `server/db/database.ts`, `segmentRepository`, `segmentsApi`, `vitePlugin`                                              | segmentRepository, segmentsApi, e2e segments                                                                       |
+| BR-24  | Duplicates detected by segment ID; re-import updates; efforts not duplicated  | ADR-0010           | Verified | `mergeSegment`, `effortKey`, `planSegmentImport`, `segmentRepository.importPayload`                                    | segmentRules, planSegmentImport, segmentRepository, segments (integration), e2e segments                           |
+| BR-25  | View, search, filter by distance, sort and inspect segments                   | ADR-0010           | Verified | `browseSegments`, `describeSegment`, `SegmentBrowser`, `SegmentDetails`, `GET /api/segments[/:id]`                     | browseSegments, describeSegment, segmentRepository, segments (integration), e2e segments                           |
+| BR-26  | Segment routes on the map, distinct and independent of heat map filters       | ADR-0010           | Verified | `buildSegmentOverlay`, `segmentBounds`, `useSegmentOverlay`, `segmentLayer`, `MapView`                                 | segmentOverlay, MapView, segments (integration), e2e segments                                                      |
+| BR-27  | Remove one segment or all segment data                                        | ADR-0009           | Verified | `segmentRepository.remove` / `removeAll`, `DELETE /api/segments[/:id]`, `ConfirmAction`, `segmentsStore`               | segmentRepository, segmentsApi, segmentsStore, Tabs (ConfirmAction), segments (integration), e2e segments          |
+| BR-28  | No Strava authentication, API calls or automatic sync                         | ADR-0010           | Verified | No Strava client exists; `segmentsClient` calls same-origin `/api/segments` only                                       | segmentsClient, segments (integration), e2e segments (no strava.com requests)                                      |
 
 ## Acceptance criteria (BRD §5)
 
-| Req ID | Verifies            | Summary                                                                      | Status   | Tests                                                                                         |
-| ------ | ------------------- | ---------------------------------------------------------------------------- | -------- | --------------------------------------------------------------------------------------------- |
-| AC-01  | BR-01               | The user can select the original Strava ZIP through the app                  | Verified | archive-upload, e2e zip-upload                                                                |
-| AC-02  | BR-02               | The ZIP is inspected and processed without manual extraction                 | Verified | archive, importStravaArchive, e2e zip-upload                                                  |
-| AC-03  | BR-03               | Activities classified as Ride are identified and loaded                      | Verified | classifyActivities, importStravaArchive                                                       |
-| AC-04  | BR-04               | Run, Swim, Workout and other non-Ride activities are excluded                | Verified | classifyActivities, importStravaArchive, e2e zip-upload                                       |
-| AC-05  | BR-05               | GPX and FIT tracks are processed and visualized                              | Verified | parseGpx, parseFit, importStravaArchive, e2e zip-upload, e2e map                              |
-| AC-06  | BR-06, BR-11        | The initial heat map shows all eligible Rides with valid GPS                 | Verified | filterActivities (unrestricted filter), filters (integration), e2e year-filter / month-filter |
-| AC-07  | BR-07               | Deselecting a year removes that year's rides                                 | Verified | filterActivities, filters (integration), e2e year-filter                                      |
-| AC-08  | BR-08, BR-11        | Deselecting a month removes that month's rides, subject to other filters     | Verified | filterActivities, filters (integration), e2e month-filter                                     |
-| AC-09  | BR-09               | Deselecting a ride removes its heat map contribution                         | Verified | filterActivities, aggregateHeatMap, filters (integration), e2e ride-filter                    |
-| AC-10  | BR-07, BR-08        | The same month can be filtered across multiple selected years                | Verified | filterActivities, filters (integration), e2e month-filter                                     |
-| AC-11  | BR-10               | Heat map updates without a full page reload                                  | Verified | filters (integration), e2e dynamic-heatmap                                                    |
-| AC-12  | BR-12               | Frequently traversed roads show greater intensity                            | Verified | aggregateHeatMap, heatStyle, MapView, e2e heatmap                                             |
-| AC-13  | BR-14               | Activity count reflects the currently filtered Rides                         | Verified | summarizeActivities, filters (integration), e2e statistics                                    |
-| AC-14  | BR-15               | Reset restores all eligible Rides                                            | Verified | filters (integration), e2e reset-filters                                                      |
-| AC-15  | BR-16               | Loading a new ZIP replaces the dataset and refreshes the visualization       | Verified | activitiesStore, archive-upload, MapView, e2e zip-upload, e2e map                             |
-| AC-16  | BR-01, BR-05, UX-04 | An invalid ZIP, or one without eligible Ride GPS data, shows a clear message | Verified | archive, importStravaArchive, importMessages, archive-upload, e2e zip-upload                  |
+| Req ID | Verifies            | Summary                                                                      | Status   | Tests                                                                                             |
+| ------ | ------------------- | ---------------------------------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------- |
+| AC-01  | BR-01               | The user can select the original Strava ZIP through the app                  | Verified | archive-upload, e2e zip-upload                                                                    |
+| AC-02  | BR-02               | The ZIP is inspected and processed without manual extraction                 | Verified | archive, importStravaArchive, e2e zip-upload                                                      |
+| AC-03  | BR-03               | Activities classified as Ride are identified and loaded                      | Verified | classifyActivities, importStravaArchive                                                           |
+| AC-04  | BR-04               | Run, Swim, Workout and other non-Ride activities are excluded                | Verified | classifyActivities, importStravaArchive, e2e zip-upload                                           |
+| AC-05  | BR-05               | GPX and FIT tracks are processed and visualized                              | Verified | parseGpx, parseFit, importStravaArchive, e2e zip-upload, e2e map                                  |
+| AC-06  | BR-06, BR-11        | The initial heat map shows all eligible Rides with valid GPS                 | Verified | filterActivities (unrestricted filter), filters (integration), e2e year-filter / month-filter     |
+| AC-07  | BR-07               | Deselecting a year removes that year's rides                                 | Verified | filterActivities, filters (integration), e2e year-filter                                          |
+| AC-08  | BR-08, BR-11        | Deselecting a month removes that month's rides, subject to other filters     | Verified | filterActivities, filters (integration), e2e month-filter                                         |
+| AC-09  | BR-09               | Deselecting a ride removes its heat map contribution                         | Verified | filterActivities, aggregateHeatMap, filters (integration), e2e ride-filter                        |
+| AC-10  | BR-07, BR-08        | The same month can be filtered across multiple selected years                | Verified | filterActivities, filters (integration), e2e month-filter                                         |
+| AC-11  | BR-10               | Heat map updates without a full page reload                                  | Verified | filters (integration), e2e dynamic-heatmap                                                        |
+| AC-12  | BR-12               | Frequently traversed roads show greater intensity                            | Verified | aggregateHeatMap, heatStyle, MapView, e2e heatmap                                                 |
+| AC-13  | BR-14               | Activity count reflects the currently filtered Rides                         | Verified | summarizeActivities, filters (integration), e2e statistics                                        |
+| AC-14  | BR-15               | Reset restores all eligible Rides                                            | Verified | filters (integration), e2e reset-filters                                                          |
+| AC-15  | BR-16               | Loading a new ZIP replaces the dataset and refreshes the visualization       | Verified | activitiesStore, archive-upload, MapView, e2e zip-upload, e2e map                                 |
+| AC-16  | BR-01, BR-05, UX-04 | An invalid ZIP, or one without eligible Ride GPS data, shows a clear message | Verified | archive, importStravaArchive, importMessages, archive-upload, e2e zip-upload                      |
+| AC-17  | BR-17               | Non-ZIP or oversized file rejected before processing, with the reason        | Verified | validateArchiveFile, activitiesStore, importMessages, archive-upload                              |
+| AC-18  | BR-18               | A duplicated activity appears once; loading a ZIP twice doubles nothing      | Verified | importStravaArchive, archive-upload                                                               |
+| AC-19  | BR-19               | Statistics show the five values for the filtered rides and update            | Verified | summarizeActivities, describeSummary, filters (integration), e2e statistics                       |
+| AC-20  | BR-20               | A JSON, CSV or GeoJSON file is chosen from a dedicated Segments section      | Verified | parseSegmentFile, segments (integration), e2e segments                                            |
+| AC-21  | BR-21               | An invalid file is rejected naming the problem and record; nothing stored    | Verified | parseSegmentFile, validateSegmentPayload, segmentRepository, segments (integration), e2e segments |
+| AC-22  | BR-22               | The review shows ID, name, figures and status; cancel stores nothing         | Verified | planSegmentImport, describeSegment, segmentsStore, segments (integration), e2e segments           |
+| AC-23  | BR-23               | Segments, routes and efforts survive a reload and a restart                  | Verified | segmentRepository (reopened database file), e2e segments (reload)                                 |
+| AC-24  | BR-24               | An existing ID is updated, never listed twice; efforts not duplicated        | Verified | segmentRules, planSegmentImport, segmentRepository, segments (integration), e2e segments          |
+| AC-25  | BR-25               | Search by name, filter by distance range, sort by distance, elevation or PB  | Verified | browseSegments, segments (integration), e2e segments                                              |
+| AC-26  | BR-25               | Detail view: metadata, effort history and personal best; back to the list    | Verified | describeSegment, segmentRepository, segments (integration), e2e segments                          |
+| AC-27  | BR-26               | Distinct route style, unaffected by heat map filters; a click opens details  | Verified | segmentOverlay, MapView, segments (integration), e2e segments                                     |
+| AC-28  | BR-27               | Remove one or all after confirming; gone after a reload                      | Verified | segmentRepository, segmentsApi, segmentsStore, segments (integration), e2e segments (reload)      |
+| AC-29  | BR-28               | No network requests to Strava                                                | Verified | segmentsClient, segments (integration), e2e segments                                              |
 
 **Coverage gaps:** BR-06 (pan/zoom) and BR-13 (activity details) have no acceptance criterion.
-Their tests will be derived from the requirement text.
+Their tests are derived from the requirement text.
 
-## Business rules (BRD §4; IDs assigned)
+## Business rules (BRD §4; RULE-01 – RULE-11 assigned here)
 
 | Req ID  | Rule                                                                      | Traced via      |
 | ------- | ------------------------------------------------------------------------- | --------------- |
@@ -74,45 +99,72 @@ Their tests will be derived from the requirement text.
 | RULE-09 | An unrestricted year/month dimension includes all values                  | ADR-0005        |
 | RULE-10 | Intensity reflects repeated route traversal                               | BR-12           |
 | RULE-11 | Filter changes update the visualization without a full page reload        | BR-10           |
+| RULE-12 | A Strava activity ID appears at most once in the ride dataset             | BR-18           |
+| RULE-13 | Statistics use only known values; a ride without one still counts         | BR-19           |
+| RULE-14 | At most one stored segment per Strava segment ID                          | BR-24           |
+| RULE-15 | A segment import is all-or-nothing                                        | BR-21           |
+| RULE-16 | Re-import replaces the given details and keeps efforts; effort identity   | BR-24           |
+| RULE-17 | Personal best = fastest effort, otherwise the one stated in the file      | BR-25           |
+| RULE-18 | Segment data never changes the ride heat map or statistics                | BR-26           |
 
 ## User experience (BRD §6; IDs assigned)
 
-| Req ID | Summary                                                     | Related         | Status   |
-| ------ | ----------------------------------------------------------- | --------------- | -------- |
-| UX-01  | ZIP file upload control                                     | BR-01, AC-01    | Verified |
-| UX-02  | Processing status while the archive is inspected and parsed | BR-02           | Verified |
-| UX-03  | Show the number of Ride activities loaded successfully      | BR-03           | Verified |
-| UX-04  | Clearly indicate activities that could not be processed     | RULE-07, AC-16  | Verified |
-| UX-05  | Year, month and ride filter controls                        | BR-07–09        | Verified |
-| UX-06  | Show the currently active filters                           | BR-11           | Verified |
-| UX-07  | Reset-to-all option                                         | BR-15           | Verified |
-| UX-08  | Show the activity count and relevant summary statistics     | BR-14, ADR-0007 | Verified |
-| UX-09  | The map stays responsive while filters change               | NFR-02          | Verified |
+| Req ID | Summary                                                                       | Related         | Status   |
+| ------ | ----------------------------------------------------------------------------- | --------------- | -------- |
+| UX-01  | ZIP file upload control                                                       | BR-01, AC-01    | Verified |
+| UX-02  | Processing status while the archive is inspected and parsed                   | BR-02           | Verified |
+| UX-03  | Show the number of Ride activities loaded successfully                        | BR-03           | Verified |
+| UX-04  | Clearly indicate activities that could not be processed                       | RULE-07, AC-16  | Verified |
+| UX-05  | Year, month and ride filter controls                                          | BR-07–09        | Verified |
+| UX-06  | Show the currently active filters                                             | BR-11           | Verified |
+| UX-07  | Reset-to-all option                                                           | BR-15           | Verified |
+| UX-08  | Show the activity count and relevant summary statistics                       | BR-14, ADR-0007 | Verified |
+| UX-09  | The map stays responsive while filters change                                 | NFR-02          | Verified |
+| UX-10  | Reject unsupported or oversized files before processing                       | BR-17, BR-21    | Verified |
+| UX-11  | Segments section: upload, validation, review, list, detail, confirmed removal | BR-20 – BR-27   | Verified |
+| UX-12  | Segment routes on the same map, distinct style, selection highlighted         | BR-26           | Verified |
+
+## User stories (BRD §6)
+
+| Req ID | Story (short)                                                              | Covered by                  | Status   |
+| ------ | -------------------------------------------------------------------------- | --------------------------- | -------- |
+| US-01  | Upload the export ZIP and see where I ride most                            | BR-01 – BR-05, BR-12        | Verified |
+| US-02  | Narrow to years, months or rides, with matching statistics                 | BR-07 – BR-11, BR-14, BR-19 | Verified |
+| US-03  | Upload a segment file, check what will be imported and confirm             | BR-20 – BR-23               | Verified |
+| US-04  | Upload a newer file to update segments and add efforts without duplicates  | BR-24                       | Verified |
+| US-05  | Find a segment, see efforts and PB, see it on the map next to the heat map | BR-25, BR-26                | Verified |
+| US-06  | Remove segment data I no longer want stored                                | BR-27, NFR-09               | Verified |
 
 ## Data (BRD §7; IDs assigned)
 
-| Req ID  | Summary                                                                              | Design   | Status   |
-| ------- | ------------------------------------------------------------------------------------ | -------- | -------- |
-| DATA-01 | Input: the original Strava export ZIP                                                | ADR-0004 | Verified |
-| DATA-02 | Supported GPS formats: GPX and FIT (including Strava's `.gz`-compressed variants)    | ADR-0004 | Verified |
-| DATA-03 | Where available: name, type, date/time, distance, elevation gain, GPS points         | ADR-0007 | Verified |
-| DATA-04 | Inspect archive → identify Rides → associate them with GPS files → parse → normalize | ADR-0004 | Verified |
-| DATA-05 | Missing or malformed files must not terminate the whole import                       | ADR-0004 | Verified |
+| Req ID  | Summary                                                                              | Design        | Status   |
+| ------- | ------------------------------------------------------------------------------------ | ------------- | -------- |
+| DATA-01 | Input: the original Strava export ZIP                                                | ADR-0004      | Verified |
+| DATA-02 | Supported GPS formats: GPX and FIT (including Strava's `.gz`-compressed variants)    | ADR-0004      | Verified |
+| DATA-03 | Where available: name, type, date/time, distance, elevation gain, GPS points         | ADR-0007      | Verified |
+| DATA-04 | Inspect archive → identify Rides → associate them with GPS files → parse → normalize | ADR-0004      | Verified |
+| DATA-05 | Missing or malformed files must not terminate the whole import                       | ADR-0004      | Verified |
+| DATA-06 | Validate type and size first; keep each activity ID once; read moving time           | BR-17 – BR-19 | Verified |
+| DATA-07 | Segment fields and file types per BRD §7 and `docs/segment-import-format.md`         | ADR-0010      | Verified |
+| DATA-08 | Rides in memory only; segments in local SQLite, never sent to an external service    | ADR-0009      | Verified |
 
-## Non-functional and definition of done (BRD §2, §8, §10; IDs assigned)
+## Non-functional, security and privacy (BRD §10)
 
-| Req ID | Summary                                                                                                        | Status                                                                                                                                                                                                                                                                                                                                                                                                  |
-| ------ | -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| NFR-01 | Runs locally as a personal application (§2)                                                                    | Scaffold: client-side only (ADR-0002)                                                                                                                                                                                                                                                                                                                                                                   |
-| NFR-02 | The map stays responsive while filters change (§6)                                                             | Verified: import and index in a Web Worker (ADR-0004); geometry built once per dataset, a filter change only recounts and uploads colours. 34–169 ms from filter change to frame for 2,000 rides in Chromium (ADR-0006 amendment, 250 ms target). Unit tests guard the shared geometry (aggregateHeatMap, buildHeatMapGeometry, MapView); `npm run perf` measures it, also with a real export (`--zip`) |
-| NFR-03 | No API secrets committed (§10)                                                                                 | Scaffold: no secrets needed (ADR-0008); `.env*` git-ignored                                                                                                                                                                                                                                                                                                                                             |
-| NFR-04 | Runs locally **without requiring Google Maps billing** (§8, non-binding)                                       | Resolved by ADR-0008: MapLibre + OSM, no key                                                                                                                                                                                                                                                                                                                                                            |
-| NFR-05 | Automated tests cover ZIP processing, classification, GPS parsing, filtering and visualization data prep (§10) | Verified: unit, integration and e2e tests cover each area                                                                                                                                                                                                                                                                                                                                               |
-| NFR-06 | Setup instructions explain how to run the app locally (§10)                                                    | Scaffold: README                                                                                                                                                                                                                                                                                                                                                                                        |
+| Req ID | Summary                                                                | Status                                                                                                                                                                           |
+| ------ | ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| NFR-01 | Runs locally as a personal application                                 | Verified: Vite dev or preview server on the local machine; no hosted service                                                                                                     |
+| NFR-02 | Map responsive on filter change (~2,000 rides, under 250 ms)           | Verified: 34–169 ms from filter change to frame for 2,000 rides (ADR-0006 amendment); `npm run perf`                                                                             |
+| NFR-03 | No hardcoded or committed secrets; configuration via `.env.example`    | Verified: no secrets needed (ADR-0008); `VITE_MAP_STYLE_URL` and `SEGMENTS_DB_PATH` documented; `.env*` and `data/` git-ignored                                                  |
+| NFR-04 | No Google Maps billing or paid mapping services                        | Verified: MapLibre and OpenFreeMap (ADR-0008)                                                                                                                                    |
+| NFR-05 | Tests cover ZIP, classification, GPS, filtering, heat map and segments | Verified: unit, integration, backend (`tests/server`) and e2e tests for each area                                                                                                |
+| NFR-06 | Setup instructions                                                     | Verified: README "Getting started" and "Segments"                                                                                                                                |
+| NFR-07 | Data stays on the machine; backend local only                          | Verified: rides never leave the browser; the segment API answers loopback peers only (`isLoopbackAddress`) and Vite binds to localhost. Tests: segmentsApi                       |
+| NFR-08 | Backend validates every request, limits size, hides internals          | Verified: `validateSegmentPayload` on the server, 64 MB body limit, JSON content type, Origin and Sec-Fetch-Site checks, error codes only. Tests: segmentsApi, segmentRepository |
+| NFR-09 | Remove all segment data; docs explain the database file                | Verified: "Remove all segment data" (BR-27); README "Removing stored data"                                                                                                       |
 
 ## Out of scope (BRD §2), to guard against scope creep
 
-Strava OAuth · automatic sync · social sharing · mobile application support (native app; the
+Strava OAuth and any Strava API access (BR-28) · automatic or background sync · automatic segment discovery from rides · social sharing · mobile application support (native app; the
 responsive web layout stays, see ADR-0007) · live GPS tracking · heart-rate / power analysis ·
 heat map vs. individual-route modes (BRD §9: deferred, see OD-18).
 

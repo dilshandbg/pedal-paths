@@ -5,7 +5,7 @@
   "description": "Personal web application that visualizes Strava cycling activities as an interactive route-frequency heat map.",
   "type": "module",
   "engines": {
-    "node": ">=20.19.0"
+    "node": ">=22.13.0"
   },
   "scripts": {
     "dev": "vite",

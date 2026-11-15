@@ -2,15 +2,18 @@
 
 A personal, local web app that turns your **original Strava export ZIP** into an interactive heat
 map of your rides. It shows how often each road was ridden, filtered by year, month and individual
-ride. Everything runs in your browser and your data never leaves your machine.
+ride. You can also import details of Strava segments you care about from a file, browse your
+efforts and personal bests, and see the segments on the same map. Rides are processed in your
+browser; segments are stored in a local SQLite file. Nothing leaves your machine, and the app never
+connects to Strava.
 
 ## Status
 
-All requirements in [`docs/BRD.md`](docs/BRD.md) v1.1 are implemented and verified by automated
+All requirements in [`docs/BRD.md`](docs/BRD.md) v2.0 are implemented and verified by automated
 tests. See [`docs/traceability.md`](docs/traceability.md) for the requirement-by-requirement
 matrix.
 
-- **Import:** upload the original Strava export ZIP. It is processed in a background Web Worker,
+- **Import:** upload the original Strava export ZIP (checked first: a `.zip`, at most 5 GB). It is processed in a background Web Worker,
   with progress and a summary of loaded, excluded and skipped activities. Only **Ride** activities
   with GPX or FIT tracks are kept.
 - **Heat map:** roads are coloured and sized by how many different rides used them, from 1 ride
@@ -19,21 +22,28 @@ matrix.
   An active-filters summary and a reset button sit above them. The map updates instantly, with no
   page reload.
 - **Details and statistics:** each ride shows its date, distance and elevation gain. A statistics
-  panel shows the ride count, total distance and total elevation gain for the current filter.
+  panel shows the ride count, total distance, total elevation gain, total moving time and
+  average distance per ride for the current filter.
+- **Segments:** a Segments tab imports segment details from a JSON, GeoJSON or CSV file you
+  prepare. Every record is validated, you review what is new or updated before confirming, and
+  re-importing updates segments instead of duplicating them. Search, filter by distance, sort,
+  open a segment to see its effort history with the personal best marked, show the routes on the
+  map, and remove one segment or all segment data.
 - **Performance:** a filter change reaches the screen in 27–121 ms for 2,000 synthetic rides
   (budget 250 ms, NFR-02). Re-measure with `npm run perf`.
 
-Still open: confirming that performance with a real export (`npm run perf -- --zip <export>`). The
-alternative visualization modes in BRD §9 are deferred (OD-18).
+Still open: confirming that performance with a real export (`npm run perf -- --zip <export>`), and
+the provisional size limits (OD-24). The alternative visualization modes in BRD §9 are deferred
+(OD-18).
 
 ## Tech stack
 
 React 19 · TypeScript (strict) · Vite 6 · Tailwind CSS 4 · Zustand · MapLibre GL JS +
-OpenStreetMap tiles · deck.gl · fflate · @garmin/fitsdk · Vitest + React Testing Library · Playwright · ESLint · Prettier
+OpenStreetMap tiles · deck.gl · fflate · @garmin/fitsdk · Node's built-in SQLite (`node:sqlite`) for segments · Vitest + React Testing Library · Playwright · ESLint · Prettier
 
 ## Prerequisites
 
-- **Node.js 20.19+** (22 LTS recommended; see `.nvmrc`) and npm 10+
+- **Node.js 22.13+** (needed for the built-in SQLite module; see `.nvmrc`) and npm 10+
 - An internet connection for map tiles. **No API key or billing account is needed.**
 
 ## Getting started
@@ -42,6 +52,23 @@ OpenStreetMap tiles · deck.gl · fflate · @garmin/fitsdk · Vitest + React Tes
 npm install
 npm run dev                         # http://localhost:5173
 ```
+
+`npm run dev` (and `npm run build && npm run preview`) also serves the local segment API at
+`/api/segments`. It only answers requests from your own machine. Serving `dist/` with any other
+static file server works for rides, but the Segments tab then reports that segment storage is
+unavailable.
+
+## Configuration
+
+Nothing needs configuring: there are no API keys or secrets. Optional settings go in
+`.env.local` (copy `.env.example`; `.env.local` is git-ignored):
+
+| Variable             | Default                                        | Purpose                                          |
+| -------------------- | ---------------------------------------------- | ------------------------------------------------ |
+| `VITE_MAP_STYLE_URL` | `https://tiles.openfreemap.org/styles/liberty` | MapLibre style for the base map                  |
+| `SEGMENTS_DB_PATH`   | `data/segments.sqlite`                         | Segment database file (`:memory:` keeps nothing) |
+
+Restart the dev or preview server after changing them.
 
 ## Map tiles
 
@@ -72,21 +99,27 @@ contributors) stays visible on the map, as the tile licence requires.
 | `npm run format`           | Format with Prettier                                   |
 | `npm run perf`             | Time filter changes against the 250 ms budget (NFR-02) |
 
+`npm run test` includes the backend tests in `tests/server` (SQLite in memory). `npm run test:e2e`
+starts `vite preview` with an in-memory segment database, so it never touches your data.
+
 ## Project structure
 
 ```text
-docs/          BRD (source of truth), architecture, technical design, ADRs, traceability
+docs/          BRD (source of truth), architecture, technical design, ADRs, traceability,
+               segment import format
 public/        Static assets
+server/        Local backend: SQLite database, segment repository, /api/segments, Vite plugin
+data/          segments.sqlite with your imported segments (git-ignored)
 src/
   app/         App root, routes, providers
-  components/  Presentational UI (layout, map, filters, statistics, common)
-  features/    activities · filters · heatmap: feature modules (logic + containers)
-  services/    strava-export (ZIP + CSV), gpx, fit, map config
+  components/  Presentational UI (layout, map, filters, statistics, segments, common)
+  features/    activities · filters · heatmap · segments: feature modules (logic + containers)
+  services/    strava-export (ZIP + CSV), gpx, fit, map config, segments-api client
   store/       Cross-feature state
   types/       Domain model
   utils/       Generic helpers
   styles/      Tailwind entry
-tests/         unit · integration · e2e · fixtures (synthetic)
+tests/         unit · integration · server · e2e · fixtures (synthetic)
 test-data/     Your real exports for manual testing (git-ignored)
 .claude/       Claude Code rules and commands
 ```
@@ -109,6 +142,44 @@ See [`docs/architecture.md`](docs/architecture.md) for the layering and dependen
 > processed (for example indoor rides without GPS, or TCX files).
 
 Keep your own export in `test-data/`, which is git-ignored for privacy.
+
+## Segments
+
+The app does not connect to Strava. You prepare a file with the segments you want and upload it
+in the **Segments** tab. The format is specified in
+[`docs/segment-import-format.md`](docs/segment-import-format.md); field names follow the Strava
+API, so a segment object copied from Strava usually works as-is.
+
+1. Open the **Segments** tab and choose a `.json`, `.geojson` or `.csv` file (at most 20 MB).
+2. If anything is wrong, every problem is listed with its record and field, and nothing is
+   stored. Fix the file and choose it again.
+3. Otherwise review the segments, each marked **New**, **Update** or **Unchanged**, then
+   **Confirm import**, or **Cancel** to store nothing.
+4. Uploading a newer file later updates the segments with the same Strava segment ID and adds
+   only efforts that are not stored yet. Fields missing from the new file keep their stored values.
+5. Search, filter by distance and sort the list; open a segment for its details and effort
+   history. Segment routes are drawn in blue on the map: click one to open it, or untick
+   **Show segments on the map**. Segments never change the ride heat map or statistics.
+
+An efforts-only CSV (`segment_id,start_date,elapsed_time_s,…`) adds efforts to segments that are
+already stored.
+
+## Where your data is and how to remove it
+
+- **Rides** are read from the ZIP in your browser and kept in memory only. Reloading the page or
+  closing the tab removes them. The app never uploads them.
+- **Segments** are stored in `data/segments.sqlite` in the project folder (or at
+  `SEGMENTS_DB_PATH`). They only travel between your browser and the local server on your machine.
+
+To remove segment data:
+
+- **In the app:** open a segment and choose **Remove segment**, or choose **Remove all segment
+  data** under the list. Both ask for confirmation.
+- **On disk:** stop the app and delete `data/segments.sqlite` (and `segments.sqlite-wal` and
+  `segments.sqlite-shm` if present). This removes all segment data; a new, empty database is
+  created on the next start.
+
+There is no Strava connection to disconnect: the app has no Strava login and stores no tokens.
 
 ## Performance check
 

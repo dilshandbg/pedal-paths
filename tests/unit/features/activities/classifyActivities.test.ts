@@ -13,6 +13,7 @@ const row = (activityId: string, activityType: string): ActivityCsvRow => ({
   activityName: '',
   distanceMetres: null,
   elevationGainMetres: null,
+  movingTimeSeconds: null,
   fileName: '',
 });
 

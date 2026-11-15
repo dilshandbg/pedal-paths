@@ -1,7 +1,7 @@
 # Technical Design
 
-> Status: **Draft**, aligned with `docs/BRD.md` **v1.1** (2026-11-14). The decisions are recorded
-> as ADRs in `docs/decisions/`. Requirement IDs are listed in `docs/traceability.md`.
+> Status: **Accepted**, aligned with `docs/BRD.md` **v2.0** (2026-11-15). The decisions are
+> recorded as ADRs in `docs/decisions/`. Requirement IDs are listed in `docs/traceability.md`.
 
 ## 1. Scope of the scaffold
 
@@ -26,8 +26,15 @@ What exists now:
   number of deselected rides (UX-06).
 - **Reset filters** (BR-15): "Reset filters" button in the Active filters summary clears years,
   months and ride exclusions; disabled while nothing is filtered.
-- **Statistics** (BR-14, UX-08): ride count, total distance (km) and total elevation gain (m)
-  of the filtered rides; unknown metrics are left out of the totals (ADR-0007).
+- **Statistics** (BR-14, BR-19, UX-08): ride count, total distance (km), total elevation gain
+  (m), total moving time and average distance per ride of the filtered rides. Moving time comes
+  from the `Moving Time` column of `activities.csv`. Unknown values are left out of the totals,
+  and a value nobody has is shown as "Not available" (RULE-13, ADR-0007).
+- **ZIP validation** (BR-17): `.zip` name or ZIP MIME type and at most 5 GB, checked before the
+  worker starts (OD-24 for the limit).
+- **Duplicate rides** (BR-18): the first `activities.csv` row per Activity ID wins; a new ZIP
+  replaces the dataset.
+- **Segments** (BR-20 – BR-28, ADR-0009, ADR-0010): see §7a.
 - **Activity details** (BR-13): each ride in the ride list shows its name, local date and, when
   known, distance (km) and elevation gain (m).
 - **Dynamic heat map** (BR-10): filter changes re-derive the selection and replace the deck.gl
@@ -39,8 +46,8 @@ What exists now:
 - Map style configuration helper (`services/map`).
 - Tooling: TypeScript strict, ESLint with architecture boundary rules, Prettier, Vitest + RTL, Playwright.
 
-All BRD v1.1 requirements are implemented and verified, including NFR-02 (ADR-0006 amendment).
-Still worth doing: re-measure with a real Strava export.
+All BRD v2.0 requirements are implemented and verified (see `docs/traceability.md`). Still
+worth doing: re-measure NFR-02 with a real Strava export, and confirm the OD-24 limits.
 
 ## 2. Technology stack
 
@@ -57,20 +64,29 @@ Still worth doing: re-measure with a real Strava export.
 | GPX parsing     | Local text scanner (no library)                                | ADR-0004 amendment    |
 | CSV parsing     | Local pure parser                                              | ADR-0004              |
 | Background work | Web Worker (Vite `?worker` import)                             | ADR-0004              |
+| Local backend   | Node 22.13+ middleware on the Vite dev / preview server        | ADR-0009              |
+| Segment storage | SQLite via Node's built-in `node:sqlite` (no dependency)       | ADR-0009              |
+| Segment overlay | deck.gl 9 `PathLayer` (casing + line) above the heat map       | ADR-0010              |
 | Testing         | Vitest 4 + jsdom + RTL; Playwright                             | Project brief         |
 
 ## 3. Domain model (`src/types`)
 
-| Type              | Purpose                                                                                     |
-| ----------------- | ------------------------------------------------------------------------------------------- |
-| `CyclingActivity` | One normalized Ride. `distanceKm` / `elevationGainM` are nullable ("when available", BR-13) |
-| `GPSPoint`        | Track sample. `elevation` / `timestamp` are nullable                                        |
-| `ActivityFilter`  | `selectedYears`, `selectedMonths` (opt-in, empty = all), `excludedActivityIds` (opt-out)    |
-| `HeatMapData`     | `paths[]` with `coordinates`, `frequency`, `intensity`, `activityIds`; `maxFrequency`       |
-| `ActivitySummary` | `activityCount`, `totalDistanceKm`, `totalElevationGainM`                                   |
-| `ImportResult`    | Success (`activities`, `issues`, `excludedNonRideCount`) or failure (`reason`)              |
-| `ImportIssue`     | A non-fatal, per-activity problem (UX-04)                                                   |
-| `ImportStatus`    | Progress stages for the UI (UX-02)                                                          |
+| Type                              | Purpose                                                                                            |
+| --------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `CyclingActivity`                 | One normalized Ride. `distanceKm` / `elevationGainM` are nullable ("when available", BR-13)        |
+| `GPSPoint`                        | Track sample. `elevation` / `timestamp` are nullable                                               |
+| `ActivityFilter`                  | `selectedYears`, `selectedMonths` (opt-in, empty = all), `excludedActivityIds` (opt-out)           |
+| `HeatMapData`                     | `paths[]` with `coordinates`, `frequency`, `intensity`, `activityIds`; `maxFrequency`              |
+| `ActivitySummary`                 | `activityCount`, `totalDistanceKm`, `totalElevationGainM`, `totalMovingTimeS`, `averageDistanceKm` |
+| `SegmentRecord`                   | One imported segment: Strava ID, name, figures, location, start/end, route, stated PR              |
+| `SegmentEffortRecord`             | One effort: segment ID, optional effort/activity ID, UTC start, elapsed and moving time            |
+| `SegmentImportPayload`            | A validated import: source file name, segments, efforts (what the browser sends)                   |
+| `SegmentImportPlan`               | Per segment `new` / `update` / `unchanged`, changed fields, new effort counts                      |
+| `StoredSegment` / `SegmentDetail` | A stored segment with timestamps and personal best; with its efforts                               |
+| `SegmentOverlayData`              | Render-ready segment paths (`[lng, lat]`) and the selected segment ID                              |
+| `ImportResult`                    | Success (`activities`, `issues`, `excludedNonRideCount`) or failure (`reason`)                     |
+| `ImportIssue`                     | A non-fatal, per-activity problem (UX-04)                                                          |
+| `ImportStatus`                    | Progress stages for the UI (UX-02)                                                                 |
 
 Conventions:
 
@@ -122,54 +138,95 @@ never stored.
 
 ## 7. State management
 
-| Store                                 | Holds                                                                             |
-| ------------------------------------- | --------------------------------------------------------------------------------- |
-| `features/filters/store/filterStore`  | `ActivityFilter` (exists)                                                         |
-| `features/activities/store` (planned) | Loaded `CyclingActivity[]`, precomputed segments, `ImportStatus`, `ImportIssue[]` |
+| Store                                       | Holds                                                                                                             |
+| ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `features/filters/store/filterStore`        | `ActivityFilter`                                                                                                  |
+| `features/activities/store/activitiesStore` | Loaded `CyclingActivity[]`, segment index, `ImportStatus`, `ImportIssue[]`                                        |
+| `features/segments/store/segmentsStore`     | Stored segments as last loaded, storage status, import state, selected segment and its detail, overlay visibility |
+
+The segment list's search, distance range and sort order are local UI state of `SegmentsSection`.
+
+## 7a. Segments (ADR-0009, ADR-0010)
+
+- **Import format:** `docs/segment-import-format.md`. JSON (Strava field names), GeoJSON
+  FeatureCollection, segments CSV or efforts CSV; at most 20 MB (OD-24).
+- **Parsing** runs in a Web Worker (`segmentFileWorker`): `parseSegmentFile` maps each format to
+  the normalized payload and reports problems in the file's own terms ("row 4", "segment 2 (ID 7)",
+  `distance`). Encoded polylines are decoded with the precision-5 algorithm (`utils/polyline`).
+- **Validation** (`validateSegmentPayload`) runs in the browser and again on the server: IDs are
+  digit strings, numbers are finite and in range, dates are real calendar dates or ISO date-times
+  with a zone (normalized to UTC), coordinates are valid, routes have 2 – 100,000 points, IDs are
+  unique within an import, efforts reference a segment in the import or already stored. Every
+  problem is reported; nothing is stored if any exists (RULE-15).
+- **Plan and merge** (`planSegmentImport`, `mergeSegment`): a segment is `new`, an `update` (it
+  changes a stored field or adds efforts) or `unchanged`. On update, values in the new file replace
+  stored ones and absent (null) values keep them; efforts are only added, identified by effort ID,
+  or by UTC start time and elapsed time (RULE-16).
+- **Storage** (`server/db/database.ts`): tables `segments` and `segment_efforts` (`STRICT`,
+  `ON DELETE CASCADE`), schema version in `PRAGMA user_version`, WAL for file databases. The
+  schema is in `docs/implementation-plan-v2.md` §2. The import runs in one `BEGIN IMMEDIATE`
+  transaction that re-plans against the current database.
+- **Personal best** (RULE-17): fastest stored effort, earliest on a tie (SQL window function plus
+  `personalBest`); otherwise the PR stated in the file.
+- **Map overlay** (BR-26): `buildSegmentOverlay` turns stored routes (or start → end when only
+  those are known) into `[lng, lat]` paths; `segmentLayer` draws them as blue lines with a white
+  casing above the heat map. The selected segment is wider and darker and drawn last. A click
+  selects a segment and opens its details; selecting one in the list fits the map to it. The
+  overlay depends only on segment state (RULE-18).
+- **Security (NFR-07, NFR-08):** answers loopback peers only; rejects a foreign `Origin` or
+  `Sec-Fetch-Site: cross-site`; JSON content type required for writes; 64 MB body limit; error
+  codes only.
+- **Without the backend** (`vite build` served statically): the Segments tab explains that
+  storage is unavailable; the ride heat map works as before.
 
 ## 8. Testing strategy
 
-| Level       | Tool           | Location            | Scope                                                                                      |
-| ----------- | -------------- | ------------------- | ------------------------------------------------------------------------------------------ |
-| Unit        | Vitest         | `tests/unit`        | CSV/GPX/FIT parsers, classification, normalization, filters, heat map aggregation, summary |
-| Integration | Vitest + RTL   | `tests/integration` | Pipeline on a synthetic ZIP; UI + stores                                                   |
-| E2E         | Playwright     | `tests/e2e`         | Upload a synthetic ZIP → filters → count; invalid ZIP message                              |
-| Fixtures    | Synthetic only | `tests/fixtures`    | Small hand-made GPX/FIT/CSV; ZIPs built in tests with fflate                               |
+| Level       | Tool           | Location            | Scope                                                                                        |
+| ----------- | -------------- | ------------------- | -------------------------------------------------------------------------------------------- |
+| Unit        | Vitest         | `tests/unit`        | CSV/GPX/FIT parsers, classification, normalization, filters, heat map aggregation, summary   |
+| Integration | Vitest + RTL   | `tests/integration` | Pipeline on a synthetic ZIP; UI + stores; segment UI against a fake API                      |
+| Backend     | Vitest (node)  | `tests/server`      | SQLite repository (in memory and on disk), API handler on a real local HTTP server           |
+| E2E         | Playwright     | `tests/e2e`         | Upload a synthetic ZIP → filters → statistics; segment journey against an in-memory database |
+| Fixtures    | Synthetic only | `tests/fixtures`    | Small hand-made GPX/FIT/CSV; ZIPs built in tests with fflate                                 |
 
 Every acceptance criterion gets at least one test named after its ID. NFR-05 requires coverage of
-ZIP processing, classification, GPS parsing, filtering and heat map data preparation.
+ZIP processing, classification, GPS parsing, filtering, heat map data preparation, segment
+validation, segment persistence and the segment UI. Component tests can't reach the network:
+`tests/setup.ts` replaces `fetch` with one that rejects unless a test stubs it.
 
 ## 9. Outstanding decisions
 
 ### Closed
 
-| ID    | Topic                      | Resolution                                                                                    |
-| ----- | -------------------------- | --------------------------------------------------------------------------------------------- |
-| OD-01 | BRD missing                | BRD v1.1 received and analysed                                                                |
-| OD-02 | Year/month selection model | ADR-0005: opt-in, empty = unrestricted, Cartesian AND                                         |
-| OD-03 | Heat map intensity         | ADR-0006: grid-snapped segments, count of distinct activities                                 |
-| OD-04 | Data loading               | BRD v1.1 + ADR-0004: upload the original ZIP in the app; no persistence across reloads        |
-| OD-05 | Time zone                  | ADR-0007: browser local time                                                                  |
-| OD-06 | Metrics source             | ADR-0007: `activities.csv` inside the ZIP, falling back to computing from the track           |
-| OD-07 | Activity ID                | ADR-0007: Strava `Activity ID`                                                                |
-| OD-09 | Summary statistics         | ADR-0007: count, total distance, total elevation gain                                         |
-| OD-10 | Units                      | ADR-0007: metric                                                                              |
-| OD-11 | Performance target         | ADR-0006: about 2,000 rides, under 250 ms per filter update; Web Worker import (ADR-0004)     |
-| OD-12 | What counts as a ride      | BRD v1.1 + ADR-0007: `Activity Type` = `Ride` only                                            |
-| OD-13 | Deployment                 | Local use only                                                                                |
-| OD-14 | Browsers                   | ADR-0007: latest desktop Chrome / Edge / Firefox; e2e on Chromium                             |
-| OD-15 | Ride filter semantics      | ADR-0005: exclusion list, scoped to year/month, narrows only                                  |
-| OD-16 | FIT files                  | BRD v1.1: supported (`@garmin/fitsdk`); TCX reported as unsupported                           |
-| OD-17 | Incomplete activities      | ADR-0007: skip and report; "Untitled ride" for a missing name                                 |
-| OD-19 | Mobile                     | ADR-0007: no native app; the responsive web layout stays                                      |
-| OD-20 | Filter persistence         | ADR-0005: in session only; reset on a new ZIP                                                 |
-| OD-21 | App name                   | ADR-0007: "Strava Cycling Heat Map"                                                           |
-| OD-08 | Map library                | ADR-0008: plain `maplibre-gl` + `@deck.gl/mapbox`, no React wrapper                           |
-| OD-22 | Base map provider          | ADR-0008 (owner decision): MapLibre + OpenStreetMap tiles; no Google Maps, no key, no billing |
+| ID    | Topic                      | Resolution                                                                                                                      |
+| ----- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| OD-01 | BRD missing                | BRD v1.1 received and analysed                                                                                                  |
+| OD-02 | Year/month selection model | ADR-0005: opt-in, empty = unrestricted, Cartesian AND                                                                           |
+| OD-03 | Heat map intensity         | ADR-0006: grid-snapped segments, count of distinct activities                                                                   |
+| OD-04 | Data loading               | BRD v1.1 + ADR-0004: upload the original ZIP in the app; no persistence across reloads. BRD v2.0 confirms: rides are not stored |
+| OD-25 | Segment data source        | BRD v2.0 + ADR-0010 (owner decision): one-time manual file import; no OAuth, no Strava API                                      |
+| OD-05 | Time zone                  | ADR-0007: browser local time                                                                                                    |
+| OD-06 | Metrics source             | ADR-0007: `activities.csv` inside the ZIP, falling back to computing from the track                                             |
+| OD-07 | Activity ID                | ADR-0007: Strava `Activity ID`                                                                                                  |
+| OD-09 | Summary statistics         | ADR-0007: count, total distance, total elevation gain                                                                           |
+| OD-10 | Units                      | ADR-0007: metric                                                                                                                |
+| OD-11 | Performance target         | ADR-0006: about 2,000 rides, under 250 ms per filter update; Web Worker import (ADR-0004)                                       |
+| OD-12 | What counts as a ride      | BRD v1.1 + ADR-0007: `Activity Type` = `Ride` only                                                                              |
+| OD-13 | Deployment                 | Local use only                                                                                                                  |
+| OD-14 | Browsers                   | ADR-0007: latest desktop Chrome / Edge / Firefox; e2e on Chromium                                                               |
+| OD-15 | Ride filter semantics      | ADR-0005: exclusion list, scoped to year/month, narrows only                                                                    |
+| OD-16 | FIT files                  | BRD v1.1: supported (`@garmin/fitsdk`); TCX reported as unsupported                                                             |
+| OD-17 | Incomplete activities      | ADR-0007: skip and report; "Untitled ride" for a missing name                                                                   |
+| OD-19 | Mobile                     | ADR-0007: no native app; the responsive web layout stays                                                                        |
+| OD-20 | Filter persistence         | ADR-0005: in session only; reset on a new ZIP                                                                                   |
+| OD-21 | App name                   | ADR-0007: "Strava Cycling Heat Map"                                                                                             |
+| OD-08 | Map library                | ADR-0008: plain `maplibre-gl` + `@deck.gl/mapbox`, no React wrapper                                                             |
+| OD-22 | Base map provider          | ADR-0008 (owner decision): MapLibre + OpenStreetMap tiles; no Google Maps, no key, no billing                                   |
 
 ### Open
 
-| ID    | Decision                                                                                                                                           | Blocks    |
-| ----- | -------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
-| OD-18 | Visualization modes (BRD §9) are deferred from the initial release. Revisit after the heat map ships.                                              | —         |
-| OD-23 | `activities.csv` headers are assumed to be in English. If the export is localized, header mapping will need extending. Confirm with a real export. | Ingestion |
+| ID    | Decision                                                                                                                                                                                   | Blocks    |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------- |
+| OD-18 | Visualization modes (BRD §9) are deferred from the initial release. Revisit after the heat map ships.                                                                                      | —         |
+| OD-23 | `activities.csv` headers are assumed to be in English. If the export is localized, header mapping will need extending. Confirm with a real export.                                         | Ingestion |
+| OD-24 | BR-17 and the segment import require size limits but the BRD gives no numbers. Provisional: ZIP ≤ 5 GB (`MAX_ARCHIVE_BYTES`), segment file ≤ 20 MB (`LIMITS.fileBytes`). Owner to confirm. | —         |

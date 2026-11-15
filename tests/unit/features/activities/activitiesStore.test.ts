@@ -12,6 +12,7 @@ const activity = (activityId: string): CyclingActivity => ({
   month: 1,
   distanceKm: 10,
   elevationGainM: 100,
+  movingTimeS: null,
   gpsTrack: [],
 });
 
@@ -119,5 +120,45 @@ describe('useActivitiesStore', () => {
 
     expect(await slowImport).toBeNull();
     expect(useActivitiesStore.getState().dataset?.fileName).toBe('fast.zip');
+  });
+});
+
+describe('BR-17 / AC-17: files are checked before the import starts', () => {
+  beforeEach(() => {
+    useActivitiesStore.setState(useActivitiesStore.getInitialState(), true);
+  });
+
+  it('rejects a non-ZIP file without running the importer, and keeps the dataset', async () => {
+    let calls = 0;
+    const importer: ArchiveImporter = async () => {
+      calls += 1;
+      return success('a');
+    };
+    await useActivitiesStore.getState().loadArchive(zipFile('export.zip'), importer);
+
+    const result = await useActivitiesStore
+      .getState()
+      .loadArchive(new File(['x'], 'notes.txt', { type: 'text/plain' }), importer);
+
+    expect(result).toEqual({ ok: false, reason: 'not-a-zip' });
+    expect(calls).toBe(1);
+    expect(useActivitiesStore.getState().status).toEqual({ stage: 'failed', reason: 'not-a-zip' });
+    expect(useActivitiesStore.getState().dataset?.activities).toHaveLength(1);
+  });
+
+  it('rejects a file over the size limit without running the importer', async () => {
+    let calls = 0;
+    const importer: ArchiveImporter = async () => {
+      calls += 1;
+      return success('a');
+    };
+    const huge = zipFile('huge.zip');
+    Object.defineProperty(huge, 'size', { value: 6 * 1024 ** 3 });
+
+    const result = await useActivitiesStore.getState().loadArchive(huge, importer);
+
+    expect(result).toEqual({ ok: false, reason: 'too-large' });
+    expect(calls).toBe(0);
+    expect(useActivitiesStore.getState().pendingFileName).toBe('huge.zip');
   });
 });

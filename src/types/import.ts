@@ -14,9 +14,9 @@ export interface ImportIssue {
   readonly reason: ImportIssueReason;
 }
 
-/** Why a whole archive was rejected (AC-16). */
+/** Why a whole archive was rejected (AC-16, AC-17). */
 export type ImportFailureReason =
-  'not-a-zip' | 'corrupt-archive' | 'missing-activities-csv' | 'no-eligible-rides';
+  'not-a-zip' | 'too-large' | 'corrupt-archive' | 'missing-activities-csv' | 'no-eligible-rides';
 
 /** Outcome of processing one Strava export ZIP. */
 export type ImportResult =

@@ -24,7 +24,12 @@ describe('import messages', () => {
       'missing-activities-csv',
       'no-eligible-rides',
       'not-a-zip',
+      'too-large',
     ]);
+  });
+
+  it('AC-17: tells the user the size limit when a file is too large', () => {
+    expect(IMPORT_FAILURE_MESSAGES['too-large']).toContain('5 GB');
   });
 
   it('groups issues by reason, most frequent first', () => {
