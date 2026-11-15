@@ -1,7 +1,7 @@
 # Business Requirements Document (BRD)
 ## Strava Cycling Ride Analyzer — Personal Heatmap and Segments
 
-**Version:** 2.1  
+**Version:** 2.2  
 **Status:** Draft — approved for implementation by the owner (2026-11-15)
 
 ### Change History
@@ -12,6 +12,7 @@
 | 1.1 | 2026-11-14 | Input changed to the original Strava export ZIP archive. |
 | 2.0 | 2026-11-15 | Adds ZIP file validation (BR-17), duplicate-ride protection (BR-18), extended ride statistics (BR-19) and a manually imported **Segments** capability stored in local SQLite (BR-20 – BR-28). Strava OAuth and Strava API access are explicitly out of scope: segment data is uploaded by the user. Adds user stories, non-functional, security and privacy requirements, and updates the technical direction to the implemented stack. |
 | 2.1 | 2026-11-15 | Segment data is stored in a local **JSON segment catalog** file instead of SQLite (BR-23, ADR-0011). Segments can include altitude and distance samples along the route (BR-29, RULE-19). Segments stored in SQLite by version 2.0 are migrated into the catalog once, without loss (BR-30). Ride data is still not persisted. Segment matching and ride analysis against the catalog are recorded as an open decision (OD-26) until specified. |
+| 2.2 | 2026-11-15 | Adds an optional, separate command that downloads the user's segment details, names and route streams from Strava with the user's own access token into an upload file (BR-31); the application itself still never contacts Strava (BR-28 revised). Segments without route geometry are shown by their start and end only, never as a straight line (BR-26 revised). Missing segment statistics are derived from altitude and distance samples, never estimated otherwise (RULE-20). |
 
 ## 1. Business Objective
 
@@ -42,7 +43,7 @@ In addition, users can manually import details of Strava segments they care abou
 - Run locally as a personal application.
 
 ### Out of Scope
-- Strava OAuth authentication and any Strava API access, including segment discovery or retrieval.
+- Strava OAuth authentication and any Strava API access by the application, including segment discovery or retrieval. (The separate, optional download command of BR-31 is the only exception.)
 - Automatic synchronization or refresh of activities or segments from Strava; background sync.
 - Automatic discovery of segments from the imported rides.
 - Persisting imported ride activities between sessions (rides are held in memory until the page is reloaded or a new ZIP is loaded).
@@ -57,6 +58,7 @@ In addition, users can manually import details of Strava segments they care abou
 |---|---|---|
 | Heatmap, filters, ride details, statistics | Strava export ZIP (activities.csv + GPX/FIT files) | No |
 | Segments | Files the user prepares and uploads (JSON, CSV, GeoJSON) | No |
+| Segment names and routes for the upload file (optional) | The user's own Strava access token, used by the download command (BR-31) | Yes, outside the application |
 
 ## 3. Business Requirements
 
@@ -87,11 +89,12 @@ In addition, users can manually import details of Strava segments they care abou
 | BR-23 | Segment Persistence | Store imported segment metadata, route geometry, and personal efforts and personal bests (when provided) in a local JSON segment catalog file, so they are available in later sessions and when the application starts. |
 | BR-24 | Segment Duplicate Detection and Update | Identify segments by their Strava segment ID. Importing a segment that already exists updates its details instead of creating a duplicate. Efforts are not duplicated either. |
 | BR-25 | Segment Browsing | Let the user view the imported segments, search them by name, filter them by distance, sort them by distance, elevation gain and personal best, and open a segment's details including its effort history with the personal best identified. |
-| BR-26 | Segment Map Overlay | Display segment routes on the existing map, visually distinct from the ride heatmap and independent of the heatmap filters. The user can select a segment on the map to inspect it. |
+| BR-26 | Segment Map Overlay | Display segment routes on the existing map, visually distinct from the ride heatmap and independent of the heatmap filters, using the complete route geometry. A segment without route geometry is shown by markers at its start and end, never by a straight line between them, and its details say that the route is not available. The user can select a segment on the map to inspect it. |
 | BR-27 | Segment Data Removal | Let the user remove a single imported segment or all imported segment data. |
-| BR-28 | No Strava Connection | The application must work without Strava API access: it must not authenticate with Strava, call the Strava API, or synchronize data automatically. |
+| BR-28 | No Strava Connection in the Application | The application must work without Strava API access: it must not authenticate with Strava, call the Strava API, or synchronize data automatically. |
 | BR-29 | Segment Samples | Accept and store, when the file provides them, altitude samples and distance samples along a segment's route, one per route point, as part of the segment's complete data. |
 | BR-30 | Segment Catalog Migration | Segments stored by an earlier version in the local SQLite database are moved into the JSON segment catalog once, keeping every stored detail, route geometry, elevation value, effort and import date. |
+| BR-31 | Segment Download Command | Provide an optional command, separate from the application, that downloads the details (including the name) and the latlng, altitude and distance streams of given Strava segments with an access token the user supplies through the environment, and writes them as a segment upload file. The user then uploads and reviews that file as usual. The token is never stored by the application, logged or committed. |
 
 ## 4. Business Rules
 
@@ -113,6 +116,7 @@ In addition, users can manually import details of Strava segments they care abou
 - Re-importing a segment replaces the details provided in the new file and keeps existing efforts; an effort is identified by its effort ID, or by its start time and elapsed time when it has no ID (RULE-16).
 - A segment's personal best is its fastest recorded effort; if no efforts are provided, the personal best stated in the file is used (RULE-17).
 - Segment data never changes the ride heatmap or ride statistics (RULE-18).
+- A statistic stated in the uploaded file is shown as given. A missing distance, elevation gain, average or maximum grade, or elevation range is computed from the route's altitude and distance samples when they exist, and marked as computed; otherwise it is shown as not available. No statistic is estimated in any other way (RULE-20).
 - Altitude and distance samples belong to the route they were provided with: they must have one value per route point (distances never decreasing). A later import with a different route replaces them, with none if it provides none (RULE-19).
 
 ## 5. Acceptance Criteria
@@ -150,6 +154,8 @@ In addition, users can manually import details of Strava segments they care abou
 | AC-29 | The application performs no network requests to Strava. |
 | AC-30 | A segment file with altitude and distance samples is imported with them; samples that do not match the route are rejected as schema errors, and the stored samples are still available after a restart. |
 | AC-31 | After upgrading, every segment that was stored in SQLite appears in the JSON segment catalog with its details, route, elevation values and efforts unchanged, and the migration does not run again. |
+| AC-32 | Running the download command with a valid token for the user's segment IDs writes an upload file containing each segment's Strava name and full route streams; uploading it updates those segments by ID, shows their names and draws their road-following routes. An invalid token, a missing segment or the rate limit is reported without writing the token anywhere. |
+| AC-33 | A segment without route geometry is shown on the map only by start and end markers, and its details state that the route is not available; statistics that the file lacks are computed from samples when present, marked as such, or shown as not available. |
 
 ## 6. User Experience
 
@@ -231,7 +237,7 @@ Accepted file types:
 ### Data Storage
 - Ride data is processed in the browser and held in memory only; it is not persisted.
 - Segment data is stored in a local JSON segment catalog file on the user's machine (format: `docs/segment-catalog-format.md`). It is never sent to any external service.
-- No other data is persisted: no ride data, no ride GPS tracks, and no Strava connection details (the application has no Strava connection, BR-28).
+- No other data is persisted: no ride data, no ride GPS tracks, and no Strava connection details (the application has no Strava connection, BR-28). The download command reads the user's access token from the environment or `.env.local` and does not save it (BR-31).
 
 ## 8. Technical Direction
 
@@ -295,7 +301,7 @@ Consider supporting:
 - Filters combine correctly and update the map dynamically.
 - Heatmap intensity reflects route traversal frequency.
 - Segment files can be validated, reviewed, imported, updated, browsed, shown on the map and removed, with data persisted in the local JSON segment catalog, including altitude and distance samples when provided, and segments from SQLite migrated.
-- The application makes no Strava API calls.
+- The application makes no Strava API calls; only the optional download command does, with the user's own token.
 - Automated tests cover ZIP processing, activity classification, GPS parsing, filtering, visualization data preparation, and the segment capability.
 - Setup instructions explain how to run the application locally, where segment data is stored and how to remove it.
 - No API secrets are committed to the repository.

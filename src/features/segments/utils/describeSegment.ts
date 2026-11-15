@@ -6,6 +6,10 @@ import type {
   SegmentImportStatus,
   StoredSegment,
 } from '@/types';
+import {
+  type SegmentStatistic,
+  segmentStatistics,
+} from '@/features/segments/utils/segmentStatistics';
 import { formatShortDate } from '@/utils/date';
 import { formatDistanceKm, formatElapsedTime, formatElevationM } from '@/utils/units';
 
@@ -39,6 +43,24 @@ const grade = (pct: number | null) => (pct === null ? null : `${pct.toFixed(1)} 
 /** "YYYY-MM-DD" as a short date, read as a calendar date (no time zone shift). */
 const calendarDate = (day: string) => formatShortDate(`${day}T12:00:00Z`, 'UTC');
 
+const FROM_SAMPLES = ' (from route samples)';
+
+/** A statistic formatted, marked when it was computed from the samples, or "Not available". */
+function statistic(value: SegmentStatistic | null, format: (n: number) => string | null): string {
+  if (value === null) return NOT_AVAILABLE;
+  return `${format(value.value) ?? NOT_AVAILABLE}${value.source === 'samples' ? FROM_SAMPLES : ''}`;
+}
+
+/** The route geometry, or why the map shows only the start and end (BR-26). */
+function describeRoute(segment: StoredSegment): string {
+  if (segment.route && segment.route.length >= 2) {
+    return `${segment.route.length.toLocaleString('en-US')} GPS points`;
+  }
+  return segment.start || segment.end
+    ? 'Not available: the file has no route geometry, so the map shows only the start and end'
+    : 'Not available: the file has no route geometry';
+}
+
 /** How many altitude and distance samples a route has (BR-29), e.g. "120 altitude, 120 distance". */
 function describeSamples(
   altitude: readonly number[] | null,
@@ -66,9 +88,10 @@ export interface SegmentListItem {
 
 /** One row of the segment list (BR-25). */
 export function describeSegmentListItem(segment: StoredSegment): SegmentListItem {
+  const stats = segmentStatistics(segment);
   const parts = [
-    distance(segment.distanceM),
-    segment.elevationGainM === null ? null : `${elevation(segment.elevationGainM)} gain`,
+    stats.distanceM && distance(stats.distanceM.value),
+    stats.elevationGainM && `${elevation(stats.elevationGainM.value)} gain`,
     segment.personalBest ? `PB ${formatElapsedTime(segment.personalBest.elapsedTimeS)}` : null,
   ].filter((part): part is string => part !== null);
   return { segmentId: segment.segmentId, name: segment.name, details: parts.join(' · ') };
@@ -100,19 +123,25 @@ export interface SegmentDetailView {
 // Implements: AC-26, RULE-17
 export function describeSegmentDetail(detail: SegmentDetail, timeZone?: string): SegmentDetailView {
   const location = [detail.city, detail.state, detail.country].filter(Boolean).join(', ');
+  const stats = segmentStatistics(detail);
   const facts: SegmentFact[] = [
     { label: 'Strava segment ID', value: detail.segmentId },
-    { label: 'Distance', value: distance(detail.distanceM) ?? NOT_AVAILABLE },
-    { label: 'Elevation gain', value: elevation(detail.elevationGainM) ?? NOT_AVAILABLE },
-    { label: 'Average grade', value: grade(detail.averageGradePct) ?? NOT_AVAILABLE },
-    { label: 'Maximum grade', value: grade(detail.maximumGradePct) ?? NOT_AVAILABLE },
+    { label: 'Distance', value: statistic(stats.distanceM, distance) },
+    { label: 'Elevation gain', value: statistic(stats.elevationGainM, elevation) },
+    { label: 'Average grade', value: statistic(stats.averageGradePct, grade) },
+    { label: 'Maximum grade', value: statistic(stats.maximumGradePct, grade) },
     {
       label: 'Elevation range',
       value:
-        detail.elevationLowM === null || detail.elevationHighM === null
+        stats.elevationLowM === null || stats.elevationHighM === null
           ? NOT_AVAILABLE
-          : `${elevation(detail.elevationLowM)} – ${elevation(detail.elevationHighM)}`,
+          : `${elevation(stats.elevationLowM.value)} – ${elevation(stats.elevationHighM.value)}${
+              stats.elevationLowM.source === 'samples' || stats.elevationHighM.source === 'samples'
+                ? FROM_SAMPLES
+                : ''
+            }`,
     },
+    { label: 'Route', value: describeRoute(detail) },
     {
       label: 'Altitude and distance samples',
       value: describeSamples(detail.altitudeSamplesM, detail.distanceSamplesM),

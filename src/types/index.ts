@@ -19,6 +19,7 @@ export type {
   SegmentImportPlanItem,
   SegmentImportProblem,
   SegmentImportStatus,
+  SegmentMarker,
   SegmentOverlayData,
   SegmentPath,
   SegmentRecord,

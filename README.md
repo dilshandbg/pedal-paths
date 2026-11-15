@@ -69,6 +69,7 @@ Nothing needs configuring: there are no API keys or secrets. Optional settings g
 | `VITE_MAP_STYLE_URL`   | `https://tiles.openfreemap.org/styles/liberty` | MapLibre style for the base map                  |
 | `SEGMENT_CATALOG_PATH` | `data/segment-catalog.json`                    | Segment catalog file (`:memory:` keeps nothing)  |
 | `SEGMENTS_DB_PATH`     | `data/segments.sqlite`                         | Older SQLite database, migrated once (see below) |
+| `STRAVA_ACCESS_TOKEN`  | none                                           | Only for `npm run fetch-segments` (see Segments) |
 
 Restart the dev or preview server after changing them.
 
@@ -147,7 +148,7 @@ Keep your own export in `test-data/`, which is git-ignored for privacy.
 
 ## Segments
 
-The app does not connect to Strava. You prepare a file with the segments you want and upload it
+The app does not connect to Strava. You prepare a file (or download one with the command below) with the segments you want and upload it
 in the **Segments** tab. The format is specified in
 [`docs/segment-import-format.md`](docs/segment-import-format.md); field names follow the Strava
 API, so a segment object copied from Strava usually works as-is. Add Strava `streams`
@@ -161,11 +162,30 @@ API, so a segment object copied from Strava usually works as-is. Add Strava `str
 4. Uploading a newer file later updates the segments with the same Strava segment ID and adds
    only efforts that are not stored yet. Fields missing from the new file keep their stored values.
 5. Search, filter by distance and sort the list; open a segment for its details and effort
-   history. Segment routes are drawn in blue on the map: click one to open it, or untick
-   **Show segments on the map**. Segments never change the ride heat map or statistics.
+   history. Segment routes are drawn in blue on the map along their full route: click one to open
+   it, or untick **Show segments on the map**. A segment without a route in the file shows only a
+   dot at its start and a ring at its end, never a straight line. Missing statistics are computed
+   from the route's altitude and distance samples when the file has them, marked "(from route
+   samples)". Segments never change the ride heat map or statistics.
 
 An efforts-only CSV (`segment_id,start_date,elapsed_time_s,…`) adds efforts to segments that are
 already stored.
+
+### Getting real names and routes from Strava (optional)
+
+If your file has generic names or no routes, download them with your own Strava access token. This
+is a separate command; the app itself still never contacts Strava.
+
+1. Open https://www.strava.com/settings/api (create an API application there once if you have
+   none) and copy **Your Access Token**. It has read access and expires after 6 hours.
+2. Put it in `.env.local` (git-ignored): `STRAVA_ACCESS_TOKEN=...`. Never commit it.
+3. Run `npm run fetch-segments`. Without arguments it downloads every segment in your catalog;
+   or pass IDs (`npm run fetch-segments -- 27580806 35710081`) or `--from <file>`.
+4. Upload the written `data/strava-segments.json` in the **Segments** tab. The review shows each
+   segment as an update; confirm, and the names, routes and samples replace the missing values.
+
+The token is sent only to the Strava API and is never printed or saved by the command. Delete it
+from `.env.local` when you are done; there is nothing to disconnect in the app.
 
 ## Where your data is and how to remove it
 
@@ -188,7 +208,10 @@ To remove segment data:
   `segments.sqlite.migrated` file. This removes all segment data. If an old `data/segments.sqlite`
   is still there, delete it too; otherwise it is migrated again on the next start.
 
-There is no Strava connection to disconnect: the app has no Strava login and stores no tokens.
+There is no Strava connection to disconnect: the app has no Strava login and stores no tokens. If
+you used `npm run fetch-segments`, delete `STRAVA_ACCESS_TOKEN` from `.env.local` (and
+`data/strava-segments.json` if you no longer need it); you can also revoke the API application at
+https://www.strava.com/settings/apps.
 
 ## Performance check
 

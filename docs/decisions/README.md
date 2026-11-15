@@ -15,6 +15,7 @@ Significant, hard-to-reverse technical decisions are recorded here as ADRs.
 | [0009](0009-local-backend-sqlite.md)               | Local Node backend with SQLite for segment data | Storage superseded by 0011 |
 | [0010](0010-manual-segment-import.md)              | Manual segment import                           | Accepted                   |
 | [0011](0011-json-segment-catalog.md)               | JSON segment catalog replaces SQLite            | Accepted                   |
+| [0012](0012-strava-segment-download-command.md)    | Optional Strava segment download command        | Accepted                   |
 
 ## Template
 

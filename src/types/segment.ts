@@ -131,10 +131,23 @@ export interface SegmentPath {
   readonly path: readonly LngLat[];
 }
 
+/**
+ * Start or end point of a segment that has no route geometry. Drawn as a marker, never joined by a
+ * line, because a straight line would misrepresent the road.
+ */
+export interface SegmentMarker {
+  readonly segmentId: string;
+  readonly name: string;
+  readonly kind: 'start' | 'end';
+  readonly position: LngLat;
+}
+
 /** Render-ready segment overlay for the map (BR-26). Independent of the heat map filters. */
 export interface SegmentOverlayData {
   /** Routes to draw; the selected one is last so it is drawn on top. */
   readonly paths: readonly SegmentPath[];
+  /** Start and end markers of segments without a route; the selected segment's come last. */
+  readonly markers: readonly SegmentMarker[];
   readonly selectedSegmentId: string | null;
 }
 

@@ -13,8 +13,9 @@ filter by year, month and individual ride, and the heat map updates to match.
   explicitly asks.
 - Architecture: `docs/architecture.md` · Design and open decisions: `docs/technical-design.md` ·
   ADRs: `docs/decisions/` · Traceability: `docs/traceability.md`
-- Current phase: **BRD v2.1 implemented** (rides in the browser; manually imported segments in a
-  local JSON segment catalog, ADR-0009 / ADR-0010 / ADR-0011; no Strava connection). Implement
+- Current phase: **BRD v2.2 implemented** (rides in the browser; manually imported segments in a
+  local JSON segment catalog, ADR-0009 / ADR-0010 / ADR-0011; the app makes no Strava connection; an optional
+  `npm run fetch-segments` command downloads segment data with the user's token, ADR-0012). Implement
   further requirements one at a time with `/implement-requirement`, and only after the user approves.
 
 ## Technology stack
@@ -36,6 +37,7 @@ npm run lint         # ESLint
 npm run typecheck    # tsc -b
 npm run format       # Prettier write
 npm run perf         # NFR-02 benchmark: filter change to frame, 250 ms budget (--zip <export>)
+npm run fetch-segments  # optional: download segment names/routes with STRAVA_ACCESS_TOKEN (ADR-0012)
 ```
 
 Before you call any task done, run `typecheck`, `lint` and `test` (and `build` when the change
@@ -84,6 +86,8 @@ touches config). The `/verify` command runs all of them.
   and ask the user. Pin compatible versions and keep `package-lock.json` committed.
 - Keep changes scoped to the task. No drive-by refactors or speculative abstractions.
 - The app needs no secrets (ADR-0008). Never hardcode any. Config comes from `import.meta.env` (`VITE_*`), documented in `.env.example`.
+  The only secret is the user's optional `STRAVA_ACCESS_TOKEN` for `npm run fetch-segments`, read from the
+  environment or `.env.local`; never log, store or commit it, and never use a real token in tests.
 - Never commit real GPS data or Strava exports. `test-data/` is git-ignored; tests use synthetic
   `tests/fixtures/`, and test ZIPs are built in memory with fflate.
 - Heavy work (unzip, parsing, segment precomputation) runs in the import Web Worker, never on the

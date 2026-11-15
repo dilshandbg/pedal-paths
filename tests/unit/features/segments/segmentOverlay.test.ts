@@ -27,22 +27,41 @@ describe('BR-26 / AC-27: buildSegmentOverlay', () => {
           ],
         },
       ],
+      markers: [],
       selectedSegmentId: null,
     });
   });
 
-  it('draws start to end when there is no route, and skips segments without geometry', () => {
+  it('never draws a straight line without a route: start and end become markers', () => {
     const overlay = buildSegmentOverlay([a, b, noGeometry], null);
-    expect(overlay.paths.map((p) => p.segmentId)).toEqual(['1', '2']);
-    expect(overlay.paths[1]?.path).toEqual([
-      [2, 1],
-      [4, 3],
+    expect(overlay.paths.map((p) => p.segmentId)).toEqual(['1']);
+    expect(overlay.markers).toEqual([
+      { segmentId: '2', name: 'B', kind: 'start', position: [2, 1] },
+      { segmentId: '2', name: 'B', kind: 'end', position: [4, 3] },
     ]);
   });
 
+  it('draws the full route when there is one, even with start and end known', () => {
+    const overlay = buildSegmentOverlay([a], null);
+    expect(overlay.paths[0]?.path).toHaveLength(3);
+    expect(overlay.markers).toEqual([]);
+  });
+
+  it('puts the markers of a selected segment without a route last', () => {
+    const c = segmentRecord({ segmentId: '4', name: 'C', route: null, end: null });
+    const overlay = buildSegmentOverlay([b, c], '2');
+    expect(overlay.markers.map((m) => [m.segmentId, m.kind])).toEqual([
+      ['4', 'start'],
+      ['2', 'start'],
+      ['2', 'end'],
+    ]);
+    expect(overlay.selectedSegmentId).toBe('2');
+  });
+
   it('puts the selected segment last so it is drawn on top', () => {
-    const overlay = buildSegmentOverlay([a, b], '1');
-    expect(overlay.paths.map((p) => p.segmentId)).toEqual(['2', '1']);
+    const a2 = segmentRecord({ segmentId: '5', name: 'A2' });
+    const overlay = buildSegmentOverlay([a, a2], '1');
+    expect(overlay.paths.map((p) => p.segmentId)).toEqual(['5', '1']);
     expect(overlay.selectedSegmentId).toBe('1');
   });
 
