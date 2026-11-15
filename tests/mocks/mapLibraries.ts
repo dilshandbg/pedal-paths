@@ -15,6 +15,7 @@ export class FakeMap {
 
   readonly controls: FakeControl[] = [];
   readonly fitBoundsCalls: [unknown, unknown][] = [];
+  readonly setStyleCalls: unknown[] = [];
   removed = false;
 
   constructor(readonly options: Record<string, unknown>) {
@@ -34,6 +35,11 @@ export class FakeMap {
 
   fitBounds(bounds: unknown, options?: unknown): this {
     this.fitBoundsCalls.push([bounds, options]);
+    return this;
+  }
+
+  setStyle(style: unknown): this {
+    this.setStyleCalls.push(style);
     return this;
   }
 

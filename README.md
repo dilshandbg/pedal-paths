@@ -21,6 +21,10 @@ matrix.
 - **Filters:** years, months (combined, e.g. November across several years) and individual rides.
   An active-filters summary and a reset button sit above them. The map updates instantly, with no
   page reload.
+- **Map style:** a **Map style** menu on the map switches between a colourful, a light grey and a
+  dark base map. The heat map is drawn in magenta to purple so ridden roads stand out from the
+  map's yellow and orange roads; on the dark map the busiest roads are the lightest. Your choice
+  is remembered in this browser.
 - **Details and statistics:** each ride shows its date, distance and elevation gain. A statistics
   panel shows the ride count, total distance, total elevation gain, total moving time and
   average distance per ride for the current filter.
@@ -189,6 +193,7 @@ from `.env.local` when you are done; there is nothing to disconnect in the app.
 
 ## Where your data is and how to remove it
 
+- **Map style:** only the name of the chosen style is kept in your browser's local storage.
 - **Rides** are read from the ZIP in your browser and kept in memory only. Reloading the page or
   closing the tab removes them. The app never uploads them.
 - **Segments** are stored in `data/segment-catalog.json` in the project folder (or at

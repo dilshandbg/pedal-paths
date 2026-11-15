@@ -146,6 +146,21 @@ never stored.
 
 The segment list's search, distance range and sort order are local UI state of `SegmentsSection`.
 
+## 6b. Map style (owner-approved, pending BRD entry: OD-27)
+
+- **Base maps:** `getBaseMapOptions` offers OpenFreeMap `liberty` (Colourful, default), `positron`
+  (Light grey) and `dark` (Dark), each with a `light`/`dark` theme; a valid `VITE_MAP_STYLE_URL` is
+  added first as "Custom" (assumed light) and becomes the default.
+- **Switching:** `MapView` creates the map once and applies a new style with `map.setStyle`, so the
+  view, the deck.gl overlay (a separate canvas) and the data stay. The choice lives in
+  `features/heatmap/store/mapStyleStore` and is saved under `strava-heatmap:base-map` in
+  localStorage (ID only; unknown IDs fall back to the default; blocked storage just means it is not
+  remembered).
+- **Heat ramp:** magenta–purple (pink → magenta → deep magenta → dark purple), chosen by the owner
+  because the base map's roads are yellow and orange. On light maps it darkens with intensity; on
+  the dark map it is reversed (darkest stop lifted to violet) so the busiest roads are lightest.
+  Width still grows with intensity, so colour is never the only signal (AC-12).
+
 ## 7a. Segments (ADR-0009, ADR-0010, ADR-0011)
 
 - **Import format:** `docs/segment-import-format.md`. JSON (Strava field names), GeoJSON
@@ -249,4 +264,5 @@ validation, segment persistence and the segment UI. Component tests can't reach 
 | OD-18 | Visualization modes (BRD §9) are deferred from the initial release. Revisit after the heat map ships.                                                                                                                                                                       | —         |
 | OD-23 | `activities.csv` headers are assumed to be in English. If the export is localized, header mapping will need extending. Confirm with a real export.                                                                                                                          | Ingestion |
 | OD-26 | The owner asked to use the segment catalog for segment matching and ride analysis, but neither is specified yet (what to match, and what to show). Not implemented; the catalog stores the route, altitude and distance samples such analysis would need. Owner to specify. | Matching  |
+| OD-27 | The owner asked for selectable map styles and approved: magenta–purple heat ramp, Colourful / Light grey / Dark base maps, choice remembered in the browser (§6b, implemented as "BR-32" in code and tests). Not yet in the BRD: the owner to confirm adding it.            | —         |
 | OD-24 | BR-17 and the segment import require size limits but the BRD gives no numbers. Provisional: ZIP ≤ 5 GB (`MAX_ARCHIVE_BYTES`), segment file ≤ 20 MB (`LIMITS.fileBytes`). Owner to confirm.                                                                                  | —         |

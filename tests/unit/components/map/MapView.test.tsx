@@ -1,5 +1,5 @@
 import { LineLayer, PathLayer, ScatterplotLayer } from '@deck.gl/layers';
-import { render, screen } from '@testing-library/react';
+import { cleanup, render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import {
   FIT_BOUNDS_MAX_ZOOM,
@@ -20,6 +20,7 @@ import {
   FakeMap,
   FakeMapboxOverlay,
   FakeNavigationControl,
+  resetMapFakes,
   workerUrls,
 } from '../../../mocks/mapLibraries';
 
@@ -225,6 +226,45 @@ describe('BR-06: MapView', () => {
     render(<MapView styleUrl={STYLE} data={null} fitBounds={null} />);
 
     expect(screen.getByRole('alert')).toHaveTextContent('The map could not be started');
+  });
+});
+
+describe('BR-32: MapView base map style', () => {
+  const DARK_STYLE = 'https://tiles.example.org/dark.json';
+
+  it('switches the style in place, keeping the map, its overlay and the heat map', () => {
+    const { rerender } = render(<MapView styleUrl={STYLE} data={twoRides} fitBounds={null} />);
+    rerender(
+      <MapView styleUrl={DARK_STYLE} baseMapTheme="dark" data={twoRides} fitBounds={null} />,
+    );
+    const map = onlyMap();
+    expect(map.removed).toBe(false);
+    expect(map.setStyleCalls).toEqual([DARK_STYLE]);
+    expect(onlyOverlay().props.layers).toHaveLength(2);
+  });
+
+  it('does not reload the style when only other props change', () => {
+    const { rerender } = render(<MapView styleUrl={STYLE} data={null} fitBounds={null} />);
+    rerender(<MapView styleUrl={STYLE} data={twoRides} fitBounds={null} />);
+    expect(onlyMap().setStyleCalls).toEqual([]);
+  });
+
+  it('colours the heat map for the theme: the busiest road is lighter than the quietest on a dark map', () => {
+    const colours = (theme: 'light' | 'dark') => {
+      render(<MapView styleUrl={STYLE} baseMapTheme={theme} data={twoRides} fitBounds={null} />);
+      const layer = (onlyOverlay().props.layers ?? [])[0];
+      const color = attributes(layer).attributes.getColor;
+      const result = { once: rgba(color, 0), five: rgba(color, 1) };
+      cleanup();
+      resetMapFakes();
+      return result;
+    };
+    const lum = ([r, g, b]: number[]) => 0.2126 * (r ?? 0) + 0.7152 * (g ?? 0) + 0.0722 * (b ?? 0);
+    const light = colours('light');
+    const dark = colours('dark');
+    expect(lum(light.five)).toBeLessThan(lum(light.once));
+    expect(lum(dark.five)).toBeGreaterThan(lum(dark.once));
+    expect(light.five.slice(0, 3)).toEqual(heatColor(1, 'light').slice(0, 3));
   });
 });
 
