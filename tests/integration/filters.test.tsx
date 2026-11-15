@@ -28,6 +28,7 @@ const ride = (
   month,
   distanceKm: 10,
   elevationGainM: 100,
+  movingTimeS: 1800,
   gpsTrack: Array.from({ length: 11 }, (_, k) => ({
     latitude: k * 0.001,
     longitude: 0,
@@ -363,8 +364,8 @@ describe('BR-14: activity count and statistics on the dashboard', () => {
     return within(panel).getByText(label, { selector: 'dt' }).nextElementSibling?.textContent;
   };
 
-  it('AC-13: the count and totals follow the active filters', async () => {
-    // The fixture gives every ride 10 km and 100 m of climbing.
+  it('AC-13 / AC-19: the count and totals follow the active filters', async () => {
+    // The fixture gives every ride 10 km, 100 m of climbing and 30 min of moving time.
     const user = await loadRides([
       ride('1', 'November 2023', 2023, 11),
       ride('2', 'June 2023', 2023, 6),
@@ -373,6 +374,8 @@ describe('BR-14: activity count and statistics on the dashboard', () => {
     expect(statistic('Rides')).toBe('3 rides');
     expect(statistic('Distance')).toBe('30.0 km');
     expect(statistic('Elevation gain')).toBe('300 m');
+    expect(statistic('Moving time')).toBe('1 h 30 min');
+    expect(statistic('Average distance')).toBe('10.0 km');
 
     await user.click(screen.getByRole('checkbox', { name: 'November' }));
     expect(await screen.findByText('2 rides', { selector: 'dd' })).toBeInTheDocument();
@@ -381,6 +384,7 @@ describe('BR-14: activity count and statistics on the dashboard', () => {
     await user.click(screen.getByRole('checkbox', { name: 'November 2022' }));
     expect(await screen.findByText('1 ride', { selector: 'dd' })).toBeInTheDocument();
     expect(statistic('Elevation gain')).toBe('100 m');
+    expect(statistic('Moving time')).toBe('30 min');
 
     await user.click(screen.getByRole('button', { name: 'Reset filters' }));
     expect(await screen.findByText('3 rides', { selector: 'dd' })).toBeInTheDocument();

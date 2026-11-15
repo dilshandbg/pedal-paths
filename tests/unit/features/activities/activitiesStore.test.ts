@@ -12,6 +12,7 @@ const activity = (activityId: string): CyclingActivity => ({
   month: 1,
   distanceKm: 10,
   elevationGainM: 100,
+  movingTimeS: null,
   gpsTrack: [],
 });
 

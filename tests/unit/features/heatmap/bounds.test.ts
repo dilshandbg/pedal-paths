@@ -17,6 +17,7 @@ const ride = (activityId: string, track: GPSPoint[]): CyclingActivity => ({
   month: 1,
   distanceKm: null,
   elevationGainM: null,
+  movingTimeS: null,
   gpsTrack: track,
 });
 

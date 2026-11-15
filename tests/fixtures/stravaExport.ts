@@ -47,6 +47,8 @@ export interface CsvActivity {
   readonly fileName: string;
   readonly distanceMetres?: number | null;
   readonly elevationGain?: number | null;
+  /** `Moving Time` in seconds. */
+  readonly movingTimeSeconds?: number | null;
   readonly description?: string;
 }
 
@@ -64,6 +66,10 @@ export function makeActivitiesCsv(activities: readonly CsvActivity[]): string {
       4: activity.description ?? '',
       6: metres === null ? '' : (metres / 1000).toFixed(2),
       12: activity.fileName,
+      16:
+        activity.movingTimeSeconds === undefined || activity.movingTimeSeconds === null
+          ? ''
+          : String(activity.movingTimeSeconds),
       17: metres === null ? '' : metres.toFixed(1),
       20:
         activity.elevationGain === undefined || activity.elevationGain === null
@@ -234,6 +240,7 @@ export function makeSampleExport(): Uint8Array {
       fileName: 'activities/1002.gpx.gz',
       distanceMetres: 2900,
       elevationGain: 29,
+      movingTimeSeconds: 600,
     },
     {
       id: '1003',

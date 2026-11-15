@@ -18,6 +18,7 @@ describe('parseActivitiesCsv', () => {
         fileName: 'activities/42.fit.gz',
         distanceMetres: 25310.5,
         elevationGain: 312.4,
+        movingTimeSeconds: 3725,
         description: 'Two\nlines',
       },
     ]);
@@ -30,9 +31,17 @@ describe('parseActivitiesCsv', () => {
         activityType: 'Ride',
         distanceMetres: 25310.5,
         elevationGainMetres: 312.4,
+        movingTimeSeconds: 3725,
         fileName: 'activities/42.fit.gz',
       },
     ]);
+  });
+
+  it('BR-19: has no moving time when the column is missing or empty', () => {
+    const csv = 'Activity ID,Activity Type,Distance,Filename\n7,Ride,12.5,activities/7.gpx\n';
+    expect(parseActivitiesCsv(csv)[0]?.movingTimeSeconds).toBeNull();
+    const empty = makeActivitiesCsv([{ id: '8', date: '', name: 'x', type: 'Ride', fileName: '' }]);
+    expect(parseActivitiesCsv(empty)[0]?.movingTimeSeconds).toBeNull();
   });
 
   it('treats a single Distance column as kilometres', () => {

@@ -41,6 +41,8 @@ export interface CyclingActivity {
   readonly distanceKm: number | null;
   /** Elevation gain in metres, or null when not available (BR-13). */
   readonly elevationGainM: number | null;
+  /** Moving time in seconds from the export, or null when not available (BR-19). */
+  readonly movingTimeS: number | null;
   /** Ordered track points; contains at least 2 valid points. */
   readonly gpsTrack: readonly GPSPoint[];
 }

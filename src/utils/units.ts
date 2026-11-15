@@ -10,3 +10,14 @@ export function formatDistanceKm(distanceKm: number): string {
 export function formatElevationM(elevationM: number): string {
   return `${METRES.format(elevationM)} m`;
 }
+
+/** Duration for display: "45 min", "3 h 05 min", "1,204 h 30 min". Rounded to whole minutes. */
+export function formatDuration(seconds: number): string {
+  const totalMinutes = Math.round(Math.max(0, seconds) / 60);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  if (hours === 0) {
+    return `${minutes} min`;
+  }
+  return `${hours.toLocaleString('en-US')} h ${String(minutes).padStart(2, '0')} min`;
+}

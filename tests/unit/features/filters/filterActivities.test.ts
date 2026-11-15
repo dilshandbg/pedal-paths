@@ -14,6 +14,7 @@ const ride = (activityId: string, year = 2024, month: Month = 1): CyclingActivit
   month,
   distanceKm: null,
   elevationGainM: null,
+  movingTimeS: null,
   gpsTrack: [],
 });
 

@@ -21,6 +21,7 @@ const ride = (activityId: string): CyclingActivity => ({
   month: 1,
   distanceKm: 10,
   elevationGainM: 100,
+  movingTimeS: null,
   // ~1.1 km north in 110 m steps (within the heat map's gap limit).
   gpsTrack: Array.from({ length: 11 }, (_, k) => ({
     latitude: k * 0.001,
