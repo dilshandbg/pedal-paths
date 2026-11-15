@@ -11,7 +11,13 @@ import { HeatLegend } from '@/components/map/HeatLegend';
 import { createRouteLayers } from '@/components/map/routeLayer';
 import { createSegmentLayers } from '@/components/map/segmentLayer';
 import { setupMapLibre } from '@/services/map/setupMapLibre';
-import type { BaseMapTheme, GeoBounds, HeatMapData, SegmentOverlayData } from '@/types';
+import type {
+  BaseMapTheme,
+  GeoBounds,
+  HeatMapData,
+  HeatPaletteId,
+  SegmentOverlayData,
+} from '@/types';
 
 setupMapLibre();
 
@@ -23,6 +29,8 @@ interface MapViewProps {
   styleUrl: string;
   /** Whether the base map is light or dark; the heat map colours follow it (BR-32). */
   baseMapTheme?: BaseMapTheme;
+  /** Heat map colour ramp (OD-27); the default when omitted. */
+  heatPalette?: HeatPaletteId;
   /** Render-ready routes, or null when no rides are loaded. */
   data: HeatMapData | null;
   /** When this changes, the view is fitted to these bounds (e.g. a new dataset was loaded). */
@@ -43,6 +51,7 @@ interface MapViewProps {
 export function MapView({
   styleUrl,
   baseMapTheme = 'light',
+  heatPalette,
   data,
   fitBounds,
   segmentOverlay = null,
@@ -115,7 +124,7 @@ export function MapView({
   useEffect(() => {
     overlayRef.current?.setProps({
       layers: [
-        ...(data ? createRouteLayers(data, baseMapTheme) : []),
+        ...(data ? createRouteLayers(data, baseMapTheme, heatPalette) : []),
         ...(segmentOverlay
           ? createSegmentLayers(segmentOverlay, (segmentId) =>
               onSegmentSelectRef.current?.(segmentId),
@@ -123,7 +132,7 @@ export function MapView({
           : []),
       ],
     });
-  }, [data, segmentOverlay, baseMapTheme]);
+  }, [data, segmentOverlay, baseMapTheme, heatPalette]);
 
   // Fit the view when new bounds arrive.
   useEffect(() => {
@@ -172,7 +181,11 @@ export function MapView({
       ) : null}
 
       {data !== null && data.maxFrequency > 0 ? (
-        <HeatLegend maxFrequency={data.maxFrequency} theme={baseMapTheme} />
+        <HeatLegend
+          maxFrequency={data.maxFrequency}
+          theme={baseMapTheme}
+          {...(heatPalette ? { palette: heatPalette } : {})}
+        />
       ) : null}
 
       <p role="status" className="sr-only">

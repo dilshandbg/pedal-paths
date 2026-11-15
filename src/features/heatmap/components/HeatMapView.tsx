@@ -2,9 +2,10 @@ import { Suspense, lazy, useMemo } from 'react';
 import { aggregateHeatMap } from '@/features/heatmap/services/aggregateHeatMap';
 import { buildHeatMapGeometry } from '@/features/heatmap/services/buildHeatMapGeometry';
 import { computeBounds } from '@/features/heatmap/utils/bounds';
-import { BaseMapSelect } from '@/components/map/BaseMapSelect';
+import { HEAT_PALETTE_OPTIONS } from '@/components/map/heatStyle';
+import { MapOptionSelect } from '@/components/map/MapOptionSelect';
 import { useMapStyleStore } from '@/features/heatmap/store/mapStyleStore';
-import { resolveBaseMap } from '@/features/heatmap/utils/baseMap';
+import { resolveChoice } from '@/features/heatmap/utils/baseMap';
 import { getBaseMapOptions } from '@/services/map';
 import type { CyclingActivity, GeoBounds, SegmentIndex, SegmentOverlayData } from '@/types';
 
@@ -66,10 +67,14 @@ export function HeatMapView({
   const bounds = useMemo(() => (activities ? computeBounds(activities) : null), [activities]);
   const baseMapId = useMapStyleStore((state) => state.baseMapId);
   const setBaseMap = useMapStyleStore((state) => state.setBaseMap);
-  // The options always include the default, so this is never null.
-  const baseMap = resolveBaseMap(BASE_MAP_OPTIONS, baseMapId) as NonNullable<
-    ReturnType<typeof resolveBaseMap>
-  >;
+  const heatPaletteId = useMapStyleStore((state) => state.heatPaletteId);
+  const setHeatPalette = useMapStyleStore((state) => state.setHeatPalette);
+  // Both option lists include their default, so neither result is null.
+  const baseMap = resolveChoice(BASE_MAP_OPTIONS, baseMapId) as (typeof BASE_MAP_OPTIONS)[number];
+  const heatPalette = resolveChoice(
+    HEAT_PALETTE_OPTIONS,
+    heatPaletteId,
+  ) as (typeof HEAT_PALETTE_OPTIONS)[number];
 
   return (
     <div className="relative h-full min-h-[inherit]">
@@ -77,6 +82,7 @@ export function HeatMapView({
         <MapView
           styleUrl={baseMap.url}
           baseMapTheme={baseMap.theme}
+          heatPalette={heatPalette.id}
           data={data}
           fitBounds={bounds}
           segmentOverlay={segmentOverlay}
@@ -84,8 +90,23 @@ export function HeatMapView({
           {...(onSegmentSelect ? { onSegmentSelect } : {})}
         />
       </Suspense>
-      <div className="absolute top-3 left-3 z-10">
-        <BaseMapSelect options={BASE_MAP_OPTIONS} selectedId={baseMap.id} onSelect={setBaseMap} />
+      <div
+        role="group"
+        aria-label="Map display"
+        className="absolute top-3 left-3 z-10 flex flex-col gap-1.5 rounded-lg bg-white/90 px-3 py-2 shadow-sm backdrop-blur"
+      >
+        <MapOptionSelect
+          label="Map style"
+          options={BASE_MAP_OPTIONS}
+          selectedId={baseMap.id}
+          onSelect={setBaseMap}
+        />
+        <MapOptionSelect
+          label="Heat colours"
+          options={HEAT_PALETTE_OPTIONS}
+          selectedId={heatPalette.id}
+          onSelect={setHeatPalette}
+        />
       </div>
     </div>
   );

@@ -266,6 +266,17 @@ describe('BR-32: MapView base map style', () => {
     expect(lum(dark.five)).toBeGreaterThan(lum(dark.once));
     expect(light.five.slice(0, 3)).toEqual(heatColor(1, 'light').slice(0, 3));
   });
+
+  it('draws the chosen heat colours on the map and in the legend', () => {
+    render(<MapView styleUrl={STYLE} heatPalette="fire" data={twoRides} fitBounds={null} />);
+    const layer = (onlyOverlay().props.layers ?? [])[0];
+    const color = attributes(layer).attributes.getColor;
+    expect(rgba(color, 1)).toEqual(heatColor(1, 'light', 'fire'));
+    // Segment 0 is ridden once: its intensity on the log scale, not 0.
+    expect(rgba(color, 0)).toEqual(
+      heatColor(twoRides.intensityByFrequency[1] ?? 0, 'light', 'fire'),
+    );
+  });
 });
 
 describe('BR-26 / AC-27: MapView segment overlay', () => {
