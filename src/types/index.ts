@@ -8,4 +8,18 @@ export type {
   ImportResult,
   ImportStatus,
 } from './import';
+export type {
+  Coordinate,
+  PersonalBest,
+  SegmentDetail,
+  SegmentEffortRecord,
+  SegmentImportPayload,
+  SegmentImportPlan,
+  SegmentImportPlanItem,
+  SegmentImportProblem,
+  SegmentImportStatus,
+  SegmentRecord,
+  StoredSegment,
+  StoredSegmentEffort,
+} from './segment';
 export type { ActivitySummary } from './statistics';
