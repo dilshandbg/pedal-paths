@@ -34,7 +34,7 @@ export function segmentsApiPlugin(): Plugin {
                 (migration.backupPath ? `; the old database is now ${migration.backupPath}.` : '.'),
             );
           }
-          repository = openCatalogRepository(catalogPath);
+          repository = openCatalogRepository(catalogPath, (message) => logger.warn(message));
         }
         return repository;
       }),

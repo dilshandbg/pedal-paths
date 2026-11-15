@@ -166,10 +166,12 @@ The segment list's search, distance range and sort order are local UI state of `
   stored ones and absent (null) values keep them; efforts are only added, identified by effort ID,
   or by UTC start time and elapsed time (RULE-16).
 - **Storage** (ADR-0011, `server/catalog`): the JSON segment catalog
-  (`docs/segment-catalog-format.md`), loaded and fully validated on the first API request and kept
+  (`docs/segment-catalog-format.md`), loaded and validated on the first API request and kept
   in memory. Each change is planned against the current catalog, written to a temporary file that
-  is renamed over the catalog, and applied in memory only after the write succeeded. An invalid
-  file is never loaded or overwritten (`storage-unavailable`). A new route without samples clears
+  is renamed over the catalog, and applied in memory only after the write succeeded. A file that is
+  not a catalog is never loaded or overwritten (`storage-unavailable`); within a catalog, invalid
+  fields become unknown and invalid entries are skipped, with warnings and a `.bak` of the
+  original before the first rewrite. Distances are kept to the millimetre (`distanceKm` in the file). A new route without samples clears
   the stored samples (RULE-19).
 - **Migration** (BR-30, `migrateLegacyDatabase`): when the catalog file is missing and a v2.0
   SQLite database exists, its segments are copied into the catalog, the file is read back and

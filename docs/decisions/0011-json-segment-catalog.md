@@ -21,15 +21,21 @@ rarely (only on import or removal).
 
 1. **Storage:** a single UTF-8 JSON file, `data/segment-catalog.json` by default (git-ignored),
    configurable with `SEGMENT_CATALOG_PATH`. Format: `docs/segment-catalog-format.md`
-   (`"format": "segment-catalog"`, `"version": 1`, one entry per segment ID).
+   — the owner's schema: `version` plus a `segments` list whose entries have `id`, `name`,
+   `distanceKm`, `elevationMinM`, `elevationMaxM`, `start`, `end` and
+   `route.latlng / altitude / distance`, one entry per segment ID, plus additional fields (grades, location, stated personal best, import dates, efforts) so that no
+   imported detail is lost.
 2. **Who writes it:** only the existing local backend (`server/catalog/catalogRepository.ts`),
    behind the same `/api/segments` API and the same `SegmentRepository` interface. The browser,
    the upload UI, the review step and the API are unchanged.
-3. **Load and write:** the catalog is read and fully validated once, on the first API request
+3. **Load and write:** the catalog is read and validated once, on the first API request
    (which the app makes when it starts), and kept in memory. Every change is written to a temporary
    file that is then renamed over the catalog, and takes effect in memory only after the write
-   succeeded. A file that is not valid JSON or not a valid catalog is never loaded or overwritten;
-   the API answers `storage-unavailable` and the server log names the problems.
+   succeeded. Reading is forgiving: a file that is not a catalog at all (not JSON, `segments` not a
+   list, a newer version) is never loaded or overwritten, and the API answers
+   `storage-unavailable`. Inside a catalog, an invalid field becomes unknown and an entry without a
+   valid or unique ID, or an invalid effort, is skipped; each is logged, and the original file is
+   copied to a `.bak` file before the first change rewrites it.
 4. **Same rules:** reads and writes go through the shared pure validation and import plan
    (`validateSegmentPayload`, `planSegmentImport`, `mergeSegment`). The repository behaviour tests
    are a shared contract run against both the catalog and the old SQLite store.

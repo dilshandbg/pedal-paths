@@ -1,4 +1,12 @@
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { dirname } from 'node:path';
 import type {
   SegmentDetail,
@@ -18,30 +26,45 @@ import {
 } from '../../src/features/segments/services/segmentRules';
 import { validateSegmentPayload } from '../../src/features/segments/services/validateSegmentPayload';
 import type { SegmentRepository } from '../segments/repository';
-import { type Catalog, type CatalogEntry, readCatalog, serializeCatalog } from './catalogFormat';
+import {
+  type Catalog,
+  type CatalogEntry,
+  normalizeRecord,
+  readCatalog,
+  serializeCatalog,
+} from './catalogFormat';
 
 /** The catalog file cannot be loaded; the API answers `storage-unavailable` and writes nothing. */
 export class CatalogFileError extends Error {}
 
-/** Reads the catalog at `path`. A missing file is an empty catalog. */
-export function loadCatalogFile(path: string): Catalog {
-  if (path === ':memory:' || !existsSync(path)) return new Map();
+export interface LoadedCatalog {
+  readonly catalog: Catalog;
+  /** What was ignored or skipped while reading (empty for a clean file). */
+  readonly warnings: readonly string[];
+}
+
+/**
+ * Reads the catalog at `path`. A missing file is an empty catalog. A file that is not JSON or not
+ * a catalog throws `CatalogFileError` and is left as it is.
+ */
+export function loadCatalogFile(path: string): LoadedCatalog {
+  if (path === ':memory:' || !existsSync(path)) return { catalog: new Map(), warnings: [] };
   let json: unknown;
   try {
-    json = JSON.parse(readFileSync(path, 'utf8'));
+    json = JSON.parse(readFileSync(path, 'utf8').replace(/^\uFEFF/, ''));
   } catch {
-    throw new CatalogFileError(`${path} is not valid JSON.`);
+    throw new CatalogFileError(`${path} is not valid JSON; it was not loaded or changed.`);
   }
   const result = readCatalog(json);
   if (!result.ok) {
-    const details = result.problems
-      .slice(0, 10)
-      .map((p) => `${p.location}${p.field ? ` ${p.field}` : ''}: ${p.message}`)
-      .join('; ');
-    throw new CatalogFileError(`${path} is not a valid segment catalog: ${details}`);
+    throw new CatalogFileError(`${path}: ${result.error} It was not loaded or changed.`);
   }
-  return result.catalog;
+  return { catalog: result.catalog, warnings: result.warnings };
 }
+
+/** Where the original of a repaired catalog is kept, e.g. `segment-catalog.json.2026-11-15T10-00-00.bak`. */
+export const backupPathFor = (path: string, now: Date) =>
+  `${path}.${now.toISOString().slice(0, 19).replace(/:/g, '-')}.bak`;
 
 /**
  * Writes the catalog to `path` atomically: a temporary file next to it is renamed over it, so the
@@ -91,12 +114,29 @@ function toStored(entry: CatalogEntry): StoredSegment {
  * API first needs it, and every change is written to the file before it takes effect in memory,
  * so a failed write changes nothing. Every write goes through the same pure validation and import
  * plan the browser uses, so the review matches what is stored. `':memory:'` keeps it in memory.
+ * When reading skipped or ignored anything, `warn` receives each warning, and the original file is
+ * copied to a `.bak` file before the first change rewrites it, so nothing is lost silently.
  */
 // Implements: BR-23, BR-24, BR-27, BR-29, RULE-14, RULE-16, RULE-17
-export function openCatalogRepository(path: string): SegmentRepository {
-  let catalog = loadCatalogFile(path);
+export function openCatalogRepository(
+  path: string,
+  warn: (message: string) => void = (message) => console.warn(message),
+): SegmentRepository {
+  const loaded = loadCatalogFile(path);
+  let catalog = loaded.catalog;
+  let backupPending = loaded.warnings.length > 0;
+  if (backupPending) {
+    warn(`Segment catalog ${path}: ${loaded.warnings.length} problem(s) while reading:`);
+    for (const message of loaded.warnings) warn(`  ${message}`);
+  }
 
   const commit = (next: Catalog) => {
+    if (backupPending && path !== ':memory:') {
+      const backup = backupPathFor(path, new Date());
+      copyFileSync(path, backup);
+      warn(`Segment catalog: the original file was kept as ${backup}.`);
+    }
+    backupPending = false;
     saveCatalogFile(path, next);
     catalog = next;
   };
@@ -104,7 +144,11 @@ export function openCatalogRepository(path: string): SegmentRepository {
   function prepare(input: unknown) {
     const validation = validateSegmentPayload(input, new Set(catalog.keys()));
     if (!validation.ok) return validation;
-    const { payload } = validation;
+    // Stored the way the catalog keeps it (distance to the millimetre), so plans compare like with like.
+    const payload = {
+      ...validation.payload,
+      segments: validation.payload.segments.map(normalizeRecord),
+    };
     const stored = new Map<string, StoredSegmentState>();
     for (const id of [
       ...payload.segments.map((segment) => segment.segmentId),

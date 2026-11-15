@@ -282,7 +282,8 @@ Consider supporting:
 | ZIP file not a ZIP, corrupt, too large, or without eligible rides | Clear message; previous dataset kept where possible (AC-16, AC-17). |
 | Segment file of an unsupported type, unreadable, or not matching the schema | Rejected with the problems listed per record; nothing stored (AC-21). |
 | Efforts that reference an unknown segment | Rejected as a schema error (AC-21). |
-| Local backend not running, or the catalog file unreadable or invalid | The Segments section explains that segment storage is unavailable; the heatmap keeps working. An invalid catalog file is never overwritten. |
+| Local backend not running, or the catalog file unreadable or not a catalog | The Segments section explains that segment storage is unavailable; the heatmap keeps working. Such a file is never overwritten. |
+| Catalog with missing or malformed entries or fields | The usable segments load; invalid values are treated as unknown and unusable entries are skipped, each reported in the server log; the original file is kept as a backup before it is next rewritten. |
 
 ## 11. Definition of Done
 

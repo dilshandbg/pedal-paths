@@ -1,10 +1,18 @@
 // @vitest-environment node
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { CatalogFileError, openCatalogRepository } from '../../../server/catalog/catalogRepository';
-import { CATALOG_FORMAT, CATALOG_VERSION } from '../../../server/catalog/catalogFormat';
+import { CATALOG_VERSION } from '../../../server/catalog/catalogFormat';
 import { effort, payload, segment } from '../fixtures';
 import { describeSegmentRepository } from '../segments/repositoryContract';
 
@@ -57,28 +65,32 @@ describe('BR-23 / AC-23: the catalog file keeps segments across restarts', () =>
     repository.importPayload(payload([segment({ name: 'Renamed' })], [effort()], 'b.json'), T2);
 
     const json = readFile();
-    expect(json).toMatchObject({ format: CATALOG_FORMAT, version: CATALOG_VERSION });
+    expect(Object.keys(json)).toEqual(['version', 'segments']);
+    expect(json.version).toBe(CATALOG_VERSION);
     const segments = json.segments as Record<string, unknown>[];
-    expect(segments.map((s) => s.segmentId)).toEqual(['9', '1001']);
+    expect(segments.map((s) => s.id)).toEqual(['9', '1001']);
     expect(segments[1]).toEqual({
-      segmentId: '1001',
+      id: '1001',
       name: 'Renamed',
-      distanceM: 1500,
+      distanceKm: 1.5,
+      elevationMinM: 100,
+      elevationMaxM: 180,
+      start: { lat: 10, lng: 20 },
+      end: { lat: 10.01, lng: 20.01 },
+      route: {
+        latlng: [
+          [10, 20],
+          [10.01, 20.01],
+        ],
+        altitude: SAMPLES.altitudeSamplesM,
+        distance: SAMPLES.distanceSamplesM,
+      },
       elevationGainM: 80,
       averageGradePct: 5.3,
       maximumGradePct: 11,
-      elevationHighM: 180,
-      elevationLowM: 100,
       city: 'Testville',
       state: null,
       country: 'Nowhere',
-      start: [10, 20],
-      end: [10.01, 20.01],
-      route: [
-        [10, 20],
-        [10.01, 20.01],
-      ],
-      ...SAMPLES,
       prElapsedTimeS: 320,
       prDate: '2024-01-01',
       effortCount: 2,
@@ -125,7 +137,7 @@ describe('BR-23 / AC-23: the catalog file keeps segments across restarts', () =>
   });
 });
 
-describe('BR-23: a damaged catalog file is never loaded or overwritten', () => {
+describe('BR-23: missing or malformed catalog data is handled gracefully', () => {
   const write = (content: string) => {
     mkdirSync(join(dir, 'nested'), { recursive: true });
     writeFileSync(file, content);
@@ -133,29 +145,74 @@ describe('BR-23: a damaged catalog file is never loaded or overwritten', () => {
 
   it.each([
     ['not JSON', '{ nope', /not valid JSON/],
-    ['another file', '{"segments": []}', /Not a segment catalog/],
-    ['a newer version', `{"format":"${CATALOG_FORMAT}","version":99,"segments":[]}`, /newer/],
-  ])('refuses %s', (_, content, message) => {
+    ['not a catalog', '[1, 2]', /Not a segment catalog/],
+    ['a segments value that is not a list', '{"version":1,"segments":{}}', /must be a list/],
+    ['a newer version', '{"version":99,"segments":[]}', /newer/],
+  ])('refuses %s and leaves the file unchanged', (_, content, message) => {
     write(content);
     expect(() => openCatalogRepository(file)).toThrow(CatalogFileError);
     expect(() => openCatalogRepository(file)).toThrow(message);
     expect(readFileSync(file, 'utf8')).toBe(content);
   });
 
-  it('refuses invalid segments and duplicate segment IDs, naming them', () => {
-    const repository = openCatalogRepository(file);
-    repository.importPayload(payload([segment()]), T1);
-    const json = readFile();
-    const [entry] = json.segments as Record<string, unknown>[];
-    write(
-      JSON.stringify({
-        ...json,
-        segments: [entry, entry, { ...entry, segmentId: '7', distanceM: -1 }],
-      }),
-    );
+  it('loads the usable segments, warns about the rest, and keeps the original as a backup', () => {
+    const original = JSON.stringify({
+      version: 1,
+      segments: [
+        { id: '1', name: 'Good', distanceKm: 1.2 },
+        { id: '1', name: 'Duplicate' },
+        { name: 'No ID' },
+        {
+          id: 2,
+          distanceKm: 'far',
+          route: {
+            latlng: [
+              [1, 2],
+              [1.1, 2.1],
+            ],
+            altitude: [5],
+            distance: [0, 10],
+          },
+        },
+      ],
+    });
+    write(original);
+    const warnings: string[] = [];
+    const repository = openCatalogRepository(file, (message) => warnings.push(message));
 
-    expect(() => openCatalogRepository(file)).toThrow(
-      /segment 2 \(ID 1001\) segmentId: Appears more than once.*segment 3 \(ID 7\) distanceM/,
-    );
+    expect(repository.list().map((s) => [s.segmentId, s.name, s.distanceM])).toEqual([
+      ['1', 'Good', 1200],
+      ['2', 'Segment 2', null],
+    ]);
+    expect(repository.get('2')).toMatchObject({
+      route: [
+        { latitude: 1, longitude: 2 },
+        { latitude: 1.1, longitude: 2.1 },
+      ],
+      altitudeSamplesM: null,
+      distanceSamplesM: [0, 10],
+    });
+    const log = warnings.join(' | ');
+    expect(log).toContain('segment 2 (ID 1): skipped: the ID appears more than once');
+    expect(log).toContain('segment 3: skipped: it has no valid "id"');
+    expect(log).toContain('segment 4 (ID 2): "distanceKm" ignored');
+    expect(log).toContain('"route.altitude" ignored: Must have one value per route point');
+    expect(readFileSync(file, 'utf8')).toBe(original); // nothing written yet
+
+    repository.remove('1');
+    const backups = readdirSync(join(dir, 'nested')).filter((name) => name.endsWith('.bak'));
+    expect(backups).toHaveLength(1);
+    expect(readFileSync(join(dir, 'nested', backups[0] ?? ''), 'utf8')).toBe(original);
+    expect(
+      openCatalogRepository(file, () => undefined)
+        .list()
+        .map((s) => s.segmentId),
+    ).toEqual(['2']);
+  });
+
+  it('writes no backup for a clean file', () => {
+    openCatalogRepository(file).importPayload(payload([segment()]), T1);
+    openCatalogRepository(file).remove('1001');
+    expect(readdirSync(join(dir, 'nested')).some((name) => name.endsWith('.bak'))).toBe(false);
   });
 });

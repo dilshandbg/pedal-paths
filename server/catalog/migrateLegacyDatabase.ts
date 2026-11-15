@@ -4,7 +4,7 @@ import type { SegmentRecord } from '../../src/types/segment';
 import { effortKey, SEGMENT_FIELDS } from '../../src/features/segments/services/segmentRules';
 import { openDatabase } from '../db/database';
 import { createSegmentRepository } from '../segments/segmentRepository';
-import type { Catalog, CatalogEntry } from './catalogFormat';
+import { type Catalog, type CatalogEntry, normalizeRecord } from './catalogFormat';
 import { loadCatalogFile, saveCatalogFile } from './catalogRepository';
 
 export interface LegacyMigration {
@@ -42,7 +42,7 @@ export function migrateLegacyDatabase(
       const record: Record<string, unknown> = { segmentId };
       for (const field of SEGMENT_FIELDS) record[field] = detail[field];
       catalog.set(segmentId, {
-        record: record as unknown as SegmentRecord,
+        record: normalizeRecord(record as unknown as SegmentRecord),
         sourceFile: detail.sourceFile,
         importedAt: detail.importedAt,
         updatedAt: detail.updatedAt,
@@ -54,7 +54,8 @@ export function migrateLegacyDatabase(
   }
 
   saveCatalogFile(catalogPath, catalog);
-  if (!sameCatalog(loadCatalogFile(catalogPath), catalog)) {
+  const written = loadCatalogFile(catalogPath);
+  if (written.warnings.length > 0 || !sameCatalog(written.catalog, catalog)) {
     rmSync(catalogPath, { force: true });
     throw new Error('Segment catalog migration check failed; the SQLite database is unchanged.');
   }
