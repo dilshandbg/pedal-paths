@@ -175,3 +175,31 @@ describe('ZIP upload from the UI', () => {
     expect(screen.getByText('1 ride loaded')).toBeInTheDocument();
   });
 });
+
+describe('BR-18: duplicate rides', () => {
+  beforeEach(() => {
+    useActivitiesStore.setState(useActivitiesStore.getInitialState(), true);
+    useFilterStore.setState(useFilterStore.getInitialState(), true);
+    fakeImport.mockReset();
+  });
+
+  it('AC-18: loading the same ZIP twice replaces the rides instead of adding them again', async () => {
+    fakeImport.mockResolvedValue(loaded([ride('1'), ride('2'), ride('3')]));
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.upload(fileInput(), zipFile());
+    expect(await screen.findByText('3 rides loaded')).toBeInTheDocument();
+    await user.upload(fileInput(), zipFile());
+    await waitFor(() => expect(fakeImport).toHaveBeenCalledTimes(2));
+
+    expect(await screen.findByText('3 rides loaded')).toBeInTheDocument();
+    expect(
+      await screen.findByText('Showing 3 rides on the map', {}, { timeout: 15_000 }),
+    ).toBeInTheDocument();
+    const rides = within(screen.getByRole('group', { name: 'Rides' }));
+    expect(rides.getAllByRole('checkbox')).toHaveLength(3);
+    const statistics = within(screen.getByRole('region', { name: 'Statistics' }));
+    expect(statistics.getByText('3 rides')).toBeInTheDocument();
+  });
+});

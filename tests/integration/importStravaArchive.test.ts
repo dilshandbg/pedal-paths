@@ -99,7 +99,7 @@ describe('importStravaArchive: sample Strava export', () => {
     expect(statuses.at(-1)).toEqual({ stage: 'indexing' });
   });
 
-  it('ignores a duplicated activity row', async () => {
+  it('BR-18 / AC-18: ignores a duplicated activity row', async () => {
     const track = makeTrackPoints(5);
     const csvRow = {
       id: '1',
