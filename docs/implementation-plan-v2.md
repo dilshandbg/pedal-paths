@@ -3,6 +3,8 @@
 Date: 2026-11-15. Baseline: `dev` at the `docs/readme-status` merge, with BRD v1.1 fully
 implemented and verified.
 
+**Status: all tasks done** on `feature/segment-import` (see `docs/traceability.md`). Open: OD-24.
+
 ## 1. Gap analysis
 
 ### Already implemented (BRD v1.1, unchanged in v2.0)
@@ -70,7 +72,7 @@ CREATE TABLE segments (
   source_file        TEXT,
   imported_at        TEXT NOT NULL,
   updated_at         TEXT NOT NULL
-);
+) STRICT;
 CREATE TABLE segment_efforts (
   segment_id      TEXT NOT NULL REFERENCES segments(segment_id) ON DELETE CASCADE,
   effort_key      TEXT NOT NULL,            -- effort ID, or "<start_date>|<elapsed_time_s>"
@@ -80,8 +82,9 @@ CREATE TABLE segment_efforts (
   elapsed_time_s  INTEGER NOT NULL,
   moving_time_s   INTEGER,
   PRIMARY KEY (segment_id, effort_key)
-);
-CREATE INDEX segment_efforts_by_segment ON segment_efforts (segment_id, elapsed_time_s);
+) STRICT;
+CREATE INDEX segment_efforts_by_segment ON segment_efforts (segment_id, elapsed_time_s, start_date);
+-- PRAGMA user_version = 1; foreign_keys = ON; journal_mode = WAL (file databases)
 ```
 
 ### API (local, same origin)

@@ -26,7 +26,8 @@ Strava (BR-28) and must stay local (NFR-07).
    `localhost`, and the app calls the API on the same origin at `/api/segments`. The plugin is
    disabled under Vitest.
 4. **Security:**
-   - The server listens on localhost only (Vite's default).
+   - The server listens on localhost only (Vite's default), and the API also refuses any request
+     whose peer is not a loopback address, in case the server is started with `--host`.
    - Every request body is validated again on the server with the same pure validator the UI
      uses.
    - JSON bodies are limited in size, and state-changing requests must be `application/json`.
@@ -41,7 +42,7 @@ Strava (BR-28) and must stay local (NFR-07).
 
 ## Consequences
 
-- `npm run dev`, `npm start` (`vite preview`) and the Playwright e2e server all include the API.
+- `npm run dev`, `npm run preview` (`vite preview`) and the Playwright e2e server all include the API.
   A plain static host serving `dist/` would not, and the Segments section then reports that
   storage is unavailable while the heat map keeps working.
 - `node:sqlite` is still marked experimental in Node 22/24, so its API could change; it is wrapped
