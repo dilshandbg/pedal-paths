@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   BASE_MAP_STORAGE_KEY,
-  loadBaseMapId,
+  HEAT_PALETTE_STORAGE_KEY,
+  loadPreference,
   type PreferenceStorage,
-  resolveBaseMap,
-  saveBaseMapId,
+  resolveChoice,
+  savePreference,
 } from '@/features/heatmap/utils/baseMap';
 import { getBaseMapOptions, OPENFREEMAP_BASE_MAPS } from '@/services/map';
 
@@ -49,30 +50,35 @@ describe('BR-32: base map options', () => {
   });
 });
 
-describe('BR-32: resolveBaseMap', () => {
+describe('BR-32: resolveChoice', () => {
   const options = getBaseMapOptions({});
 
   it('finds the chosen style, or falls back to the default for an unknown or missing ID', () => {
-    expect(resolveBaseMap(options, 'dark')?.id).toBe('dark');
-    expect(resolveBaseMap(options, 'custom')?.id).toBe('liberty');
-    expect(resolveBaseMap(options, null)?.id).toBe('liberty');
-    expect(resolveBaseMap([], 'dark')).toBeNull();
+    expect(resolveChoice(options, 'dark')?.id).toBe('dark');
+    expect(resolveChoice(options, 'custom')?.id).toBe('liberty');
+    expect(resolveChoice(options, null)?.id).toBe('liberty');
+    expect(resolveChoice([], 'dark')).toBeNull();
   });
 });
 
-describe('BR-32: remembering the base map', () => {
-  it('saves and loads only the style ID', () => {
+describe('BR-32: remembering the choices', () => {
+  it('saves and loads only the style and palette IDs', () => {
     const storage = memoryStorage();
-    expect(loadBaseMapId(storage)).toBeNull();
-    saveBaseMapId(storage, 'positron');
-    expect(loadBaseMapId(storage)).toBe('positron');
-    expect([...storage.data]).toEqual([[BASE_MAP_STORAGE_KEY, 'positron']]);
+    expect(loadPreference(storage, BASE_MAP_STORAGE_KEY)).toBeNull();
+    savePreference(storage, BASE_MAP_STORAGE_KEY, 'positron');
+    savePreference(storage, HEAT_PALETTE_STORAGE_KEY, 'fire');
+    expect(loadPreference(storage, BASE_MAP_STORAGE_KEY)).toBe('positron');
+    expect(loadPreference(storage, HEAT_PALETTE_STORAGE_KEY)).toBe('fire');
+    expect([...storage.data]).toEqual([
+      [BASE_MAP_STORAGE_KEY, 'positron'],
+      [HEAT_PALETTE_STORAGE_KEY, 'fire'],
+    ]);
   });
 
   it('works without storage, or when storage is blocked', () => {
-    expect(loadBaseMapId(null)).toBeNull();
-    expect(loadBaseMapId(failingStorage)).toBeNull();
-    expect(() => saveBaseMapId(failingStorage, 'dark')).not.toThrow();
-    expect(() => saveBaseMapId(null, 'dark')).not.toThrow();
+    expect(loadPreference(null, BASE_MAP_STORAGE_KEY)).toBeNull();
+    expect(loadPreference(failingStorage, BASE_MAP_STORAGE_KEY)).toBeNull();
+    expect(() => savePreference(failingStorage, BASE_MAP_STORAGE_KEY, 'dark')).not.toThrow();
+    expect(() => savePreference(null, BASE_MAP_STORAGE_KEY, 'dark')).not.toThrow();
   });
 });

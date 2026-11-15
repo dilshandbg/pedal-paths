@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { App } from '@/app/App';
 import { useMapStyleStore } from '@/features/heatmap/store/mapStyleStore';
-import { BASE_MAP_STORAGE_KEY } from '@/features/heatmap/utils/baseMap';
+import { BASE_MAP_STORAGE_KEY, HEAT_PALETTE_STORAGE_KEY } from '@/features/heatmap/utils/baseMap';
 import { FakeMap } from '../mocks/mapLibraries';
 
 const mapInstance = async () => {
@@ -25,7 +25,7 @@ beforeEach(() => {
       setItem: (key: string, value: string) => void stored.set(key, value),
     },
   });
-  useMapStyleStore.setState({ baseMapId: null });
+  useMapStyleStore.setState({ baseMapId: null, heatPaletteId: null });
 });
 afterEach(() => {
   if (original) Object.defineProperty(window, 'localStorage', original);
@@ -66,5 +66,32 @@ describe('BR-32: choosing the map style', () => {
     expect((await mapInstance()).options.style).toBe(
       'https://tiles.openfreemap.org/styles/liberty',
     );
+  });
+
+  it('lets the user choose the heat colours, magenta–purple by default, and remembers them', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await mapInstance();
+    const colours = screen.getByRole('combobox', { name: 'Heat colours' });
+    expect(colours).toHaveValue('magenta-purple');
+    expect(
+      within(colours)
+        .getAllByRole('option')
+        .map((o) => o.textContent),
+    ).toEqual(['Magenta–purple', 'Fire (orange–red)']);
+    await user.selectOptions(colours, 'Fire (orange–red)');
+    expect(colours).toHaveValue('fire');
+    expect(stored.get(HEAT_PALETTE_STORAGE_KEY)).toBe('fire');
+    expect(screen.getByRole('group', { name: 'Map display' })).toBeInTheDocument();
+  });
+
+  it('opens with the remembered heat colours, or the default for an unknown one', async () => {
+    useMapStyleStore.setState({ heatPaletteId: 'fire' });
+    const { unmount } = render(<App />);
+    expect(screen.getByRole('combobox', { name: 'Heat colours' })).toHaveValue('fire');
+    unmount();
+    useMapStyleStore.setState({ heatPaletteId: 'rainbow' });
+    render(<App />);
+    expect(screen.getByRole('combobox', { name: 'Heat colours' })).toHaveValue('magenta-purple');
   });
 });

@@ -29,4 +29,28 @@ test.describe('BR-32: map style', () => {
     await page.reload();
     await expect(page.getByRole('combobox', { name: 'Map style' })).toHaveValue('dark');
   });
+
+  test('choosing the fire colours recolours the heat map legend and is remembered', async ({
+    page,
+  }) => {
+    await page.goto('/');
+    const map = page.getByRole('region', { name: 'Ride map' });
+    await page.getByLabel('Strava export ZIP file').setInputFiles({
+      name: 'export.zip',
+      mimeType: 'application/zip',
+      buffer: Buffer.from(makeSharedRoadExport()),
+    });
+    await expect(map.getByRole('status')).toHaveText('Showing 4 rides on the map');
+
+    const colours = page.getByRole('combobox', { name: 'Heat colours' });
+    await expect(colours).toHaveValue('magenta-purple');
+    await colours.selectOption({ label: 'Fire (orange–red)' });
+    const ramp = map.getByRole('figure', { name: 'Heat map legend' }).locator('[aria-hidden]');
+    await expect
+      .poll(() => ramp.evaluate((el) => getComputedStyle(el).backgroundImage))
+      .toContain('rgb(254, 178, 76)');
+
+    await page.reload();
+    await expect(page.getByRole('combobox', { name: 'Heat colours' })).toHaveValue('fire');
+  });
 });

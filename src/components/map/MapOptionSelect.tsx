@@ -1,16 +1,16 @@
-import type { BaseMapOption } from '@/types';
-
-interface BaseMapSelectProps {
-  readonly options: readonly BaseMapOption[];
+interface MapOptionSelectProps {
+  /** Visible label, e.g. "Map style". */
+  readonly label: string;
+  readonly options: readonly { readonly id: string; readonly label: string }[];
   readonly selectedId: string;
   readonly onSelect: (id: string) => void;
 }
 
-/** Chooses the base map style (BR-32). Presentational: the container owns the choice. */
-export function BaseMapSelect({ options, selectedId, onSelect }: BaseMapSelectProps) {
+/** A labelled choice shown over the map (BR-32). Presentational: the container owns the choice. */
+export function MapOptionSelect({ label, options, selectedId, onSelect }: MapOptionSelectProps) {
   return (
-    <label className="flex items-center gap-2 rounded-lg bg-white/90 px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm backdrop-blur">
-      Map style
+    <label className="flex items-center justify-between gap-2 text-xs font-medium text-slate-700">
+      {label}
       <select
         className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-800 focus-visible:outline-2 focus-visible:outline-orange-500"
         value={selectedId}
