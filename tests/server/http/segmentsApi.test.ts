@@ -3,7 +3,11 @@ import { createServer, request, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { openDatabase } from '../../../server/db/database';
-import { createSegmentsApi, MAX_BODY_BYTES } from '../../../server/http/segmentsApi';
+import {
+  createSegmentsApi,
+  isLoopbackAddress,
+  MAX_BODY_BYTES,
+} from '../../../server/http/segmentsApi';
 import {
   createSegmentRepository,
   type SegmentRepository,
@@ -196,5 +200,48 @@ describe('storage failures', () => {
     const response = await fetch(`${base}/api/segments`);
     expect(response.status).toBe(500);
     expect(await response.json()).toEqual({ error: { code: 'storage-error' } });
+  });
+});
+
+describe('NFR-07: local machine only', () => {
+  it('recognises loopback peers only', () => {
+    expect(isLoopbackAddress('127.0.0.1')).toBe(true);
+    expect(isLoopbackAddress('127.10.0.3')).toBe(true);
+    expect(isLoopbackAddress('::1')).toBe(true);
+    expect(isLoopbackAddress('::ffff:127.0.0.1')).toBe(true);
+    expect(isLoopbackAddress('192.168.1.20')).toBe(false);
+    expect(isLoopbackAddress('::ffff:10.0.0.5')).toBe(false);
+    expect(isLoopbackAddress('fe80::1')).toBe(false);
+    expect(isLoopbackAddress(undefined)).toBe(false);
+  });
+
+  it('refuses a request from another machine', async () => {
+    const api = createSegmentsApi(() => repository);
+    const res = { statusCode: 0, headers: {} as Record<string, string>, body: '' };
+    await new Promise<void>((resolve) => {
+      api(
+        {
+          url: '/api/segments',
+          method: 'GET',
+          headers: {},
+          socket: { remoteAddress: '192.168.1.20' },
+        } as never,
+        {
+          set statusCode(code: number) {
+            res.statusCode = code;
+          },
+          setHeader: (name: string, value: string) => {
+            res.headers[name] = value;
+          },
+          end: (body?: string) => {
+            res.body = body ?? '';
+            resolve();
+          },
+        } as never,
+        () => resolve(),
+      );
+    });
+    expect(res.statusCode).toBe(403);
+    expect(JSON.parse(res.body)).toEqual({ error: { code: 'forbidden-origin' } });
   });
 });

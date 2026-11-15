@@ -41,6 +41,16 @@ function send(res: ServerResponse, status: number, body?: unknown): void {
   res.end(JSON.stringify(body));
 }
 
+/**
+ * Whether a peer address is this machine. Segment data is served to the local machine only
+ * (NFR-07), even if the dev server is started with `--host`.
+ */
+export function isLoopbackAddress(address: string | undefined): boolean {
+  if (!address) return false;
+  const ip = address.startsWith('::ffff:') ? address.slice(7) : address;
+  return ip === '::1' || /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(ip);
+}
+
 /** Rejects requests a different site's page could send (CSRF, NFR-08). */
 function checkOrigin(req: IncomingMessage): void {
   if (req.headers['sec-fetch-site'] === 'cross-site') {
@@ -87,12 +97,15 @@ async function readJson(req: IncomingMessage): Promise<unknown> {
  * Creates the `/api/segments` middleware. `getRepository` opens storage on first use; when it
  * fails, requests answer 503 `storage-unavailable` instead of breaking the app.
  */
-// Implements: BR-23, BR-24, BR-25, BR-27, NFR-08
+// Implements: BR-23, BR-24, BR-25, BR-27, NFR-07, NFR-08
 export function createSegmentsApi(getRepository: () => SegmentRepository) {
   async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
     const url = new URL(req.url ?? '/', 'http://localhost');
     const rest = url.pathname.slice(API_PREFIX.length).replace(/\/$/, '');
     const method = req.method ?? 'GET';
+    if (!isLoopbackAddress(req.socket.remoteAddress)) {
+      throw new ApiError(403, 'forbidden-origin');
+    }
     checkOrigin(req);
 
     let repository: SegmentRepository;
