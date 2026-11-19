@@ -1,26 +1,10 @@
 import { expect, test } from './test';
 import {
   makeActivitiesCsv,
-  makeGpx,
   makeSampleExport,
-  makeTrackPoints,
+  makeSingleRideExport,
   makeZip,
 } from '../fixtures/stravaExport';
-
-/** A synthetic export with one Ride. */
-const singleRideExport = (id: string, name: string) =>
-  makeZip({
-    'activities.csv': makeActivitiesCsv([
-      {
-        id,
-        date: 'Jan 1, 2024, 8:00:00 AM',
-        name,
-        type: 'Ride',
-        fileName: `activities/${id}.gpx`,
-      },
-    ]),
-    [`activities/${id}.gpx`]: makeGpx(makeTrackPoints(10)),
-  });
 
 /** Runs the real Web Worker pipeline in a browser with synthetic export archives. */
 test.describe('ZIP upload', () => {
@@ -58,7 +42,7 @@ test.describe('ZIP upload', () => {
     await input.setInputFiles({
       name: 'second.zip',
       mimeType: 'application/zip',
-      buffer: Buffer.from(singleRideExport('9001', 'Added ride')),
+      buffer: Buffer.from(makeSingleRideExport('9001', 'Added ride')),
     });
 
     const history = page.getByRole('region', { name: 'Ride history' });

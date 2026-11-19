@@ -1,4 +1,4 @@
-import type { RideHistoryApiErrorCode, UploadRecord } from '@/types';
+import type { RideHistoryApiErrorCode, UploadDeletionResult, UploadRecord } from '@/types';
 
 /*
  * Client for the local ride history API (ADR-0013 §4). Same origin only: rides only travel between
@@ -69,6 +69,13 @@ export interface RideHistoryClient {
    * when the file was already imported (BR-37).
    */
   createUpload(bundle: Uint8Array): Promise<UploadRecord>;
+  /**
+   * Deletes the given uploads and the rides no remaining upload contains, atomically (BR-36).
+   * Rejects with `not-found`, deleting nothing, when one of them no longer exists.
+   */
+  deleteUploads(uploadIds: readonly string[]): Promise<UploadDeletionResult>;
+  /** Deletes every upload and all ride data (BR-35, AC-39). */
+  deleteAll(): Promise<UploadDeletionResult>;
 }
 
 export const rideHistoryClient: RideHistoryClient = {
@@ -93,4 +100,18 @@ export const rideHistoryClient: RideHistoryClient = {
         }),
       )
     ).upload,
+
+  deleteUploads: async (uploadIds) =>
+    json<UploadDeletionResult>(
+      await request('/api/uploads/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ uploadIds }),
+      }),
+    ),
+
+  deleteAll: async () =>
+    json<UploadDeletionResult>(
+      await request('/api/uploads', { method: 'DELETE', headers: { Accept: 'application/json' } }),
+    ),
 };

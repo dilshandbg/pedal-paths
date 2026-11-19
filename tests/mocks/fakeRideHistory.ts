@@ -45,6 +45,8 @@ export interface FakeRideHistory {
   queueArchive(...archives: FakeArchive[]): void;
   /** Makes the ride storage unreachable (or reachable again). */
   setAvailable(available: boolean): void;
+  /** Makes the next deletion fail with this API error code, deleting nothing (AC-40). */
+  failNextDelete(code: 'not-found' | 'storage-error' | 'storage-unavailable'): void;
   /** Delays `importArchive` until the returned function is called (to see progress). */
   holdNextImport(onStatus?: ImportStatus): () => void;
   storedIds(): string[];
@@ -55,6 +57,9 @@ export interface FakeRideHistory {
 export function createFakeRideHistory(): FakeRideHistory {
   let rides = new Map<string, CyclingActivity>();
   let uploads: UploadRecord[] = [];
+  /** Activity IDs each upload contains (RULE-21). */
+  let links = new Map<string, ReadonlySet<string>>();
+  let deleteFailure: 'not-found' | 'storage-error' | 'storage-unavailable' | null = null;
   let queue: FakeArchive[] = [];
   let available = true;
   let hold: { readonly status: ImportStatus | undefined; release: Promise<void> } | null = null;
@@ -141,7 +146,34 @@ export function createFakeRideHistory(): FakeRideHistory {
         excludedNonRideCount: upload.excludedNonRideCount,
       };
       uploads = [...uploads, record];
+      links = new Map(links).set(record.uploadId, seen);
       return record;
+    }),
+    deleteUploads: vi.fn(async (uploadIds: readonly string[]) => {
+      if (!available) throw unavailable();
+      const failure = deleteFailure;
+      deleteFailure = null;
+      if (failure) throw new RideHistoryApiError(failure);
+      const ids = new Set(uploadIds);
+      if ([...ids].some((id) => !links.has(id))) throw new RideHistoryApiError('not-found');
+
+      uploads = uploads.filter((upload) => !ids.has(upload.uploadId));
+      links = new Map([...links].filter(([id]) => !ids.has(id)));
+      const stillContained = new Set([...links.values()].flatMap((rideIds) => [...rideIds]));
+      const before = rides.size;
+      rides = new Map([...rides].filter(([id]) => stillContained.has(id)));
+      return { deletedUploads: ids.size, deletedRides: before - rides.size };
+    }),
+    deleteAll: vi.fn(async () => {
+      if (!available) throw unavailable();
+      const failure = deleteFailure;
+      deleteFailure = null;
+      if (failure) throw new RideHistoryApiError(failure);
+      const result = { deletedUploads: uploads.length, deletedRides: rides.size };
+      uploads = [];
+      links = new Map();
+      rides = new Map();
+      return result;
     }),
   };
 
@@ -160,6 +192,9 @@ export function createFakeRideHistory(): FakeRideHistory {
     queueArchive: (...archives) => {
       queue = [...queue, ...archives];
     },
+    failNextDelete: (code) => {
+      deleteFailure = code;
+    },
     setAvailable: (value) => {
       available = value;
     },
@@ -173,6 +208,8 @@ export function createFakeRideHistory(): FakeRideHistory {
     reset: () => {
       rides = new Map();
       uploads = [];
+      links = new Map();
+      deleteFailure = null;
       queue = [];
       available = true;
       hold = null;
@@ -181,6 +218,8 @@ export function createFakeRideHistory(): FakeRideHistory {
       client.listUploads.mockClear();
       client.fetchRides.mockClear();
       client.createUpload.mockClear();
+      client.deleteUploads.mockClear();
+      client.deleteAll.mockClear();
     },
   };
 }

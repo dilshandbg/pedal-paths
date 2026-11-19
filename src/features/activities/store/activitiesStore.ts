@@ -11,6 +11,7 @@ import type {
   ImportStatus,
   RestoredHistory,
   SegmentIndex,
+  UploadDeletionResult,
   UploadFailureReason,
   UploadRecord,
   UploadSummary,
@@ -30,6 +31,16 @@ export type UploadOutcome =
   | { readonly ok: true; readonly upload: UploadRecord }
   | { readonly ok: false; readonly reason: UploadFailureReason };
 
+/** Why uploads were not deleted. Nothing is deleted then (BR-36, AC-40). */
+export type DeletionFailureReason = 'not-found' | 'history-unavailable' | 'delete-failed';
+
+/** Progress of deleting uploads (BR-35, BR-36). */
+export type DeletionStatus =
+  | { readonly stage: 'idle' }
+  | { readonly stage: 'deleting' }
+  | ({ readonly stage: 'done' } & UploadDeletionResult)
+  | { readonly stage: 'failed'; readonly reason: DeletionFailureReason };
+
 export interface ActivitiesState {
   /** The ride history, or null while it is empty or not loaded. */
   readonly dataset: LoadedDataset | null;
@@ -43,6 +54,7 @@ export interface ActivitiesState {
   readonly lastUpload: UploadSummary | null;
   /** When the last file was refused as already imported: its earlier upload (BR-37, AC-41). */
   readonly duplicateOf: UploadRecord | null;
+  readonly deletion: DeletionStatus;
   /** Loads the stored ride history, as the app does when it starts (BR-33, AC-34). */
   loadHistory: (services?: RideHistoryServices) => Promise<void>;
   /**
@@ -51,10 +63,25 @@ export interface ActivitiesState {
    * or removed; a failure stores and changes nothing (ADR-0004, BRD §10).
    */
   loadArchive: (file: File, services?: RideHistoryServices) => Promise<UploadOutcome | null>;
+  /**
+   * Deletes uploads, and the rides no remaining upload contains (BR-35, BR-36). All of them or
+   * none: on failure nothing is deleted. Resolves with whether they were deleted.
+   */
+  deleteUploads: (uploadIds: readonly string[], services?: RideHistoryServices) => Promise<boolean>;
+  /** Deletes every upload and all ride data (BR-35, AC-39, NFR-09). */
+  deleteAllUploads: (services?: RideHistoryServices) => Promise<boolean>;
 }
 
 let latestUpload = 0;
 let latestHistoryLoad = 0;
+
+function deletionFailureReason(error: unknown): DeletionFailureReason {
+  if (error instanceof RideHistoryApiError) {
+    if (error.code === 'not-found') return 'not-found';
+    if (error.code === 'storage-unavailable') return 'history-unavailable';
+  }
+  return 'delete-failed';
+}
 
 function failureReason(error: unknown): UploadFailureReason {
   if (error instanceof RideHistoryApiError) {
@@ -90,14 +117,47 @@ export const useActivitiesStore = create<ActivitiesState>()((set) => {
       throw error;
     }
     if (load !== latestHistoryLoad) return false;
-    set({
+    const stillStored = new Set(uploads.map((upload) => upload.uploadId));
+    set((state) => ({
       uploads,
+      // The latest upload's summary goes once that upload has been deleted.
+      lastUpload:
+        state.lastUpload && stillStored.has(state.lastUpload.upload.uploadId)
+          ? state.lastUpload
+          : null,
       history: 'ready',
       dataset:
         restored.activities.length > 0
           ? { activities: restored.activities, segmentIndex: restored.segmentIndex }
           : null,
-    });
+    }));
+    return true;
+  };
+
+  /** Runs a deletion, then reads the history back so the screen matches what is stored. */
+  const deleteThen = async (
+    services: RideHistoryServices,
+    remove: () => Promise<UploadDeletionResult>,
+  ): Promise<boolean> => {
+    set({ deletion: { stage: 'deleting' } });
+    let result: UploadDeletionResult;
+    try {
+      result = await remove();
+    } catch (error) {
+      const reason = deletionFailureReason(error);
+      if (reason === 'not-found') {
+        // Another window changed the uploads: show what is stored now.
+        await refresh(services, () => {}).catch(() => undefined);
+      }
+      set({ deletion: { stage: 'failed', reason } });
+      return false;
+    }
+    try {
+      await refresh(services, () => {});
+    } catch {
+      // Deleted, but the history could not be read back: the panel reports storage unavailable.
+    }
+    set({ deletion: { stage: 'done', ...result } });
     return true;
   };
 
@@ -109,6 +169,7 @@ export const useActivitiesStore = create<ActivitiesState>()((set) => {
     pendingFileName: null,
     lastUpload: null,
     duplicateOf: null,
+    deletion: { stage: 'idle' },
 
     // Implements: BR-33, AC-34
     // Uploads stay possible meanwhile: an upload reloads the history itself when it is stored, and
@@ -124,6 +185,16 @@ export const useActivitiesStore = create<ActivitiesState>()((set) => {
 
     // Implements: BR-01, BR-16, BR-18, BR-37, UX-02, AC-15, AC-35, AC-41
     loadArchive: (file, services = rideHistoryServices) => importAndStore(file, services),
+
+    // Implements: BR-35, BR-36, AC-37, AC-38, AC-40
+    deleteUploads: (uploadIds, services = rideHistoryServices) =>
+      uploadIds.length === 0
+        ? Promise.resolve(false)
+        : deleteThen(services, () => services.client.deleteUploads(uploadIds)),
+
+    // Implements: BR-35, AC-39, NFR-09
+    deleteAllUploads: (services = rideHistoryServices) =>
+      deleteThen(services, () => services.client.deleteAll()),
   };
 
   async function importAndStore(
@@ -184,6 +255,10 @@ export const useActivitiesStore = create<ActivitiesState>()((set) => {
     return { ok: true, upload };
   }
 });
+
+/** Whether uploads are being deleted. */
+export const selectIsDeleting = (state: ActivitiesState): boolean =>
+  state.deletion.stage === 'deleting';
 
 /** Whether an upload is being processed or stored. */
 export const selectIsImporting = (state: ActivitiesState): boolean =>

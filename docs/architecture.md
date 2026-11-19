@@ -80,32 +80,33 @@ the review the user sees is exactly what gets stored.
 
 ## 3. Separation of responsibilities
 
-| Responsibility                                 | Location                                                                           | Kind                          |
-| ---------------------------------------------- | ---------------------------------------------------------------------------------- | ----------------------------- |
-| ZIP upload / replacement, file check           | `features/activities/components`, `features/activities/utils`                      | UI + pure                     |
-| Archive reading (unzip, gunzip)                | `services/strava-export`                                                           | Pure adapter (fflate)         |
-| `activities.csv` parsing                       | `services/strava-export`                                                           | Pure                          |
-| Ride classification                            | `features/activities/services`                                                     | Pure                          |
-| GPX parsing                                    | `services/gpx`                                                                     | Pure (text scanner)           |
-| FIT parsing                                    | `services/fit`                                                                     | Pure adapter (@garmin/fitsdk) |
-| Activity normalization                         | `features/activities/services`                                                     | Pure                          |
-| Import orchestration                           | `features/activities/workers`                                                      | Web Worker                    |
-| Year and month filtering                       | `features/filters/utils`                                                           | Pure                          |
-| Individual ride selection                      | `features/filters/utils` + `features/filters/store`                                | Pure + state                  |
-| Heat map data preparation                      | `features/heatmap/services`                                                        | Pure                          |
-| Road-segment index (built at import, ADR-0006) | `features/heatmap/services/buildSegmentIndex`, called by the import worker         | Pure                          |
-| Statistics calculation                         | `features/activities/utils`                                                        | Pure                          |
-| Segment file parsing (JSON, GeoJSON, CSV)      | `features/segments/services/parseSegmentFile`, run in `features/segments/workers`  | Pure, in a Web Worker         |
-| Segment validation, merge, plan, personal best | `features/segments/services`                                                       | Pure (browser and backend)    |
-| Segment search, filter, sort, display text     | `features/segments/utils`                                                          | Pure                          |
-| Segment map overlay data                       | `features/segments/utils/segmentOverlay`                                           | Pure                          |
-| Segment API client                             | `services/segments-api`                                                            | Adapter (fetch)               |
-| Segment HTTP API                               | `server/http`                                                                      | Node middleware               |
-| Segment persistence                            | `server/catalog`, `server/segments` (interface, legacy SQLite reader), `server/db` | Node + JSON file              |
-| Track encoding, ride bundle, location cells    | `services/ride-history`                                                            | Pure (browser and backend)    |
-| Ride history and upload registry (ADR-0013)    | `server/rides` (database, repository, upload validation), `server/http/ridesApi`   | Node + SQLite                 |
-| Map rendering (heat map and segment overlay)   | `components/map`, `features/heatmap/components`, `services/map`                    | UI / adapter                  |
-| Application state                              | `features/*/store`                                                                 | Zustand                       |
+| Responsibility                                 | Location                                                                           | Kind                            |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------- | ------------------------------- |
+| ZIP upload / replacement, file check           | `features/activities/components`, `features/activities/utils`                      | UI + pure                       |
+| Archive reading (unzip, gunzip)                | `services/strava-export`                                                           | Pure adapter (fflate)           |
+| `activities.csv` parsing                       | `services/strava-export`                                                           | Pure                            |
+| Ride classification                            | `features/activities/services`                                                     | Pure                            |
+| GPX parsing                                    | `services/gpx`                                                                     | Pure (text scanner)             |
+| FIT parsing                                    | `services/fit`                                                                     | Pure adapter (@garmin/fitsdk)   |
+| Activity normalization                         | `features/activities/services`                                                     | Pure                            |
+| Import orchestration                           | `features/activities/workers`                                                      | Web Worker                      |
+| Year and month filtering                       | `features/filters/utils`                                                           | Pure                            |
+| Individual ride selection                      | `features/filters/utils` + `features/filters/store`                                | Pure + state                    |
+| Heat map data preparation                      | `features/heatmap/services`                                                        | Pure                            |
+| Road-segment index (built at import, ADR-0006) | `features/heatmap/services/buildSegmentIndex`, called by the import worker         | Pure                            |
+| Statistics calculation                         | `features/activities/utils`                                                        | Pure                            |
+| Segment file parsing (JSON, GeoJSON, CSV)      | `features/segments/services/parseSegmentFile`, run in `features/segments/workers`  | Pure, in a Web Worker           |
+| Segment validation, merge, plan, personal best | `features/segments/services`                                                       | Pure (browser and backend)      |
+| Segment search, filter, sort, display text     | `features/segments/utils`                                                          | Pure                            |
+| Segment map overlay data                       | `features/segments/utils/segmentOverlay`                                           | Pure                            |
+| Segment API client                             | `services/segments-api`                                                            | Adapter (fetch)                 |
+| Segment HTTP API                               | `server/http`                                                                      | Node middleware                 |
+| Segment persistence                            | `server/catalog`, `server/segments` (interface, legacy SQLite reader), `server/db` | Node + JSON file                |
+| Track encoding, ride bundle, location cells    | `services/ride-history`                                                            | Pure (browser and backend)      |
+| Ride history and upload registry (ADR-0013)    | `server/rides` (database, repository, upload validation), `server/http/ridesApi`   | Node + SQLite                   |
+| Upload management screen                       | `features/activities/components/UploadsSection`, `components/uploads/UploadList`   | UI (container + presentational) |
+| Map rendering (heat map and segment overlay)   | `components/map`, `features/heatmap/components`, `services/map`                    | UI / adapter                    |
+| Application state                              | `features/*/store`                                                                 | Zustand                         |
 
 ## 4. Data flow
 

@@ -40,3 +40,19 @@ export function formatShortDate(isoDate: string, timeZone?: string): string {
     ...(timeZone === undefined ? {} : { timeZone }),
   }).format(date);
 }
+
+/**
+ * Date and time for display, such as "Nov 19, 2026, 10:05 AM", in the given IANA time zone or the
+ * browser's local zone (ADR-0007). Returns an empty string for an unparsable date.
+ */
+export function formatDateTime(isoDate: string, timeZone?: string): string {
+  const date = new Date(isoDate);
+  if (Number.isNaN(date.getTime())) {
+    return '';
+  }
+  return new Intl.DateTimeFormat('en-US', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+    ...(timeZone === undefined ? {} : { timeZone }),
+  }).format(date);
+}
