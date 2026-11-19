@@ -2,11 +2,16 @@ import { fileURLToPath, URL } from 'node:url';
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vitest/config';
-import { segmentsApiPlugin } from './server/vitePlugin';
+import { ridesApiPlugin, segmentsApiPlugin } from './server/vitePlugin';
 
 export default defineConfig({
-  // The segment API (ADR-0009) runs on the dev and preview servers; Vitest tests it directly.
-  plugins: [react(), tailwindcss(), ...(process.env.VITEST ? [] : [segmentsApiPlugin()])],
+  // The segment and ride APIs (ADR-0009, ADR-0013) run on the dev and preview servers; Vitest
+  // tests them directly.
+  plugins: [
+    react(),
+    tailwindcss(),
+    ...(process.env.VITEST ? [] : [segmentsApiPlugin(), ridesApiPlugin()]),
+  ],
   worker: {
     format: 'es',
   },

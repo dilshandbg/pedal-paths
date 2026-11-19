@@ -68,12 +68,13 @@ unavailable.
 Nothing needs configuring: there are no API keys or secrets. Optional settings go in
 `.env.local` (copy `.env.example`; `.env.local` is git-ignored):
 
-| Variable               | Default                                        | Purpose                                          |
-| ---------------------- | ---------------------------------------------- | ------------------------------------------------ |
-| `VITE_MAP_STYLE_URL`   | `https://tiles.openfreemap.org/styles/liberty` | MapLibre style for the base map                  |
-| `SEGMENT_CATALOG_PATH` | `data/segment-catalog.json`                    | Segment catalog file (`:memory:` keeps nothing)  |
-| `SEGMENTS_DB_PATH`     | `data/segments.sqlite`                         | Older SQLite database, migrated once (see below) |
-| `STRAVA_ACCESS_TOKEN`  | none                                           | Only for `npm run fetch-segments` (see Segments) |
+| Variable               | Default                                        | Purpose                                                                                                |
+| ---------------------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `VITE_MAP_STYLE_URL`   | `https://tiles.openfreemap.org/styles/liberty` | MapLibre style for the base map                                                                        |
+| `SEGMENT_CATALOG_PATH` | `data/segment-catalog.json`                    | Segment catalog file (`:memory:` keeps nothing)                                                        |
+| `SEGMENTS_DB_PATH`     | `data/segments.sqlite`                         | Older SQLite database, migrated once (see below)                                                       |
+| `RIDES_DB_PATH`        | `data/rides.sqlite`                            | Ride history database (ADR-0013; `:memory:` keeps nothing). Used by the app from the next release step |
+| `STRAVA_ACCESS_TOKEN`  | none                                           | Only for `npm run fetch-segments` (see Segments)                                                       |
 
 Restart the dev or preview server after changing them.
 
@@ -115,7 +116,8 @@ starts `vite preview` with an in-memory segment catalog, so it never touches you
 docs/          BRD (source of truth), architecture, technical design, ADRs, traceability,
                segment import and catalog formats
 public/        Static assets
-server/        Local backend: JSON segment catalog, SQLite migration, /api/segments, Vite plugin
+server/        Local backend: JSON segment catalog, SQLite migration, /api/segments, ride history
+               database and /api/uploads, /api/rides (ADR-0013), Vite plugins
 data/          segment-catalog.json with your imported segments (git-ignored)
 src/
   app/         App root, routes, providers

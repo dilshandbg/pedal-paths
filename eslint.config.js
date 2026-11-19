@@ -15,6 +15,7 @@ const PURE_LOGIC_FILES = [
   'src/services/gpx/**/*.ts',
   'src/services/fit/**/*.ts',
   'src/services/strava-export/**/*.ts',
+  'src/services/ride-history/**/*.ts',
   'src/features/*/services/**/*.ts',
   'src/features/*/utils/**/*.ts',
   'src/features/*/types/**/*.ts',
