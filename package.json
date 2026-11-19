@@ -21,6 +21,7 @@
     "format:check": "prettier --check .",
     "typecheck": "tsc -b",
     "perf": "node tests/perf/run.mjs",
+    "perf:history": "node tests/perf/history.mjs",
     "fetch-segments": "node server/strava/fetchSegmentsCli.mjs"
   },
   "dependencies": {

@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { filterActivities } from '@/features/filters/utils/filterActivities';
 import { useFilterStore } from '@/features/filters/store/filterStore';
-import type { CyclingActivity } from '@/types';
+import type { RideSummary } from '@/types';
 
 /**
  * Activities that pass the current filter. Derived on demand, never stored (ADR-0005). Every filter
@@ -9,9 +9,9 @@ import type { CyclingActivity } from '@/types';
  * reload (BR-10, AC-11, RULE-11).
  */
 // Implements: BR-10, AC-11, RULE-11
-export function useFilteredActivities(
-  activities: readonly CyclingActivity[] | null,
-): readonly CyclingActivity[] | null {
+export function useFilteredActivities<T extends RideSummary>(
+  activities: readonly T[] | null,
+): readonly T[] | null {
   const filter = useFilterStore((state) => state.filter);
   return useMemo(
     () => (activities ? filterActivities(activities, filter) : null),

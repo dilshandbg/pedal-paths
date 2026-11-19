@@ -12,6 +12,10 @@ import { useSegmentsStore } from '@/features/segments/store/segmentsStore';
 import type { SegmentEffortRecord, SegmentRecord, StoredSegment } from '@/types';
 import { FakeMapboxOverlay } from '../mocks/mapLibraries';
 
+// These tests render the whole app, including the lazy-loaded map: give them room beyond the 5 s
+// default, which a cold map import can exceed while the whole suite runs in parallel.
+vi.setConfig({ testTimeout: 20_000 });
+
 // jsdom has no Web Workers (nor Blob.text): parse in the test thread with the real parser.
 vi.mock('@/features/segments/workers/runSegmentParseInWorker', () => ({
   runSegmentParseInWorker: async (file: File, ids: readonly string[]) => {

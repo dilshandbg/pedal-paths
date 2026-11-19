@@ -126,10 +126,10 @@ flowchart LR
     end
     W -- "POST /api/uploads" --> DB[("data/rides.sqlite")]
     DB -- "GET /api/rides" --> R2
-    subgraph R2["Web Worker"]
-        D["decodeRideHistory()"] --> SEG["buildSegmentIndex()<br/>whole history"]
+    subgraph R2["History worker"]
+        D["decodeRideHistoryPositions()"] --> SEG["buildSegmentIndex() + computeBounds()<br/>whole history"]
     end
-    R2 --> S[("activities store<br/>history + uploads + status")]
+    R2 -- "summaries + index + bounds" --> S[("activities store<br/>history + uploads + status")]
     S --> FL["filterActivities()<br/>pure"]
     FS[("filter store<br/>ActivityFilter")] --> FL
     FL --> H["aggregateHeatMap()<br/>→ HeatMapData"]

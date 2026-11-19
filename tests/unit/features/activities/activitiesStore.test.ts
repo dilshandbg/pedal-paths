@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useActivitiesStore } from '@/features/activities/store/activitiesStore';
 import type { RideHistoryServices } from '@/features/activities/store/rideHistoryServices';
 import { buildSegmentIndex } from '@/features/heatmap/services/buildSegmentIndex';
@@ -68,11 +68,11 @@ describe('BR-33: ride history at startup', () => {
           await new Promise<void>((resolve) => (finishStartupRead = resolve));
           return [];
         },
-        fetchRides: async () => new Uint8Array(1),
       },
       restoreHistory: async () => ({
         activities: [],
         segmentIndex: buildSegmentIndex([]),
+        bounds: null,
         skippedCount: 0,
       }),
     };
@@ -84,6 +84,19 @@ describe('BR-33: ride history at startup', () => {
 
     expect(shownIds()).toEqual(['1']);
     expect(store().history).toBe('ready');
+  });
+
+  it('NFR-10: a second start while the history loads joins it instead of loading it again', async () => {
+    fake.queueArchive(rides('1'));
+    await store().loadArchive(zipFile('export.zip'), services);
+    const fetchRides = vi.spyOn(fake.services.client, 'fetchRides');
+    fetchRides.mockClear(); // the upload above already read the history once
+
+    await Promise.all([store().loadHistory(services), store().loadHistory(services)]);
+    expect(fetchRides).toHaveBeenCalledTimes(1);
+
+    await store().loadHistory(services); // a later, separate load reads it again
+    expect(fetchRides).toHaveBeenCalledTimes(2);
   });
 
   it('shows no dataset for an empty history', async () => {

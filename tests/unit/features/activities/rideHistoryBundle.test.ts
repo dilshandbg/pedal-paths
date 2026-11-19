@@ -2,6 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   decodeRideHistory,
+  decodeRideHistoryPositions,
   encodeUploadBundle,
 } from '@/features/activities/services/rideHistoryBundle';
 import { decodeRideBundle, encodeRideBundle } from '@/services/ride-history/rideBundle';
@@ -110,5 +111,26 @@ describe('BR-33: ride history bundles', () => {
 
   it('throws when the response is not a ride bundle at all', () => {
     expect(() => decodeRideHistory(new Uint8Array([1, 2, 3]))).toThrow();
+  });
+});
+
+describe('NFR-10: restoring positions only', () => {
+  it('gives the same rides as a full decode, each track holding only its positions', () => {
+    const bytes = encodeRideBundle({}, [
+      stored({ activityId: '1', activityDate: '2024-01-02T08:00:00.000Z' }),
+      stored({ activityId: '2' }),
+      stored({ activityId: '' }),
+    ]);
+
+    const full = decodeRideHistory(bytes, { timeZone: 'UTC' });
+    const positions = decodeRideHistoryPositions(bytes, { timeZone: 'UTC' });
+
+    expect(positions.skippedCount).toBe(full.skippedCount);
+    expect(positions.rides).toEqual(
+      full.activities.map((activity) => ({
+        ...activity,
+        gpsTrack: activity.gpsTrack.map(({ latitude, longitude }) => ({ latitude, longitude })),
+      })),
+    );
   });
 });

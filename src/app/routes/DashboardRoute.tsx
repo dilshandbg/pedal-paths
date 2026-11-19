@@ -27,6 +27,7 @@ export function DashboardRoute() {
   const loadHistory = useActivitiesStore((state) => state.loadHistory);
   const activities = useActivitiesStore((state) => state.dataset?.activities ?? null);
   const segmentIndex = useActivitiesStore((state) => state.dataset?.segmentIndex ?? null);
+  const dataBounds = useActivitiesStore((state) => state.dataset?.bounds ?? null);
   const selectedActivities = useFilteredActivities(activities);
   const segmentMap = useSegmentOverlay();
   const [sidebarTab, setSidebarTab] = useState<'rides' | 'segments' | 'uploads'>('rides');
@@ -76,7 +77,7 @@ export function DashboardRoute() {
       }
       map={
         <HeatMapView
-          activities={activities}
+          bounds={dataBounds}
           selectedActivities={selectedActivities}
           segmentIndex={segmentIndex}
           segmentOverlay={segmentMap.overlay}

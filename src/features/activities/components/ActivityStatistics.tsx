@@ -2,11 +2,11 @@ import { useMemo } from 'react';
 import { StatisticsPanel } from '@/components/statistics/StatisticsPanel';
 import { describeSummary } from '@/features/activities/utils/describeSummary';
 import { summarizeActivities } from '@/features/activities/utils/summarizeActivities';
-import type { CyclingActivity } from '@/types';
+import type { RideSummary } from '@/types';
 
 interface ActivityStatisticsProps {
   /** Activities matching the active filters, or null when no export is loaded. */
-  activities: readonly CyclingActivity[] | null;
+  activities: readonly RideSummary[] | null;
 }
 
 /** Derives the summary statistics of the filtered rides and shows them (BR-14, AC-13, UX-08). */

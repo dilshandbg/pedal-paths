@@ -7,7 +7,8 @@ import { validateArchiveFile } from '@/features/activities/utils/validateArchive
 import { RideHistoryApiError } from '@/services/ride-history-api/rideHistoryClient';
 import type {
   ArchiveUploadResult,
-  CyclingActivity,
+  GeoBounds,
+  RideSummary,
   ImportStatus,
   RestoredHistory,
   SegmentIndex,
@@ -19,9 +20,11 @@ import type {
 
 /** The stored ride history, as shown: every ride of every upload, once (BR-18, BR-33). */
 export interface LoadedDataset {
-  readonly activities: readonly CyclingActivity[];
+  readonly activities: readonly RideSummary[];
   /** Precomputed heat map road segments for these activities (ADR-0006). */
   readonly segmentIndex: SegmentIndex;
+  /** Bounds of every track point, to fit the map; null when there are none. */
+  readonly bounds: GeoBounds | null;
 }
 
 /** Whether the stored ride history could be loaded from the local backend. */
@@ -74,6 +77,11 @@ export interface ActivitiesState {
 
 let latestUpload = 0;
 let latestHistoryLoad = 0;
+/**
+ * The startup load in progress. A second call while it runs (React StrictMode runs effects twice)
+ * joins it instead of reading and indexing the whole history again (NFR-10).
+ */
+let historyLoadInProgress: Promise<void> | null = null;
 
 function deletionFailureReason(error: unknown): DeletionFailureReason {
   if (error instanceof RideHistoryApiError) {
@@ -106,12 +114,10 @@ export const useActivitiesStore = create<ActivitiesState>()((set) => {
     let restored: RestoredHistory;
     let uploads: UploadRecord[];
     try {
-      const [registry, rides] = await Promise.all([
+      [uploads, restored] = await Promise.all([
         services.client.listUploads(),
-        services.client.fetchRides(),
+        services.restoreHistory(onStatus),
       ]);
-      uploads = registry;
-      restored = await services.restoreHistory(rides, onStatus);
     } catch (error) {
       if (load === latestHistoryLoad) set({ history: 'unavailable' });
       throw error;
@@ -128,7 +134,11 @@ export const useActivitiesStore = create<ActivitiesState>()((set) => {
       history: 'ready',
       dataset:
         restored.activities.length > 0
-          ? { activities: restored.activities, segmentIndex: restored.segmentIndex }
+          ? {
+              activities: restored.activities,
+              segmentIndex: restored.segmentIndex,
+              bounds: restored.bounds,
+            }
           : null,
     }));
     return true;
@@ -174,13 +184,18 @@ export const useActivitiesStore = create<ActivitiesState>()((set) => {
     // Implements: BR-33, AC-34
     // Uploads stay possible meanwhile: an upload reloads the history itself when it is stored, and
     // a slower startup load never overwrites that newer result.
-    loadHistory: async (services = rideHistoryServices) => {
-      set({ history: 'loading' });
-      try {
-        await refresh(services, () => {});
-      } catch {
-        // `refresh` marked the history unavailable; the panel says so (BRD §10).
-      }
+    loadHistory: (services = rideHistoryServices) => {
+      historyLoadInProgress ??= (async () => {
+        set({ history: 'loading' });
+        try {
+          await refresh(services, () => {});
+        } catch {
+          // `refresh` marked the history unavailable; the panel says so (BRD §10).
+        } finally {
+          historyLoadInProgress = null;
+        }
+      })();
+      return historyLoadInProgress;
     },
 
     // Implements: BR-01, BR-16, BR-18, BR-37, UX-02, AC-15, AC-35, AC-41

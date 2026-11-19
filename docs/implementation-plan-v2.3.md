@@ -65,8 +65,19 @@ traceability updated in the same change.
      `GET /api/analytics`.
    - One-off timing at 2,000 rides × 3,000 points: location visits (100 m) 55–106 ms; a 2 km
      radius over a dense area ~1.4 s (every ride is a candidate). For phase 5 to look at.
-5. **Performance** (NFR-10): extend `npm run perf` with restore and location-query timings at about
-   2,000 synthetic rides; tune indexes or the cell size if needed.
+5. **Performance** (NFR-10). **Done** on `feature/history-benchmark`.
+   - `npm run perf:history` (`tests/perf/history.mjs`): stores a seeded synthetic history through the
+     real repository, times location visits (100 m) through the real analytics, then times five cold
+     page loads of the real app on that database. Restore budget judged on the median of the five
+     loads; every location query must be within budget.
+   - The first run found restore at ~20–27 s. Fixed:
+     - the history was loaded twice per start (StrictMode), so a second start now joins the first;
+     - 7.2 million track points were copied to the page, which only needs summaries and the bounds;
+     - `buildSegmentIndex` was made ~2× faster with identical output: same-cell and neighbour fast
+       paths, small-integer keys and a flat segment table;
+     - decoding reads positions only; date formatters are cached; the ride list renders after the
+       map; a dedicated history worker downloads the rides itself.
+   - Result: median ~2.5–2.7 s; location queries ≤ ~100 ms.
 6. **Segment matching** (BR-38, RULE-24; definition approved in OD-28).
 7. **Docs:**
    - Merge the proposal into `docs/BRD.md` as v2.3 (at approval, before phase 1).

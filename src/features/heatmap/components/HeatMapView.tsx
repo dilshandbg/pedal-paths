@@ -1,13 +1,12 @@
 import { Suspense, lazy, useMemo } from 'react';
 import { aggregateHeatMap } from '@/features/heatmap/services/aggregateHeatMap';
 import { buildHeatMapGeometry } from '@/features/heatmap/services/buildHeatMapGeometry';
-import { computeBounds } from '@/features/heatmap/utils/bounds';
 import { HEAT_PALETTE_OPTIONS } from '@/components/map/heatStyle';
 import { MapOptionSelect } from '@/components/map/MapOptionSelect';
 import { useMapStyleStore } from '@/features/heatmap/store/mapStyleStore';
 import { resolveChoice } from '@/features/heatmap/utils/baseMap';
 import { getBaseMapOptions } from '@/services/map';
-import type { CyclingActivity, GeoBounds, SegmentIndex, SegmentOverlayData } from '@/types';
+import type { RideSummary, GeoBounds, SegmentIndex, SegmentOverlayData } from '@/types';
 
 // MapLibre + deck.gl are large; load them in their own chunk so the rest of the dashboard
 // (header, upload panel, filters) renders immediately.
@@ -19,10 +18,13 @@ const MapView = lazy(() =>
 );
 
 interface HeatMapViewProps {
-  /** All loaded activities (the view is fitted to them), or null when no export is loaded. */
-  activities: readonly CyclingActivity[] | null;
+  /**
+   * Bounds of every loaded ride's track (the view is fitted to them), or null when no rides are
+   * loaded. Computed with the heat map index, off the main thread.
+   */
+  bounds: GeoBounds | null;
   /** Activities that pass the filters and contribute to the heat map (BR-09). */
-  selectedActivities: readonly CyclingActivity[] | null;
+  selectedActivities: readonly RideSummary[] | null;
   /** Segment index of the loaded dataset (ADR-0006), or null when no export is loaded. */
   segmentIndex: SegmentIndex | null;
   /** Imported segment routes to draw above the heat map (BR-26); passed through unchanged. */
@@ -36,12 +38,12 @@ interface HeatMapViewProps {
  * Aggregates traversal frequency for the selected activities with pure functions and hands the
  * result to the map (BR-12). A new selection only replaces the deck.gl layer on the existing map:
  * the map is never recreated and the page never reloads (BR-10). Re-aggregation happens when the selection or the index changes. The
- * view is fitted to all loaded activities, so it only moves when a new dataset arrives, not on
+ * view is fitted to all loaded rides, so it only moves when a new dataset arrives, not on
  * every filter change. The user picks the base map style, and the heat map colours follow its
  * theme (BR-32).
  */
 export function HeatMapView({
-  activities,
+  bounds,
   selectedActivities,
   segmentIndex,
   segmentOverlay = null,
@@ -64,7 +66,6 @@ export function HeatMapView({
         : null,
     [selectedActivities, segmentIndex, geometry],
   );
-  const bounds = useMemo(() => (activities ? computeBounds(activities) : null), [activities]);
   const baseMapId = useMapStyleStore((state) => state.baseMapId);
   const setBaseMap = useMapStyleStore((state) => state.setBaseMap);
   const heatPaletteId = useMapStyleStore((state) => state.heatPaletteId);

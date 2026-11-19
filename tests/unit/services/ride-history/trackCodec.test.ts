@@ -2,6 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   decodeTrack,
+  decodeTrackPositions,
   encodeTrack,
   TrackFormatError,
   trackPointCount,
@@ -100,5 +101,25 @@ describe('BR-33: GPS track encoding', () => {
     new DataView(bytes.buffer).setInt32(8, 950_000_000, true); // latitude 95°
 
     expect(() => decodeTrack(bytes)).toThrow(/invalid coordinates/);
+  });
+});
+
+describe('NFR-10: decoding positions only', () => {
+  it('gives the same coordinates as a full decode, without elevation or time', () => {
+    const track = [point(), point({ latitude: 51.6, longitude: -0.2, elevation: null })];
+    const bytes = encodeTrack(track);
+
+    expect(decodeTrackPositions(bytes)).toEqual(
+      decodeTrack(bytes).map(({ latitude, longitude }) => ({ latitude, longitude })),
+    );
+    expect(decodeTrackPositions(encodeTrack([]))).toEqual([]);
+  });
+
+  it('rejects the same invalid bytes as a full decode', () => {
+    const bytes = encodeTrack([point()]);
+    new DataView(bytes.buffer).setInt32(8, 950_000_000, true);
+
+    expect(() => decodeTrackPositions(bytes)).toThrow(/invalid coordinates/);
+    expect(() => decodeTrackPositions(new Uint8Array(3))).toThrow(TrackFormatError);
   });
 });

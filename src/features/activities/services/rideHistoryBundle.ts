@@ -1,7 +1,7 @@
 import { MIN_TRACK_POINTS } from '@/features/activities/services/normalizeActivity';
 import { decodeRideBundle, encodeRideBundle } from '@/services/ride-history/rideBundle';
-import { decodeTrack, encodeTrack } from '@/services/ride-history/trackCodec';
-import type { CyclingActivity, NewUpload, StoredRideDetails } from '@/types';
+import { decodeTrack, decodeTrackPositions, encodeTrack } from '@/services/ride-history/trackCodec';
+import type { CyclingActivity, NewUpload, RideSummary, StoredRideDetails } from '@/types';
 import { getYearMonth } from '@/utils/date';
 
 /*
@@ -64,29 +64,23 @@ function readDetails(details: unknown): StoredRideDetails | null {
   };
 }
 
-/**
- * Turns `GET /api/rides` into rides (BR-33, AC-34). Year and month come from the start date in the
- * browser's time zone, as for an import (ADR-0007). An entry that cannot be shown is counted and
- * skipped, never fatal.
- *
- * @throws RideBundleError when the response is not a ride bundle at all.
- */
-// Implements: BR-33
-export function decodeRideHistory(
+/** Decodes the bundle's entries with `decodePoints`; invalid entries are counted and skipped. */
+function decodeEntries<P>(
   bytes: Uint8Array,
-  options: { readonly timeZone?: string } = {},
-): DecodedRideHistory {
+  timeZone: string | undefined,
+  decodePoints: (track: Uint8Array) => P[],
+): { readonly rides: (RideSummary & { readonly gpsTrack: readonly P[] })[]; skippedCount: number } {
   const bundle = decodeRideBundle(bytes);
-  const activities: CyclingActivity[] = [];
+  const rides: (RideSummary & { readonly gpsTrack: readonly P[] })[] = [];
   const seen = new Set<string>();
   let skippedCount = 0;
 
   for (const ride of bundle.rides) {
     const details = readDetails(ride.details);
-    const yearMonth = details ? getYearMonth(details.activityDate, options.timeZone) : null;
-    let gpsTrack: CyclingActivity['gpsTrack'] | null = null;
+    const yearMonth = details ? getYearMonth(details.activityDate, timeZone) : null;
+    let gpsTrack: P[] | null = null;
     try {
-      gpsTrack = decodeTrack(ride.track);
+      gpsTrack = decodePoints(ride.track);
     } catch {
       gpsTrack = null;
     }
@@ -101,9 +95,38 @@ export function decodeRideHistory(
       continue;
     }
     seen.add(details.activityId);
-    activities.push({ ...details, year: yearMonth.year, month: yearMonth.month, gpsTrack });
+    rides.push({ ...details, year: yearMonth.year, month: yearMonth.month, gpsTrack });
   }
 
-  activities.sort((a, b) => b.activityDate.localeCompare(a.activityDate));
-  return { activities, skippedCount };
+  rides.sort((a, b) => b.activityDate.localeCompare(a.activityDate));
+  return { rides, skippedCount };
+}
+
+/**
+ * Turns `GET /api/rides` into rides (BR-33, AC-34). Year and month come from the start date in the
+ * browser's time zone, as for an import (ADR-0007). An entry that cannot be shown is counted and
+ * skipped, never fatal.
+ *
+ * @throws RideBundleError when the response is not a ride bundle at all.
+ */
+// Implements: BR-33
+export function decodeRideHistory(
+  bytes: Uint8Array,
+  options: { readonly timeZone?: string } = {},
+): DecodedRideHistory {
+  const { rides, skippedCount } = decodeEntries(bytes, options.timeZone, decodeTrack);
+  return { activities: rides, skippedCount };
+}
+
+/**
+ * Like `decodeRideHistory`, but each track holds only its positions: all the restore needs for
+ * the heat map index and the bounds, and much faster for a large history (NFR-10).
+ *
+ * @throws RideBundleError when the response is not a ride bundle at all.
+ */
+export function decodeRideHistoryPositions(
+  bytes: Uint8Array,
+  options: { readonly timeZone?: string } = {},
+) {
+  return decodeEntries(bytes, options.timeZone, decodeTrackPositions);
 }

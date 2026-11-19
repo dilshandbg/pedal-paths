@@ -37,6 +37,7 @@ npm run lint         # ESLint
 npm run typecheck    # tsc -b
 npm run format       # Prettier write
 npm run perf         # NFR-02 benchmark: filter change to frame, 250 ms budget (--zip <export>)
+npm run perf:history # NFR-10 benchmark: stored-history restore (median 5 s) and location queries (500 ms)
 npm run fetch-segments  # optional: download segment names/routes with STRAVA_ACCESS_TOKEN (ADR-0012)
 ```
 

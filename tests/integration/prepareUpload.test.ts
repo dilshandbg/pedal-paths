@@ -1,8 +1,11 @@
 // @vitest-environment node
 import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import { prepareUpload, restoreHistory } from '@/features/activities/services/prepareUpload';
+import { prepareUpload } from '@/features/activities/services/prepareUpload';
+import { restoreHistory, transferablesOf } from '@/features/activities/services/restoreHistory';
 import { decodeRideHistory } from '@/features/activities/services/rideHistoryBundle';
+import { buildSegmentIndex } from '@/features/heatmap/services/buildSegmentIndex';
+import { computeBounds } from '@/features/heatmap/utils/bounds';
 import { encodeRideBundle } from '@/services/ride-history/rideBundle';
 import type { ArchiveUploadResult, ImportStatus } from '@/types';
 import { validateUploadBundle } from '../../server/rides/validateUpload';
@@ -83,7 +86,27 @@ describe('BR-33 / AC-34: restoring the stored history', () => {
     );
     expect(restored.skippedCount).toBe(0);
     expect(restored.segmentIndex.activitySegments.size).toBe(3);
+    // NFR-10: the page gets summaries and the bounds, never the tracks.
+    expect(restored.activities.every((activity) => !('gpsTrack' in activity))).toBe(true);
+    expect(restored.bounds).toEqual(computeBounds(imported.activities));
+    expect(restored.segmentIndex).toEqual(buildSegmentIndex(imported.activities));
     expect(statuses).toEqual([{ stage: 'indexing' }]);
+  });
+
+  it('lists every buffer of the index, so it can be moved to the page, each once', async () => {
+    const prepared = expectOk(await prepareUpload(zipBlob(makeSampleExport()), 'export.zip'));
+    const restored = restoreHistory(prepared.bundle);
+    const index = restored.segmentIndex;
+
+    const buffers = transferablesOf(restored);
+
+    expect(new Set(buffers).size).toBe(buffers.length);
+    for (const array of [index.cellLngLat, index.segmentCells, index.cellSegments]) {
+      expect(buffers).toContain(array.buffer);
+    }
+    for (const segments of index.activitySegments.values()) {
+      expect(buffers).toContain(segments.buffer);
+    }
   });
 
   it('restores an empty history', () => {

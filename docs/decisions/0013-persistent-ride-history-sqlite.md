@@ -131,9 +131,14 @@ Points stay tied to their ride ID, and they are deleted with it.
    If the insert fails, nothing from it is kept and the upload is marked `failed`. An upload left
    `importing` by a crash is marked `failed` when the database is next opened.
 
-4. When the app starts, the browser loads `GET /api/uploads` and `GET /api/rides` (a binary stream of
-   every stored ride). The import worker decodes it and builds the `SegmentIndex` (ADR-0006). After an
-   upload, the worker rebuilds the index over the whole history.
+4. When the app starts, the browser loads `GET /api/uploads`, and a separate **history worker**
+   (without the ZIP and FIT parsers) downloads `GET /api/rides` itself, decodes only the track
+   positions, and builds the `SegmentIndex` (ADR-0006) and the bounds. Only ride summaries
+   (`RideSummary`, a ride without its track), the index (moved, not copied) and the bounds go back
+   to the page. After an upload or a deletion, the history is read and indexed again. A second
+   start while a load runs joins it. _Measured (phase 5, `npm run perf:history`): copying the
+   7.2 million track points to the page took longer than everything else together; without it, a
+   2,000-ride history shows in a median of ~2.6 s._
 5. Filters (ADR-0005) are kept when an upload is added. IDs of rides that no longer exist are
    dropped from the exclusion list after a deletion.
 6. The duplicate check is the `POST` itself: the backend refuses a known hash with 409 and the
