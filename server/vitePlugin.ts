@@ -2,6 +2,8 @@ import { resolve } from 'node:path';
 import { loadEnv, type Plugin, type PreviewServer, type ViteDevServer } from 'vite';
 import { openCatalogRepository } from './catalog/catalogRepository';
 import { migrateLegacyDatabase } from './catalog/migrateLegacyDatabase';
+import { createRideAnalytics, type RideAnalytics } from './analytics/rideAnalytics';
+import { createAnalyticsApi } from './http/analyticsApi';
 import { createRidesApi } from './http/ridesApi';
 import { createSegmentsApi } from './http/segmentsApi';
 import { openRideRepository, type RideRepository } from './rides/rideRepository';
@@ -68,24 +70,34 @@ export function segmentsApiPlugin(): Plugin {
 }
 
 /**
- * Mounts the local ride history API on the Vite dev and preview servers (BR-33, ADR-0013). The
+ * Mounts the local ride history and analytics APIs on the Vite dev and preview servers (BR-33,
+ * BR-38, ADR-0013). The
  * database at `RIDES_DB_PATH` (environment or `.env.local`), or `data/rides.sqlite`, is opened on
  * the first request, which the app makes when it starts.
  */
 export function ridesApiPlugin(): Plugin {
   let databasePath = DEFAULT_RIDES_DB_PATH;
   let repository: RideRepository | null = null;
+  let analytics: RideAnalytics | null = null;
+
+  const open = () => {
+    repository ??= openRideRepository(databasePath);
+    return repository;
+  };
 
   const mount = (server: ViteDevServer | PreviewServer) => {
+    server.middlewares.use(createRidesApi(open));
+    // Analytics over the same stored history (BR-38, ADR-0013 §7).
     server.middlewares.use(
-      createRidesApi(() => {
-        repository ??= openRideRepository(databasePath);
-        return repository;
+      createAnalyticsApi(() => {
+        analytics ??= createRideAnalytics(open());
+        return analytics;
       }),
     );
     server.httpServer?.once('close', () => {
       repository?.close();
       repository = null;
+      analytics = null;
     });
   };
 

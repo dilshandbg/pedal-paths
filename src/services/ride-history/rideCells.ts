@@ -105,3 +105,29 @@ function addLineCells(from: GPSPoint, to: GPSPoint, cells: Set<number>): void {
     steps -= 1;
   }
 }
+
+/**
+ * The cell keys covering an area, as one inclusive `[first, last]` key range per grid row
+ * (ADR-0013 §5): rows are contiguous key ranges, so each is one index range scan.
+ */
+export function cellKeyRanges(bounds: GeoBounds): [number, number][] {
+  const firstRow = rowOf(bounds.south);
+  const lastRow = rowOf(bounds.north);
+  const firstColumn = columnOf(bounds.west);
+  const lastColumn = columnOf(bounds.east);
+  const ranges: [number, number][] = [];
+  for (let row = firstRow; row <= lastRow; row += 1) {
+    ranges.push([keyOf(row, firstColumn), keyOf(row, lastColumn)]);
+  }
+  return ranges;
+}
+
+/** Centre of the grid cell with this key. */
+export function cellCentre(key: number): { latitude: number; longitude: number } {
+  const row = Math.floor(key / ROW_STRIDE) - 90 * CELLS_PER_DEGREE;
+  const column = (key % ROW_STRIDE) - 180 * CELLS_PER_DEGREE;
+  return {
+    latitude: (row + 0.5) / CELLS_PER_DEGREE,
+    longitude: (column + 0.5) / CELLS_PER_DEGREE,
+  };
+}

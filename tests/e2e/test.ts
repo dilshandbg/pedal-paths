@@ -53,11 +53,18 @@ export const test = base.extend<{ stubMapTiles: void; rideHistory: void }>({
           const { pathname, search } = new URL(request.url());
           const contentType = request.headers()['content-type'];
           const body = request.postDataBuffer();
-          const response = await fetch(`${base}${pathname}${search}`, {
-            method: request.method(),
-            headers: contentType ? { 'Content-Type': contentType } : {},
-            ...(body ? { body } : {}),
-          });
+          let response: Response;
+          try {
+            response = await fetch(`${base}${pathname}${search}`, {
+              method: request.method(),
+              headers: contentType ? { 'Content-Type': contentType } : {},
+              ...(body ? { body } : {}),
+            });
+          } catch {
+            // The test is ending and its server is closing: drop the request.
+            await route.abort().catch(() => undefined);
+            return;
+          }
           await route.fulfill({
             status: response.status,
             headers: { 'Content-Type': response.headers.get('content-type') ?? 'text/plain' },
@@ -66,6 +73,8 @@ export const test = base.extend<{ stubMapTiles: void; rideHistory: void }>({
         },
       );
       await use();
+      // Stop forwarding before the server closes, so no request reaches a closed server.
+      await context.unrouteAll({ behavior: 'ignoreErrors' });
       await new Promise((resolve) => server.close(resolve));
       repository.close();
     },
