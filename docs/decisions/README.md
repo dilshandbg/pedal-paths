@@ -16,6 +16,7 @@ Significant, hard-to-reverse technical decisions are recorded here as ADRs.
 | [0010](0010-manual-segment-import.md)              | Manual segment import                           | Accepted                   |
 | [0011](0011-json-segment-catalog.md)               | JSON segment catalog replaces SQLite            | Accepted                   |
 | [0012](0012-strava-segment-download-command.md)    | Optional Strava segment download command        | Accepted                   |
+| [0013](0013-persistent-ride-history-sqlite.md)     | Persistent, cumulative ride history in SQLite   | Accepted                   |
 
 ## Template
 

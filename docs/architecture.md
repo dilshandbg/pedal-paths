@@ -11,6 +11,10 @@
 - **Rides stay in the browser.** The Strava ZIP is processed in a Web Worker and held in memory
   only ([ADR-0002](decisions/0002-client-side-gpx-processing.md),
   [ADR-0004](decisions/0004-strava-zip-ingestion-pipeline.md)).
+- **Ride history is stored locally (BRD v2.3, [ADR-0013](decisions/0013-persistent-ride-history-sqlite.md)).**
+  The same backend keeps parsed rides, their tracks and the upload registry in
+  `data/rides.sqlite`. Phase 1 provides the storage and `/api/uploads`, `/api/rides`; the app
+  switches to it in phase 2 (`docs/implementation-plan-v2.3.md`).
 - **Segments are stored locally.** A small Node backend, mounted on the Vite dev and preview
   servers, keeps imported segments in a local JSON segment catalog file
   ([ADR-0009](decisions/0009-local-backend-sqlite.md), [ADR-0011](decisions/0011-json-segment-catalog.md)). Segment data is uploaded by the user; the
@@ -48,6 +52,8 @@ flowchart TD
         HTTP["http/segmentsApi — JSON API middleware"]
         REPO["catalog/catalogRepository — JSON segment catalog"]
         DB["catalog/migrateLegacyDatabase — one-time import from SQLite"]
+        RHTTP["http/ridesApi — uploads + rides API"]
+        RREPO["rides/rideRepository — SQLite ride history"]
     end
 
     APP --> FCMP --> CMP
@@ -63,6 +69,7 @@ flowchart TD
     API -. "HTTP /api/segments" .-> HTTP
     HTTP --> REPO --> DB
     REPO --> FSVC
+    RHTTP --> RREPO --> RH["services/ride-history<br/>track codec, ride bundle, cells"]
 ```
 
 Arrows point from the dependent module to its dependency. **Dependencies only point downward or
@@ -94,6 +101,8 @@ the review the user sees is exactly what gets stored.
 | Segment API client                             | `services/segments-api`                                                            | Adapter (fetch)               |
 | Segment HTTP API                               | `server/http`                                                                      | Node middleware               |
 | Segment persistence                            | `server/catalog`, `server/segments` (interface, legacy SQLite reader), `server/db` | Node + JSON file              |
+| Track encoding, ride bundle, location cells    | `services/ride-history`                                                            | Pure (browser and backend)    |
+| Ride history and upload registry (ADR-0013)    | `server/rides` (database, repository, upload validation), `server/http/ridesApi`   | Node + SQLite                 |
 | Map rendering (heat map and segment overlay)   | `components/map`, `features/heatmap/components`, `services/map`                    | UI / adapter                  |
 | Application state                              | `features/*/store`                                                                 | Zustand                       |
 
@@ -155,16 +164,21 @@ filters, heat map or statistics (RULE-18).
 
 ### Local API
 
-| Method and path              | Purpose                                                           | Responses             |
-| ---------------------------- | ----------------------------------------------------------------- | --------------------- |
-| `GET /api/segments`          | All stored segments with route and personal best, without efforts | 200                   |
-| `GET /api/segments/:id`      | One segment with its efforts, fastest first                       | 200, 404              |
-| `POST /api/segments/preview` | Validate a normalized payload and classify it; stores nothing     | 200, 400, 413, 415    |
-| `POST /api/segments/import`  | Validate and apply a payload in one transaction                   | 200, 400, 413, 415    |
-| `DELETE /api/segments/:id`   | Remove one segment and its efforts                                | 204, 404              |
-| `DELETE /api/segments`       | Remove all segment data                                           | 204                   |
-| any                          | Not from this machine, or from another site                       | 403                   |
-| any                          | Database cannot be opened / unexpected failure                    | 503 / 500 (code only) |
+| Method and path              | Purpose                                                           | Responses               |
+| ---------------------------- | ----------------------------------------------------------------- | ----------------------- |
+| `GET /api/segments`          | All stored segments with route and personal best, without efforts | 200                     |
+| `GET /api/segments/:id`      | One segment with its efforts, fastest first                       | 200, 404                |
+| `POST /api/segments/preview` | Validate a normalized payload and classify it; stores nothing     | 200, 400, 413, 415      |
+| `POST /api/segments/import`  | Validate and apply a payload in one transaction                   | 200, 400, 413, 415      |
+| `DELETE /api/segments/:id`   | Remove one segment and its efforts                                | 204, 404                |
+| `DELETE /api/segments`       | Remove all segment data                                           | 204                     |
+| `GET /api/uploads`           | Upload registry, newest first; `?hash=` finds an imported file    | 200, 400                |
+| `POST /api/uploads`          | Store an upload's rides (binary ride bundle) in one transaction   | 201, 400, 409, 413, 415 |
+| `POST /api/uploads/delete`   | Delete the given uploads and rides no other upload contains       | 200, 400, 404           |
+| `DELETE /api/uploads`        | Delete every upload and all ride data                             | 200                     |
+| `GET /api/rides`             | Every stored ride with its track, as a binary ride bundle         | 200                     |
+| any                          | Not from this machine, or from another site                       | 403                     |
+| any                          | Database cannot be opened / unexpected failure                    | 503 / 500 (code only)   |
 
 Errors are `{ "error": { "code": "…" } }`, plus `problems` for `invalid-payload`; they never
 contain paths, SQL or stack traces (NFR-08).
@@ -173,7 +187,7 @@ contain paths, SQL or stack traces (NFR-08).
 
 `eslint.config.js` enforces these rules with `no-restricted-imports`:
 
-- `src/types`, `src/utils`, `src/services/{gpx,fit,strava-export}`, `src/features/*/{services,utils,types}` **must not
+- `src/types`, `src/utils`, `src/services/{gpx,fit,strava-export,ride-history}`, `src/features/*/{services,utils,types}` **must not
   import** `react`, `react-dom`, `@deck.gl/*`, `maplibre-gl`, or any `components`
   module.
 
