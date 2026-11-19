@@ -266,7 +266,9 @@ export function createRideRepository(db: DatabaseSync): RideRepository {
         const found = new Set(
           (
             db
-              .prepare(`SELECT upload_id FROM uploads WHERE upload_id IN (${placeholders(ids.length)})`)
+              .prepare(
+                `SELECT upload_id FROM uploads WHERE upload_id IN (${placeholders(ids.length)})`,
+              )
               .all(...(ids as SQLInputValue[])) as { upload_id: string }[]
           ).map((row) => row.upload_id),
         );
@@ -279,7 +281,11 @@ export function createRideRepository(db: DatabaseSync): RideRepository {
           .prepare(`DELETE FROM uploads WHERE upload_id IN (${placeholders(ids.length)})`)
           .run(...(ids as SQLInputValue[])).changes;
         const deletedRides = deleteOrphanRides.run().changes;
-        return { ok: true, deletedUploads: Number(deletedUploads), deletedRides: Number(deletedRides) };
+        return {
+          ok: true,
+          deletedUploads: Number(deletedUploads),
+          deletedRides: Number(deletedRides),
+        };
       });
     },
 

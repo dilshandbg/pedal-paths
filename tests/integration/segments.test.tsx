@@ -345,7 +345,7 @@ describe('BR-20 – BR-27: segments from the UI', () => {
     expect(segmentFileInput()).toBeDisabled();
   });
 
-  it('AC-29 / BR-28: only ever calls the local segment API', async () => {
+  it('AC-29 / BR-28: only ever calls the local APIs, never Strava', async () => {
     const backend = installFakeBackend();
     const user = userEvent.setup();
     render(<App />);
@@ -353,7 +353,8 @@ describe('BR-20 – BR-27: segments from the UI', () => {
     await importFile(user, segmentsJson());
     expect(backend.requestedUrls.length).toBeGreaterThan(0);
     for (const url of backend.requestedUrls) {
-      expect(url).toMatch(/^\/api\/segments/);
+      // The segment API, plus the ride history API the app loads at start (ADR-0013).
+      expect(url).toMatch(/^\/api\/(segments|uploads|rides)(\/|\?|$)/);
       expect(url).not.toMatch(/strava/i);
     }
   });

@@ -70,9 +70,7 @@ describe('BR-33: ride database file', () => {
       /upload_rides_by_activity/,
     );
     expect(plan(`SELECT * FROM upload_rides WHERE upload_id = 'x'`)).toMatch(/PRIMARY KEY/);
-    expect(plan(`SELECT * FROM ride_cells WHERE cell_key BETWEEN 1 AND 9`)).toMatch(
-      /PRIMARY KEY/,
-    );
+    expect(plan(`SELECT * FROM ride_cells WHERE cell_key BETWEEN 1 AND 9`)).toMatch(/PRIMARY KEY/);
     expect(plan(`SELECT * FROM uploads WHERE file_hash = 'x'`)).toMatch(/uploads_by_hash/);
     db.close();
   });

@@ -132,7 +132,9 @@ describe('BR-16 / BR-18 / RULE-21: cumulative uploads', () => {
   });
 
   it('keeps the first entry when one upload lists an activity twice', () => {
-    const stored = importOk(upload(1, [ride('1', { activityName: 'First' }), ride('1', { activityName: 'Again' })]));
+    const stored = importOk(
+      upload(1, [ride('1', { activityName: 'First' }), ride('1', { activityName: 'Again' })]),
+    );
 
     expect(stored.rideCount).toBe(1);
     expect(repository.listRides()[0]?.details.activityName).toBe('First');
@@ -184,7 +186,12 @@ describe('BR-33: atomic import', () => {
     expect(() => repository.importUpload(upload(2, [ride('2'), ride('3')]))).toThrow(/simulated/);
 
     expect(storedIds()).toEqual(['1']);
-    expect(repository.listUploads().map((u) => u.status).sort()).toEqual(['complete', 'failed']);
+    expect(
+      repository
+        .listUploads()
+        .map((u) => u.status)
+        .sort(),
+    ).toEqual(['complete', 'failed']);
     expect(count('upload_rides')).toBe(1);
   });
 });

@@ -8,13 +8,14 @@
   statistics and segment validation are pure TypeScript functions that can be unit tested without a
   browser, React or the map library.
 - **Feature modules** with explicit boundaries, so features can grow without tangling.
-- **Rides stay in the browser.** The Strava ZIP is processed in a Web Worker and held in memory
-  only ([ADR-0002](decisions/0002-client-side-gpx-processing.md),
-  [ADR-0004](decisions/0004-strava-zip-ingestion-pipeline.md)).
+- **Rides are processed in the browser.** The Strava ZIP is read and parsed in a Web Worker
+  ([ADR-0002](decisions/0002-client-side-gpx-processing.md),
+  [ADR-0004](decisions/0004-strava-zip-ingestion-pipeline.md)); only the parsed rides are sent to
+  the local backend.
 - **Ride history is stored locally (BRD v2.3, [ADR-0013](decisions/0013-persistent-ride-history-sqlite.md)).**
   The same backend keeps parsed rides, their tracks and the upload registry in
-  `data/rides.sqlite`. Phase 1 provides the storage and `/api/uploads`, `/api/rides`; the app
-  switches to it in phase 2 (`docs/implementation-plan-v2.3.md`).
+  `data/rides.sqlite`. Each upload is processed in the worker, stored through `/api/uploads`, and
+  the whole history is then read back from `/api/rides` and indexed in the worker.
 - **Segments are stored locally.** A small Node backend, mounted on the Vite dev and preview
   servers, keeps imported segments in a local JSON segment catalog file
   ([ADR-0009](decisions/0009-local-backend-sqlite.md), [ADR-0011](decisions/0011-json-segment-catalog.md)). Segment data is uploaded by the user; the
@@ -108,7 +109,7 @@ the review the user sees is exactly what gets stored.
 
 ## 4. Data flow
 
-### Rides (in the browser, never persisted)
+### Rides (processed in the browser, stored by the local backend, ADR-0013)
 
 ```mermaid
 flowchart LR
@@ -119,9 +120,14 @@ flowchart LR
         C --> K["classifyActivities()<br/>Activity Type = Ride"]
         K --> G["parseGpx() / parseFit()"]
         G --> N["normalizeActivity()<br/>→ CyclingActivity | ImportIssue"]
-        N --> SEG["buildSegmentIndex()"]
+        N --> B["encodeUploadBundle()<br/>+ SHA-256 of the file"]
     end
-    W --> S[("activities store<br/>+ ImportStatus / issues")]
+    W -- "POST /api/uploads" --> DB[("data/rides.sqlite")]
+    DB -- "GET /api/rides" --> R2
+    subgraph R2["Web Worker"]
+        D["decodeRideHistory()"] --> SEG["buildSegmentIndex()<br/>whole history"]
+    end
+    R2 --> S[("activities store<br/>history + uploads + status")]
     S --> FL["filterActivities()<br/>pure"]
     FS[("filter store<br/>ActivityFilter")] --> FL
     FL --> H["aggregateHeatMap()<br/>→ HeatMapData"]

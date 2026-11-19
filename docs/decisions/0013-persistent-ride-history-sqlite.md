@@ -136,6 +136,11 @@ Points stay tied to their ride ID, and they are deleted with it.
    upload, the worker rebuilds the index over the whole history.
 5. Filters (ADR-0005) are kept when an upload is added. IDs of rides that no longer exist are
    dropped from the exclusion list after a deletion.
+6. The duplicate check is the `POST` itself: the backend refuses a known hash with 409 and the
+   earlier upload, atomically, so `GET /api/uploads?hash=` is not needed before uploading.
+7. Uploads stay possible while the history loads at startup. Every history load has a generation
+   number, and only the newest one is applied, so a slow startup load never overwrites the history
+   an upload has just read back.
 
 ### 5. Location index
 
