@@ -6,12 +6,15 @@ import { AppHeader } from '@/components/layout/AppHeader';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { ActivityStatistics } from '@/features/activities/components/ActivityStatistics';
 import { ArchiveUploadPanel } from '@/features/activities/components/ArchiveUploadPanel';
+import { UploadsSection } from '@/features/activities/components/UploadsSection';
 import { useActivitiesStore } from '@/features/activities/store/activitiesStore';
 import { ActiveFiltersSummary } from '@/features/filters/components/ActiveFiltersSummary';
 import { MonthFilter } from '@/features/filters/components/MonthFilter';
 import { RideFilter } from '@/features/filters/components/RideFilter';
 import { YearFilter } from '@/features/filters/components/YearFilter';
 import { useFilteredActivities } from '@/features/filters/hooks/useFilteredActivities';
+import { useFilterStore } from '@/features/filters/store/filterStore';
+import { withoutRemovedRides } from '@/features/filters/utils/rideFilter';
 import { HeatMapView } from '@/features/heatmap/components/HeatMapView';
 import { SegmentsSection } from '@/features/segments/components/SegmentsSection';
 import { useSegmentOverlay } from '@/features/segments/hooks/useSegmentOverlay';
@@ -26,12 +29,20 @@ export function DashboardRoute() {
   const segmentIndex = useActivitiesStore((state) => state.dataset?.segmentIndex ?? null);
   const selectedActivities = useFilteredActivities(activities);
   const segmentMap = useSegmentOverlay();
-  const [sidebarTab, setSidebarTab] = useState<'rides' | 'segments'>('rides');
+  const [sidebarTab, setSidebarTab] = useState<'rides' | 'segments' | 'uploads'>('rides');
 
   // Show the stored ride history when the app starts (BR-33, AC-34).
   useEffect(() => {
     void loadHistory();
   }, [loadHistory]);
+
+  // Rides whose upload was deleted leave the ride filter too (BR-36, ADR-0013 §4).
+  useEffect(() => {
+    const { filter, setFilter } = useFilterStore.getState();
+    const existing = new Set((activities ?? []).map((activity) => activity.activityId));
+    const kept = withoutRemovedRides(filter.excludedActivityIds, existing);
+    if (kept !== filter.excludedActivityIds) setFilter({ excludedActivityIds: kept });
+  }, [activities]);
 
   return (
     <DashboardLayout
@@ -59,6 +70,7 @@ export function DashboardRoute() {
               ),
             },
             { key: 'segments', label: 'Segments', content: <SegmentsSection /> },
+            { key: 'uploads', label: 'Uploads', content: <UploadsSection /> },
           ]}
         />
       }

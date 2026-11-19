@@ -15,3 +15,16 @@ export function setRideIncluded(
   }
   return isExcluded ? excludedActivityIds : [...excludedActivityIds, activityId];
 }
+
+/**
+ * The exclusion list without rides that no longer exist, e.g. after their upload was deleted
+ * (BR-36, ADR-0013 §4). Returns the input itself when nothing was removed, so callers can skip an
+ * update.
+ */
+export function withoutRemovedRides(
+  excludedActivityIds: readonly ActivityId[],
+  existingActivityIds: ReadonlySet<ActivityId>,
+): readonly ActivityId[] {
+  const kept = excludedActivityIds.filter((id) => existingActivityIds.has(id));
+  return kept.length === excludedActivityIds.length ? excludedActivityIds : kept;
+}

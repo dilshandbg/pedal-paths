@@ -324,3 +324,13 @@ export function makeSharedRoadExport(): Uint8Array {
     'activities/4.gpx': makeGpx(elsewhere),
   });
 }
+
+/** A synthetic export with a single Ride. Different IDs give different files (and hashes). */
+export function makeSingleRideExport(id: string, name = `Ride ${id}`): Uint8Array {
+  return makeZip({
+    'activities.csv': makeActivitiesCsv([
+      { id, date: 'Jan 1, 2024, 8:00:00 AM', name, type: 'Ride', fileName: `activities/${id}.gpx` },
+    ]),
+    [`activities/${id}.gpx`]: makeGpx(makeTrackPoints(10)),
+  });
+}

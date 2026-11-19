@@ -10,8 +10,8 @@ JSON catalog file. Nothing leaves your machine, and the app never connects to St
 ## Status
 
 [`docs/BRD.md`](docs/BRD.md) v2.2 is implemented and verified by automated tests. v2.3 (stored,
-cumulative ride history) is in progress: storage and cumulative uploads are done; the Uploads
-screen and analytics follow ([plan](docs/implementation-plan-v2.3.md)). See
+cumulative ride history) is in progress: storage, cumulative uploads and the Uploads screen are
+done; analytics follow ([plan](docs/implementation-plan-v2.3.md)). See
 [`docs/traceability.md`](docs/traceability.md) for the requirement-by-requirement matrix.
 
 - **Import:** upload the original Strava export ZIP (checked first: a `.zip`, at most 5 GB). It is processed in a background Web Worker,
@@ -20,6 +20,8 @@ screen and analytics follow ([plan](docs/implementation-plan-v2.3.md)). See
 - **Ride history:** every upload adds its rides to a stored history that is shown again whenever
   the app starts. A ride in several exports is stored once; a file you already imported is
   recognised and not imported again.
+- **Uploads:** the Uploads tab lists every export you uploaded (date and time, rides, distance,
+  status). Delete one, several or all of them; rides that another upload also contains are kept.
 - **Heat map:** roads are coloured and sized by how many different rides used them, from 1 ride
   to the busiest road, with a legend. The base map is MapLibre + OpenStreetMap with pan and zoom.
 - **Filters:** years, months (combined, e.g. November across several years) and individual rides.
@@ -216,9 +218,13 @@ from `.env.local` when you are done; there is nothing to disconnect in the app.
   into the catalog, checks the copy, and renames the database to `segments.sqlite.migrated`. That
   file is no longer used; delete it once you have checked your segments.
 
-To remove ride data, stop the app and delete `data/rides.sqlite` (and any `rides.sqlite-wal`,
-`rides.sqlite-shm` or `rides.sqlite.v*.bak` next to it). Removing single uploads, or all of them,
-from inside the app is the next step of BRD v2.3 (BR-35).
+To remove ride data:
+
+- **In the app:** open the **Uploads** tab. Delete one upload, select several and choose **Delete
+  selected**, or choose **Delete all uploads**; each asks for confirmation. Deleting an upload
+  removes the rides that only it contained; rides that another upload also contains are kept.
+- **On disk:** stop the app and delete `data/rides.sqlite` (and any `rides.sqlite-wal`,
+  `rides.sqlite-shm` or `rides.sqlite.v*.bak` next to it). This removes all rides and uploads.
 
 To remove segment data:
 

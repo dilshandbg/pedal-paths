@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { EMPTY_ACTIVITY_FILTER } from '@/features/filters/store/filterStore';
 import { activitiesInScope, filterActivities } from '@/features/filters/utils/filterActivities';
-import { setRideIncluded } from '@/features/filters/utils/rideFilter';
+import { setRideIncluded, withoutRemovedRides } from '@/features/filters/utils/rideFilter';
 import { setMonthSelected } from '@/features/filters/utils/monthFilter';
 import { availableYears, setYearSelected } from '@/features/filters/utils/yearFilter';
 import type { ActivityFilter, CyclingActivity, Month } from '@/types';
@@ -268,5 +268,22 @@ describe('BR-11 / RULE-08: year, month and ride filters combine', () => {
     expect(ids(filterActivities(rides, { ...base, excludedActivityIds: ['nov23'] }))).toEqual([
       'nov23b',
     ]);
+  });
+});
+
+describe('BR-36: withoutRemovedRides', () => {
+  it('drops excluded rides that no longer exist', () => {
+    expect(withoutRemovedRides(['1', '2', '3'], new Set(['1', '3', '9']))).toEqual(['1', '3']);
+  });
+
+  it('returns the same list when nothing was removed, so no update is needed', () => {
+    const excluded = ['1', '2'];
+
+    expect(withoutRemovedRides(excluded, new Set(['1', '2', '3']))).toBe(excluded);
+  });
+
+  it('handles an empty list and an empty history', () => {
+    expect(withoutRemovedRides([], new Set(['1']))).toEqual([]);
+    expect(withoutRemovedRides(['1'], new Set())).toEqual([]);
   });
 });

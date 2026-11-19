@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatShortDate, getYearMonth } from '@/utils/date';
+import { formatDateTime, formatShortDate, getYearMonth } from '@/utils/date';
 
 describe('getYearMonth', () => {
   it('derives year and month in the given time zone', () => {
@@ -41,5 +41,23 @@ describe('formatShortDate', () => {
 
   it('returns an empty string for an invalid date', () => {
     expect(formatShortDate('not a date')).toBe('');
+  });
+});
+
+describe('AC-36: formatDateTime', () => {
+  it('shows the date and time in the given time zone', () => {
+    expect(formatDateTime('2026-11-19T10:05:00.000Z', 'UTC')).toBe('Nov 19, 2026, 10:05 AM');
+    expect(formatDateTime('2026-11-19T10:05:00.000Z', 'Asia/Colombo')).toBe(
+      'Nov 19, 2026, 3:35 PM',
+    );
+  });
+
+  it('crosses a year boundary by time zone', () => {
+    expect(formatDateTime('2025-12-31T23:30:00.000Z', 'Asia/Tokyo')).toBe('Jan 1, 2026, 8:30 AM');
+  });
+
+  it('returns an empty string for an invalid date', () => {
+    expect(formatDateTime('')).toBe('');
+    expect(formatDateTime('not a date')).toBe('');
   });
 });

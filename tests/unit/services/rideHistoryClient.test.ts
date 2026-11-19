@@ -98,6 +98,38 @@ describe('BR-33 / BR-34: ride history API client', () => {
     expect((await rejection(rideHistoryClient.listUploads())).code).toBe('storage-unavailable');
   });
 
+  it('BR-36: deletes selected uploads with their IDs', async () => {
+    const fetchMock = stubFetch(jsonResponse(200, { deletedUploads: 2, deletedRides: 3 }));
+
+    expect(await rideHistoryClient.deleteUploads(['a', 'b'])).toEqual({
+      deletedUploads: 2,
+      deletedRides: 3,
+    });
+    expect(fetchMock).toHaveBeenCalledWith('/api/uploads/delete', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ uploadIds: ['a', 'b'] }),
+    });
+  });
+
+  it('AC-39: deletes everything', async () => {
+    const fetchMock = stubFetch(jsonResponse(200, { deletedUploads: 1, deletedRides: 1 }));
+
+    expect(await rideHistoryClient.deleteAll()).toEqual({ deletedUploads: 1, deletedRides: 1 });
+    expect(fetchMock).toHaveBeenCalledWith('/api/uploads', {
+      method: 'DELETE',
+      credentials: 'same-origin',
+      headers: { Accept: 'application/json' },
+    });
+  });
+
+  it('reports a deletion of an upload that no longer exists', async () => {
+    stubFetch(jsonResponse(404, { error: { code: 'not-found', missing: ['a'] } }));
+
+    expect((await rejection(rideHistoryClient.deleteUploads(['a']))).code).toBe('not-found');
+  });
+
   it('maps unknown error codes to a generic storage error', async () => {
     stubFetch(jsonResponse(500, { error: { code: 'something-new' } }));
 
