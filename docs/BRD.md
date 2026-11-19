@@ -1,8 +1,8 @@
 # Business Requirements Document (BRD)
 ## Strava Cycling Ride Analyzer — Personal Heatmap and Segments
 
-**Version:** 2.2  
-**Status:** Draft — approved for implementation by the owner (2026-11-15)
+**Version:** 2.3  
+**Status:** Draft — approved for implementation by the owner (2026-11-19)
 
 ### Change History
 
@@ -13,6 +13,7 @@
 | 2.0 | 2026-11-15 | Adds ZIP file validation (BR-17), duplicate-ride protection (BR-18), extended ride statistics (BR-19) and a manually imported **Segments** capability stored in local SQLite (BR-20 – BR-28). Strava OAuth and Strava API access are explicitly out of scope: segment data is uploaded by the user. Adds user stories, non-functional, security and privacy requirements, and updates the technical direction to the implemented stack. |
 | 2.1 | 2026-11-15 | Segment data is stored in a local **JSON segment catalog** file instead of SQLite (BR-23, ADR-0011). Segments can include altitude and distance samples along the route (BR-29, RULE-19). Segments stored in SQLite by version 2.0 are migrated into the catalog once, without loss (BR-30). Ride data is still not persisted. Segment matching and ride analysis against the catalog are recorded as an open decision (OD-26) until specified. |
 | 2.2 | 2026-11-15 | Adds an optional, separate command that downloads the user's segment details, names and route streams from Strava with the user's own access token into an upload file (BR-31); the application itself still never contacts Strava (BR-28 revised). Segments without route geometry are shown by their start and end only, never as a straight line (BR-26 revised). Missing segment statistics are derived from altitude and distance samples, never estimated otherwise (RULE-20). |
+| 2.3 | 2026-11-19 | Rides are **stored** in a local SQLite database and restored at startup (BR-33). Each Strava export ZIP upload is **added** to the ride history instead of replacing it (BR-16, BR-18 revised). An upload registry and an Uploads screen let the user delete one, several or all uploads (BR-34 – BR-36). Files already imported are detected by their hash (BR-37). Deterministic analytics over the stored tracks are added for later use by an assistant; no chatbot is built (BR-38). The segment catalog, BR-30 and BR-31 are unchanged. BR-32 is reserved for map styles (pending, OD-27). |
 
 ## 1. Business Objective
 
@@ -21,6 +22,8 @@ Build a personal web application that visualizes cycling activities from a Strav
 The application must automatically extract the ZIP archive, identify activities classified as Ride, and process their GPS tracks. Users should not need to manually extract files or prepare a separate data file.
 
 In addition, users can manually import details of Strava segments they care about (metadata, route geometry and their own efforts and personal bests), keep them in a local database, browse them, and see their routes on the same map. The application never connects to Strava.
+
+Rides from every uploaded export are kept on the user's machine and build up a ride history over time. The user can see and delete the uploads they came from, and the application provides deterministic analytics over that history.
 
 ## 2. Scope
 
@@ -36,7 +39,9 @@ In addition, users can manually import details of Strava segments they care abou
 - Filter activities by year, month, and individual ride.
 - Dynamically update the map when filters change.
 - Display basic activity details and summary statistics.
-- Allow users to load or replace their Strava export ZIP file.
+- Allow users to upload Strava export ZIP archives over time; each upload adds its rides to a stored ride history.
+- Store the ride history and an upload registry in a local SQLite database; list and delete uploads.
+- Provide deterministic analytics over the stored ride history.
 - Manually import Strava segment details from JSON, CSV or GeoJSON files.
 - Store imported segment data locally in a JSON segment catalog file; browse, search, filter, inspect and remove it.
 - Display segment routes on the map.
@@ -46,7 +51,8 @@ In addition, users can manually import details of Strava segments they care abou
 - Strava OAuth authentication and any Strava API access by the application, including segment discovery or retrieval. (The separate, optional download command of BR-31 is the only exception.)
 - Automatic synchronization or refresh of activities or segments from Strava; background sync.
 - Automatic discovery of segments from the imported rides.
-- Persisting imported ride activities between sessions (rides are held in memory until the page is reloaded or a new ZIP is loaded).
+- An AI chatbot or any language-model integration (the analytics of BR-38 are built so one can use them later).
+- Uploading individual GPX or FIT files outside an export ZIP.
 - Social sharing.
 - Mobile application support (native app).
 - Live GPS tracking.
@@ -79,9 +85,9 @@ In addition, users can manually import details of Strava segments they care abou
 | BR-13 | Activity Details | Display activity name, date, distance, and elevation gain when available. |
 | BR-14 | Activity Count | Display the number of activities matching the active filters. |
 | BR-15 | Reset Filters | Provide an option to reset filters and display all Ride activities. |
-| BR-16 | ZIP Replacement | Allow the user to load a different Strava export ZIP archive and refresh the application dataset. |
+| BR-16 | Additional Uploads | Allow the user to upload further Strava export ZIP archives at any time. Each upload's rides are added to the stored ride history and the application refreshes without reloading. An upload never replaces or removes stored rides. |
 | BR-17 | ZIP File Validation | Before processing, validate that the selected file is a ZIP archive and does not exceed the maximum supported size. |
-| BR-18 | Duplicate Ride Protection | Each Strava activity appears at most once in the loaded dataset, even if the export lists it more than once. Loading the same or another ZIP replaces the dataset instead of adding to it. |
+| BR-18 | Duplicate Ride Protection | Each Strava activity appears at most once in the ride history, even if an export lists it more than once or several uploads contain it. |
 | BR-19 | Ride Statistics | For the filtered rides, display the number of rides, total distance, total elevation gain, total moving time, and average distance per ride, where the data is available. |
 | BR-20 | Segment File Import | Provide a dedicated UI to upload segment details from a JSON, CSV or GeoJSON file that the user prepared outside the application. |
 | BR-21 | Segment Validation | Validate the uploaded file and every record against the segment import schema before anything is stored, and report each problem clearly. |
@@ -95,6 +101,12 @@ In addition, users can manually import details of Strava segments they care abou
 | BR-29 | Segment Samples | Accept and store, when the file provides them, altitude samples and distance samples along a segment's route, one per route point, as part of the segment's complete data. |
 | BR-30 | Segment Catalog Migration | Segments stored by an earlier version in the local SQLite database are moved into the JSON segment catalog once, keeping every stored detail, route geometry, elevation value, effort and import date. |
 | BR-31 | Segment Download Command | Provide an optional command, separate from the application, that downloads the details (including the name) and the latlng, altitude and distance streams of given Strava segments with an access token the user supplies through the environment, and writes them as a segment upload file. The user then uploads and reviews that file as usual. The token is never stored by the application, logged or committed. |
+| BR-33 | Ride Persistence | Store every imported ride, with its details and complete GPS track, and the upload it came from, in a local SQLite database, so that all previously uploaded rides are shown again when the application restarts. |
+| BR-34 | Upload Registry | Record each upload with a unique upload ID, the original file name, the upload date and time, the file's hash, the number of rides imported from it, their total distance and the import status (importing, complete, completed with skipped activities, failed). |
+| BR-35 | Upload Management | Provide an Uploads screen listing every upload with its registry details. The user can delete one upload, select several and delete them together, or delete all uploads after confirming. |
+| BR-36 | Upload Deletion | Deleting uploads removes only the rides and GPS tracks that no remaining upload contains; rides and tracks that another upload also contains are kept. A deletion is atomic: either all selected uploads are removed or none is. |
+| BR-37 | Duplicate File Detection | Calculate a hash of each uploaded file. If a file with the same hash was already imported, warn the user and do not import it again. A different file is imported even if its rides overlap stored rides; overlapping rides are not duplicated (BR-18). |
+| BR-38 | Ride Analytics | Provide deterministic analytics over the stored ride history: distance by month and by year, how many rides passed a given location, the most frequently ridden roads, comparison between two periods, and rides that rode a stored segment. Results are computed by the application's own functions from stored tracks, never estimated, and are available through the local API for later use by an assistant. |
 
 ## 4. Business Rules
 
@@ -109,7 +121,7 @@ In addition, users can manually import details of Strava segments they care abou
 - If a year or month filter is unrestricted, all values for that dimension are included.
 - Heatmap intensity must reflect repeated route traversal.
 - Filter changes must update the visualization without a full page reload.
-- A Strava activity ID appears at most once in the loaded ride dataset (RULE-12).
+- A Strava activity ID appears at most once in the stored ride history, across all uploads (RULE-12).
 - Statistics include only rides for which the value is known; a ride without a known value still counts as a ride (RULE-13).
 - A segment is identified by its Strava segment ID; there is at most one stored record per ID (RULE-14).
 - A segment import is all-or-nothing: if any record is invalid, nothing from that file is stored (RULE-15).
@@ -118,6 +130,10 @@ In addition, users can manually import details of Strava segments they care abou
 - Segment data never changes the ride heatmap or ride statistics (RULE-18).
 - A statistic stated in the uploaded file is shown as given. A missing distance, elevation gain, average or maximum grade, or elevation range is computed from the route's altitude and distance samples when they exist, and marked as computed; otherwise it is shown as not available. No statistic is estimated in any other way (RULE-20).
 - Altitude and distance samples belong to the route they were provided with: they must have one value per route point (distances never decreasing). A later import with a different route replaces them, with none if it provides none (RULE-19).
+- A ride belongs to every upload that contains its activity ID. It is stored once and is removed only when no upload containing it remains (RULE-21).
+- When an activity already stored arrives in a new upload, its details (name, date, distance, elevation gain, moving time) are replaced by the new upload's values and its stored GPS track is kept (RULE-22).
+- Two files are the same file when their SHA-256 hashes are equal. A failed upload does not count as imported (RULE-23).
+- Analytics results come only from stored data and are reproducible. A location visit is a distinct ride passing within the given radius of the location (default 100 m). A ride rode a segment when it passes within 25 m of the segment's start, later within 25 m of its end, and stays within 25 m of every route point between them, in that direction; only segments with route geometry can be matched. Statistics without a known value follow RULE-13 (RULE-24).
 
 ## 5. Acceptance Criteria
 
@@ -137,10 +153,10 @@ In addition, users can manually import details of Strava segments they care abou
 | AC-12 | Frequently traversed roads show greater heatmap intensity. |
 | AC-13 | Activity count reflects the currently filtered Ride activities. |
 | AC-14 | Resetting filters restores the view of all eligible Ride activities. |
-| AC-15 | Loading a new ZIP archive replaces the existing dataset and refreshes the visualization. |
+| AC-15 | Uploading another ZIP archive adds its rides to the ride history; previously stored rides stay, and the heatmap, ride list and statistics include both. |
 | AC-16 | Invalid ZIP files or archives without eligible Ride GPS data produce a clear user-facing message. |
 | AC-17 | A file that is not a ZIP archive, or is larger than the maximum supported size, is rejected before processing with a message that states the reason. |
-| AC-18 | An activity listed more than once in the export appears once in the heatmap, ride list and statistics. Loading the same ZIP twice does not double any count. |
+| AC-18 | An activity listed more than once in an export, or contained in several uploads, appears once in the heatmap, ride list and statistics. |
 | AC-19 | The statistics show ride count, total distance, total elevation gain, total moving time and average distance per ride for the filtered rides, and update when filters change. |
 | AC-20 | The user can choose a JSON, CSV or GeoJSON segment file from a dedicated Segments section. |
 | AC-21 | A file with an unsupported type, invalid content or schema errors is rejected with a message that identifies the problem and the affected record; nothing is stored. |
@@ -156,6 +172,15 @@ In addition, users can manually import details of Strava segments they care abou
 | AC-31 | After upgrading, every segment that was stored in SQLite appears in the JSON segment catalog with its details, route, elevation values and efforts unchanged, and the migration does not run again. |
 | AC-32 | Running the download command with a valid token for the user's segment IDs writes an upload file containing each segment's Strava name and full route streams; uploading it updates those segments by ID, shows their names and draws their road-following routes. An invalid token, a missing segment or the rate limit is reported without writing the token anywhere. |
 | AC-33 | A segment without route geometry is shown on the map only by start and end markers, and its details state that the route is not available; statistics that the file lacks are computed from samples when present, marked as such, or shown as not available. |
+| AC-34 | After rides are uploaded and the application is restarted, the same rides, heatmap and statistics are shown without uploading again. |
+| AC-35 | Uploading a second, different export adds its new rides; rides from the first upload are still shown. |
+| AC-36 | The Uploads screen shows each upload's file name, upload date and time, ride count, total distance and status. |
+| AC-37 | Deleting one upload removes the rides only it contained from the heatmap, ride list and statistics, and they stay removed after a restart. Rides also in another upload remain. |
+| AC-38 | The user can select several uploads and delete them in one action. |
+| AC-39 | "Delete all" asks for confirmation, then removes every upload and all ride data. Cancelling removes nothing. |
+| AC-40 | If a deletion fails part-way, no upload, ride or track is removed. |
+| AC-41 | Uploading a file that was already imported shows a warning naming the earlier upload, and nothing is imported. |
+| AC-42 | For a synthetic ride history, each analytics function returns the expected result, and repeated calls return the same result. |
 
 ## 6. User Experience
 
@@ -171,6 +196,7 @@ In addition, users can manually import details of Strava segments they care abou
 - Keep the map responsive while filters change.
 - Provide a dedicated Segments section with: file upload, validation results, an import review step with confirm and cancel, a searchable, filterable and sortable segment list, a segment detail view with effort history and personal best, and remove actions that ask for confirmation.
 - Show segment routes on the same map as the heatmap, in a distinct style, with the selected segment highlighted.
+- Provide an Uploads section listing the upload registry, with a checkbox per upload, "Delete selected", "Delete all", a confirmation step for each deletion, and a warning when a file was already imported.
 
 ### User Stories
 
@@ -182,6 +208,8 @@ In addition, users can manually import details of Strava segments they care abou
 | US-04 | As a cyclist, I later upload a newer file for the same segments to update their details and add new efforts, without creating duplicates. |
 | US-05 | As a cyclist, I find a segment by name or distance, see my effort history and personal best, and see where it lies on the map next to my heatmap. |
 | US-06 | As a cyclist, I remove segment data I no longer want stored on my machine. |
+| US-07 | As a cyclist, I upload a newer export later, and my history keeps every earlier ride without duplicates. |
+| US-08 | As a cyclist, I see which files I uploaded, and I remove one, several or all of them. |
 
 ## 7. Data Requirements
 
@@ -235,9 +263,9 @@ Accepted file types:
 - **CSV:** either one segment per row, or one effort per row (efforts must reference a segment that is in the same import or already stored).
 
 ### Data Storage
-- Ride data is processed in the browser and held in memory only; it is not persisted.
+- Ride data is processed in the browser. Ride details, GPS tracks and the upload registry are stored in a local SQLite database file on the user's machine (ADR-0013). The uploaded ZIP files themselves are not kept.
 - Segment data is stored in a local JSON segment catalog file on the user's machine (format: `docs/segment-catalog-format.md`). It is never sent to any external service.
-- No other data is persisted: no ride data, no ride GPS tracks, and no Strava connection details (the application has no Strava connection, BR-28). The download command reads the user's access token from the environment or `.env.local` and does not save it (BR-31).
+- No other data is persisted: no ZIP files and no Strava connection details (the application has no Strava connection, BR-28). The download command reads the user's access token from the environment or `.env.local` and does not save it (BR-31).
 
 ## 8. Technical Direction
 
@@ -252,6 +280,7 @@ Recorded in the ADRs (`docs/decisions/`):
 - State management: Zustand.
 - Local backend: Node.js, serving a small JSON API on the local machine only (ADR-0009).
 - Segment storage: a local JSON catalog file written by the local backend (ADR-0011). SQLite (ADR-0009) is read only once, to migrate segments stored by version 2.0 (BR-30).
+- Ride storage: a local SQLite database (`node:sqlite`) written by the local backend (ADR-0013).
 - Testing: Vitest and Playwright.
 - No Google Maps APIs or paid mapping services.
 
@@ -270,17 +299,18 @@ Consider supporting:
 | NFR-02 | The map stays responsive while filters change (about 2,000 rides, under 250 ms per filter change). |
 | NFR-03 | No credentials, tokens or secrets are hardcoded or committed. Configuration uses environment variables, documented in `.env.example`. |
 | NFR-04 | No Google Maps billing or paid mapping services are required. |
-| NFR-05 | Automated tests cover ZIP processing, classification, GPS parsing, filtering, visualization data preparation, segment validation, segment persistence and the segment UI. |
+| NFR-05 | Automated tests cover ZIP processing, classification, GPS parsing, filtering, visualization data preparation, segment validation, segment persistence, the segment UI, ride persistence, upload management and analytics. |
 | NFR-06 | Setup instructions explain how to run the application locally. |
 | NFR-07 | Ride and segment data are processed and stored only on the user's machine. The local backend listens only on the local machine. |
 | NFR-08 | The backend validates every request independently of the UI, limits request size, and returns errors without internal details. |
-| NFR-09 | The user can remove all stored segment data from the application. The documentation explains where the catalog file is and that deleting it also removes all segment data. |
+| NFR-09 | The user can remove all stored segment data and all stored ride data from the application. The documentation explains where the segment catalog and the ride database are, and that deleting them while the application is stopped removes that data. |
+| NFR-10 | With about 2,000 stored rides, the stored history is restored and shown in under 5 s after the application starts, and a location-visit query answers in under 500 ms. NFR-02 still applies to filter changes. |
 
 ### Dependencies and Limitations
 - Segment data is only as complete and current as the files the user uploads; the application never refreshes it from Strava.
 - Encoded polylines are decoded with the common encoded polyline algorithm (precision 5) used by Strava. Other encodings are not supported; GeoJSON is the recommended geometry format.
 - Personal best and effort history reflect only the efforts included in the uploaded files.
-- The segment features need the local backend to be running; the ride heatmap works without it.
+- The segment features and the ride history need the local backend to be running.
 
 ### Error Scenarios
 | Scenario | Expected behaviour |
@@ -289,6 +319,9 @@ Consider supporting:
 | Segment file of an unsupported type, unreadable, or not matching the schema | Rejected with the problems listed per record; nothing stored (AC-21). |
 | Efforts that reference an unknown segment | Rejected as a schema error (AC-21). |
 | Local backend not running, or the catalog file unreadable or not a catalog | The Segments section explains that segment storage is unavailable; the heatmap keeps working. Such a file is never overwritten. |
+| Ride database unavailable, unreadable or newer than the application | The application says ride history is unavailable and does not import uploads; segment features keep working. Such a file is never overwritten. |
+| Upload fails while its rides are stored | Nothing from it is stored; the registry shows it as failed. |
+| Same file uploaded again | A warning names the earlier upload; nothing is imported. |
 | Catalog with missing or malformed entries or fields | The usable segments load; invalid values are treated as unknown and unusable entries are skipped, each reported in the server log; the original file is kept as a backup before it is next rewritten. |
 
 ## 11. Definition of Done
@@ -304,4 +337,6 @@ Consider supporting:
 - The application makes no Strava API calls; only the optional download command does, with the user's own token.
 - Automated tests cover ZIP processing, activity classification, GPS parsing, filtering, visualization data preparation, and the segment capability.
 - Setup instructions explain how to run the application locally, where segment data is stored and how to remove it.
+- Rides persist across restarts; uploads accumulate without duplicate rides; uploads can be listed and deleted (one, several, all) atomically; files already imported are detected.
+- Analytics return deterministic results from the stored ride history.
 - No API secrets are committed to the repository.

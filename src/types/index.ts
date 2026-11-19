@@ -28,3 +28,13 @@ export type {
   StoredSegmentEffort,
 } from './segment';
 export type { ActivitySummary } from './statistics';
+export type {
+  EncodedRide,
+  NewUpload,
+  RideHistoryApiErrorCode,
+  StoredRideDetails,
+  UploadDeletionResult,
+  UploadId,
+  UploadRecord,
+  UploadStatus,
+} from './rideHistory';
