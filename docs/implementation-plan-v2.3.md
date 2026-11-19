@@ -46,10 +46,15 @@ traceability updated in the same change.
      imported. Filters are kept.
    - Tests: an in-memory `fakeRideHistory` for store and UI tests. E2E: each test gets its own real
      ride API over an in-memory database (`tests/e2e/test.ts`).
-3. **Upload management screen** (BR-35, AC-36 – AC-39)
-   - Uploads section with checkbox selection, "Delete selected" and "Delete all", using the existing
-     `ConfirmAction`.
-   - RTL and e2e tests.
+3. **Upload management screen** (BR-35, BR-36, AC-36 – AC-40, NFR-09). **Done** on
+   `feature/upload-management`.
+   - An **Uploads** tab (`UploadsSection`, presentational `UploadList`): file name, date and time,
+     rides (new), distance and status in words; a checkbox per upload, a confirmed delete per
+     upload, "Delete selected" and "Delete all uploads" (`ConfirmAction`).
+   - `activitiesStore.deleteUploads` / `deleteAllUploads` with their own deletion status; the
+     history is read back after each deletion; a `not-found` failure refreshes the list.
+   - Deleted rides leave the ride filter (`withoutRemovedRides`); uploads are disabled while a
+     deletion runs.
 4. **Analytics** (BR-38, AC-42)
    - `distanceByMonth`, `distanceByYear`, `countLocationVisits`, `rankRouteFrequency` and
      `comparePeriods` as pure functions with unit tests on synthetic tracks.

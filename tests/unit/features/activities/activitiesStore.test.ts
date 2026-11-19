@@ -283,3 +283,84 @@ describe('BR-17 / AC-17: files are checked before the import starts', () => {
     expect(store().pendingFileName).toBe('huge.zip');
   });
 });
+
+describe('BR-35 / BR-36: deleting uploads', () => {
+  async function twoUploads() {
+    fake.queueArchive(rides('1', '2'), rides('2', '3'));
+    await store().loadArchive(zipFile('older.zip'), services);
+    await store().loadArchive(zipFile('newer.zip'), services);
+    const [newer, older] = store().uploads;
+    if (!newer || !older) throw new Error('expected two uploads');
+    return { newer, older };
+  }
+
+  it('AC-37: deleting one upload removes only the rides it alone contained', async () => {
+    const { older } = await twoUploads();
+
+    expect(await store().deleteUploads([older.uploadId], services)).toBe(true);
+
+    expect(shownIds()).toEqual(['3', '2']);
+    expect(store().uploads.map((u) => u.fileName)).toEqual(['newer.zip']);
+    expect(store().deletion).toEqual({ stage: 'done', deletedUploads: 1, deletedRides: 1 });
+  });
+
+  it('AC-38: deletes several uploads in one action', async () => {
+    const { newer, older } = await twoUploads();
+
+    await store().deleteUploads([newer.uploadId, older.uploadId], services);
+
+    expect(store().dataset).toBeNull();
+    expect(store().uploads).toEqual([]);
+    expect(store().deletion).toMatchObject({ deletedUploads: 2, deletedRides: 3 });
+  });
+
+  it('AC-39 / NFR-09: delete all removes every upload and ride', async () => {
+    await twoUploads();
+
+    expect(await store().deleteAllUploads(services)).toBe(true);
+
+    expect(store().dataset).toBeNull();
+    expect(store().uploads).toEqual([]);
+    expect(fake.storedIds()).toEqual([]);
+  });
+
+  it('drops the last-upload summary once that upload is deleted', async () => {
+    const { newer, older } = await twoUploads();
+    expect(store().lastUpload?.upload.uploadId).toBe(newer.uploadId);
+
+    await store().deleteUploads([older.uploadId], services);
+    expect(store().lastUpload?.upload.uploadId).toBe(newer.uploadId);
+    await store().deleteUploads([newer.uploadId], services);
+    expect(store().lastUpload).toBeNull();
+  });
+
+  it('AC-40: a failed deletion removes nothing and says why', async () => {
+    const { older } = await twoUploads();
+    fake.failNextDelete('storage-error');
+
+    expect(await store().deleteUploads([older.uploadId], services)).toBe(false);
+
+    expect(store().deletion).toEqual({ stage: 'failed', reason: 'delete-failed' });
+    expect(shownIds()).toEqual(['3', '2', '1']);
+    expect(store().uploads).toHaveLength(2);
+  });
+
+  it('refreshes the list when an upload was already deleted elsewhere', async () => {
+    const { older } = await twoUploads();
+    await fake.services.client.deleteUploads([older.uploadId]); // e.g. in another window
+
+    expect(await store().deleteUploads([older.uploadId], services)).toBe(false);
+
+    expect(store().deletion).toEqual({ stage: 'failed', reason: 'not-found' });
+    expect(store().uploads.map((u) => u.fileName)).toEqual(['newer.zip']);
+  });
+
+  it('reports unavailable storage, and does nothing for an empty selection', async () => {
+    await twoUploads();
+    fake.setAvailable(false);
+
+    expect(await store().deleteAllUploads(services)).toBe(false);
+    expect(store().deletion).toEqual({ stage: 'failed', reason: 'history-unavailable' });
+    expect(await store().deleteUploads([], services)).toBe(false);
+  });
+});

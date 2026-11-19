@@ -1,7 +1,11 @@
 import { FileDropZone } from '@/components/common/FileDropZone';
 import { Panel } from '@/components/common/Panel';
 import { ImportStatusView } from '@/features/activities/components/ImportStatusView';
-import { selectIsImporting, useActivitiesStore } from '@/features/activities/store/activitiesStore';
+import {
+  selectIsDeleting,
+  selectIsImporting,
+  useActivitiesStore,
+} from '@/features/activities/store/activitiesStore';
 
 /**
  * Lets the user upload Strava export ZIPs over time; each adds its rides to the stored history
@@ -17,7 +21,8 @@ export function ArchiveUploadPanel() {
   const lastUpload = useActivitiesStore((state) => state.lastUpload);
   const duplicateOf = useActivitiesStore((state) => state.duplicateOf);
   const loadArchive = useActivitiesStore((state) => state.loadArchive);
-  const isImporting = useActivitiesStore(selectIsImporting);
+  // No upload while uploads are being deleted: one change to the history at a time.
+  const isBusy = useActivitiesStore((state) => selectIsImporting(state) || selectIsDeleting(state));
 
   return (
     <Panel
@@ -29,7 +34,7 @@ export function ArchiveUploadPanel() {
         inputLabel="Strava export ZIP file"
         accept=".zip,application/zip,application/x-zip-compressed"
         hint="Or drop the ZIP here. No need to extract it. Rides already stored are not added twice."
-        disabled={isImporting}
+        disabled={isBusy}
         onFile={(file) => void loadArchive(file)}
       />
       <ImportStatusView
