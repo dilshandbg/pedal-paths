@@ -95,8 +95,8 @@ describe('importStravaArchive: sample Strava export', () => {
     await runImport(makeSampleExport(), (status) => statuses.push(status));
 
     expect(statuses[0]).toEqual({ stage: 'reading-archive' });
-    expect(statuses.at(-2)).toEqual({ stage: 'parsing-activities', processed: 6, total: 6 });
-    expect(statuses.at(-1)).toEqual({ stage: 'indexing' });
+    // The heat map index is built later, over the whole stored history (ADR-0013 §4).
+    expect(statuses.at(-1)).toEqual({ stage: 'parsing-activities', processed: 6, total: 6 });
   });
 
   it('BR-18 / AC-18: ignores a duplicated activity row', async () => {

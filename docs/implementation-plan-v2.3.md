@@ -35,13 +35,17 @@ traceability updated in the same change.
      migration backup.
    - Changed from the ADR draft: no R*Tree (the cell index covers area queries); date index widened
      for the restore order (ADR-0013 §2).
-2. **Cumulative import in the app** (BR-16, BR-18, BR-37, AC-15, AC-18, AC-34, AC-35, AC-41)
-   - Incremental SHA-256 in the worker.
-   - Hash check, then a binary POST.
-   - Restore at startup.
-   - `activitiesStore` holds the history plus uploads.
-   - Filters are kept, and deleted IDs are pruned.
-   - Rewrite replacement tests; add e2e "upload, restart, rides still shown".
+2. **Cumulative import in the app** (BR-16, BR-18, BR-37, AC-15, AC-18, AC-34, AC-35, AC-41).
+   **Done** on `feature/cumulative-import`.
+   - Import worker: `prepareUpload` (ZIP → ride bundle, incremental `sha256` on the same stream) and
+     `restoreHistory` (decode + heat map index over the whole history).
+   - `rideHistoryClient`; `activitiesStore` holds history, uploads and the latest upload's summary.
+     It loads the history at start, stores each upload first and then reads the history back.
+     Uploads stay possible while the history loads.
+   - The duplicate-file warning names the earlier upload. Storage unavailable → message, nothing
+     imported. Filters are kept.
+   - Tests: an in-memory `fakeRideHistory` for store and UI tests. E2E: each test gets its own real
+     ride API over an in-memory database (`tests/e2e/test.ts`).
 3. **Upload management screen** (BR-35, AC-36 – AC-39)
    - Uploads section with checkbox selection, "Delete selected" and "Delete all", using the existing
      `ConfirmAction`.

@@ -1,8 +1,9 @@
 import { MAX_ARCHIVE_BYTES } from '@/features/activities/utils/validateArchiveFile';
-import type { ImportFailureReason, ImportIssue, ImportIssueReason } from '@/types';
+import type { ImportIssue, ImportIssueReason, UploadFailureReason, UploadRecord } from '@/types';
+import { formatShortDate } from '@/utils/date';
 
-/** User-facing messages for archives that can't be used (AC-16, AC-17). */
-export const IMPORT_FAILURE_MESSAGES: Readonly<Record<ImportFailureReason, string>> = {
+/** User-facing messages for uploads that were not added (AC-16, AC-17, AC-41, BRD §10). */
+export const IMPORT_FAILURE_MESSAGES: Readonly<Record<UploadFailureReason, string>> = {
   'not-a-zip':
     'This file is not a ZIP archive. Choose the ZIP file you downloaded from Strava, without extracting it.',
   'too-large': `This file is larger than ${MAX_ARCHIVE_BYTES / 1024 ** 3} GB, the largest export this app accepts. Check that you chose your Strava export ZIP.`,
@@ -12,7 +13,30 @@ export const IMPORT_FAILURE_MESSAGES: Readonly<Record<ImportFailureReason, strin
     'This ZIP does not look like a Strava export: it has no activities.csv. Use the archive from Strava’s “Download your data”.',
   'no-eligible-rides':
     'No Ride activities with GPS data were found in this export. Runs, swims, workouts and other activity types are not shown.',
+  'duplicate-file': 'This file was already imported. Nothing was imported again.',
+  'history-unavailable':
+    'The local ride storage is not available, so this export could not be saved. Nothing was imported. Start the app with “npm run dev” or “npm run preview” and try again.',
+  'save-failed': 'This export could not be saved. Nothing was imported. Try again.',
 };
+
+/**
+ * The message for a failed upload. A duplicate file names the earlier upload of the same file
+ * (AC-41), whose file name may differ.
+ */
+export function describeUploadFailure(
+  reason: UploadFailureReason,
+  duplicateOf: UploadRecord | null,
+  timeZone?: string,
+): string {
+  if (reason === 'duplicate-file' && duplicateOf) {
+    return `This file was already imported on ${formatShortDate(duplicateOf.uploadedAt, timeZone)} as “${duplicateOf.fileName}”. Nothing was imported again.`;
+  }
+  return IMPORT_FAILURE_MESSAGES[reason];
+}
+
+/** Shown when the stored rides cannot be loaded (BRD §10). */
+export const HISTORY_UNAVAILABLE_MESSAGE =
+  'Your stored rides could not be loaded because the local ride storage is not available. New uploads cannot be saved until it is. Start the app with “npm run dev” or “npm run preview”.';
 
 /** Short labels for per-activity problems (UX-04). */
 export const IMPORT_ISSUE_LABELS: Readonly<Record<ImportIssueReason, string>> = {

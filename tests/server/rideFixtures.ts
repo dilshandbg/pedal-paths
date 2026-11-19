@@ -52,7 +52,11 @@ export const newUpload = (n: number, patch: Partial<NewUpload> = {}): NewUpload 
   ...patch,
 });
 
-export const upload = (n: number, rides: ValidRide[], patch: Partial<NewUpload> = {}): ValidUpload => ({
+export const upload = (
+  n: number,
+  rides: ValidRide[],
+  patch: Partial<NewUpload> = {},
+): ValidUpload => ({
   upload: newUpload(n, patch),
   rides,
 });

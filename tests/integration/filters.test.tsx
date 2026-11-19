@@ -3,15 +3,18 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from '@/app/App';
 import { useActivitiesStore } from '@/features/activities/store/activitiesStore';
-import { buildSegmentIndex } from '@/features/heatmap/services/buildSegmentIndex';
 import { useFilterStore } from '@/features/filters/store/filterStore';
-import type { CyclingActivity, ImportResult, Month } from '@/types';
+import type { CyclingActivity, Month } from '@/types';
+import { fakeRideHistory } from '../mocks/fakeRideHistory';
 import { FakeMap, FakeMapboxOverlay } from '../mocks/mapLibraries';
 
-// jsdom has no Web Workers: replace the worker-backed importer with a controllable fake.
-const fakeImport = vi.hoisted(() => vi.fn());
-vi.mock('@/features/activities/workers/runImportInWorker', () => ({
-  runImportInWorker: fakeImport,
+// These tests wait for the lazy-loaded map (up to 15 s): give them room beyond the 5 s default,
+// which a cold map import can exceed while the whole suite runs in parallel.
+vi.setConfig({ testTimeout: 20_000 });
+
+// jsdom has no Web Workers or backend: an in-memory ride history replaces both.
+vi.mock('@/features/activities/store/rideHistoryServices', async () => ({
+  rideHistoryServices: (await import('../mocks/fakeRideHistory')).fakeRideHistory.services,
 }));
 
 /** Rides on the same ~1.1 km road (110 m steps, within the heat map's gap limit). */
@@ -37,14 +40,6 @@ const ride = (
   })),
 });
 
-const loaded = (activities: CyclingActivity[]): ImportResult => ({
-  ok: true,
-  activities,
-  issues: [],
-  excludedNonRideCount: 0,
-  segmentIndex: buildSegmentIndex(activities),
-});
-
 const zipFile = () => new File(['PK'], 'export.zip', { type: 'application/zip' });
 
 /** Number of road segments currently drawn (non-zero width in the deck.gl segment layer). */
@@ -62,9 +57,12 @@ const maxDrawnFrequency = (): number => {
 
 async function loadRides(activities: CyclingActivity[]) {
   const user = userEvent.setup();
-  fakeImport.mockResolvedValue(loaded(activities));
+  fakeRideHistory.queueArchive({ activities });
   render(<App />);
-  await user.upload(screen.getByLabelText('Strava export ZIP file'), zipFile());
+  // Uploads open once the stored history has loaded (BR-33).
+  const input = screen.getByLabelText('Strava export ZIP file');
+  await waitFor(() => expect(input).toBeEnabled());
+  await user.upload(input, zipFile());
   await screen.findByText(`Showing ${activities.length} rides on the map`, {}, { timeout: 15_000 });
   return user;
 }
@@ -73,7 +71,7 @@ describe('BR-09: individual ride filter on the dashboard', () => {
   beforeEach(() => {
     useActivitiesStore.setState(useActivitiesStore.getInitialState(), true);
     useFilterStore.setState(useFilterStore.getInitialState(), true);
-    fakeImport.mockReset();
+    fakeRideHistory.reset();
   });
 
   it('lists every loaded ride, all selected at first', async () => {
@@ -119,7 +117,7 @@ describe('BR-07: year filter on the dashboard', () => {
   beforeEach(() => {
     useActivitiesStore.setState(useActivitiesStore.getInitialState(), true);
     useFilterStore.setState(useFilterStore.getInitialState(), true);
-    fakeImport.mockReset();
+    fakeRideHistory.reset();
   });
 
   const threeYears = () => [
@@ -192,7 +190,7 @@ describe('BR-08: month filter on the dashboard', () => {
   beforeEach(() => {
     useActivitiesStore.setState(useActivitiesStore.getInitialState(), true);
     useFilterStore.setState(useFilterStore.getInitialState(), true);
-    fakeImport.mockReset();
+    fakeRideHistory.reset();
   });
 
   const seasons = () => [
@@ -265,7 +263,7 @@ describe('BR-11: combined filters on the dashboard', () => {
   beforeEach(() => {
     useActivitiesStore.setState(useActivitiesStore.getInitialState(), true);
     useFilterStore.setState(useFilterStore.getInitialState(), true);
-    fakeImport.mockReset();
+    fakeRideHistory.reset();
   });
 
   const summaryValue = (label: string) => {
@@ -296,20 +294,25 @@ describe('BR-11: combined filters on the dashboard', () => {
     expect(summaryValue('Rides')).toBe('1 ride deselected');
   });
 
-  it('a new export clears every filter (ADR-0005)', async () => {
+  it('an added export keeps the filters and adds its rides (ADR-0013 §4)', async () => {
     const user = await loadRides([ride('1', 'Old', 2023, 11), ride('2', 'Older', 2022, 3)]);
     await user.click(screen.getByRole('checkbox', { name: '2023' }));
     await user.click(screen.getByRole('checkbox', { name: 'November' }));
     await user.click(screen.getByRole('checkbox', { name: 'Old' }));
     expect(summaryValue('Rides')).toBe('1 ride deselected');
 
-    fakeImport.mockResolvedValue(loaded([ride('9', 'New', 2024, 5), ride('8', 'Newer', 2024, 6)]));
+    fakeRideHistory.queueArchive({
+      activities: [ride('9', 'New', 2023, 11), ride('8', 'Newer', 2024, 6)],
+      fileHash: 'hash:second export',
+    });
     await user.upload(screen.getByLabelText('Strava export ZIP file'), zipFile());
 
-    expect(await screen.findByText('Showing 2 rides on the map')).toBeInTheDocument();
-    expect(summaryValue('Years')).toBe('All years');
-    expect(summaryValue('Months')).toBe('All months');
-    expect(summaryValue('Rides')).toBe('All rides');
+    // Only the added November 2023 ride matches the kept filters; 'Old' stays deselected.
+    expect(await screen.findByText('Showing 1 ride on the map')).toBeInTheDocument();
+    expect(summaryValue('Years')).toBe('2023');
+    expect(summaryValue('Months')).toBe('November');
+    expect(summaryValue('Rides')).toBe('1 ride deselected');
+    expect(screen.getByRole('checkbox', { name: '2024' })).not.toBeChecked();
   });
 });
 
@@ -317,7 +320,7 @@ describe('BR-15: reset filters on the dashboard', () => {
   beforeEach(() => {
     useActivitiesStore.setState(useActivitiesStore.getInitialState(), true);
     useFilterStore.setState(useFilterStore.getInitialState(), true);
-    fakeImport.mockReset();
+    fakeRideHistory.reset();
   });
 
   it('AC-14: reset restores every eligible ride and clears all filter controls', async () => {
@@ -356,7 +359,7 @@ describe('BR-14: activity count and statistics on the dashboard', () => {
   beforeEach(() => {
     useActivitiesStore.setState(useActivitiesStore.getInitialState(), true);
     useFilterStore.setState(useFilterStore.getInitialState(), true);
-    fakeImport.mockReset();
+    fakeRideHistory.reset();
   });
 
   const statistic = (label: string) => {
@@ -395,7 +398,7 @@ describe('BR-13: activity details on the dashboard', () => {
   beforeEach(() => {
     useActivitiesStore.setState(useActivitiesStore.getInitialState(), true);
     useFilterStore.setState(useFilterStore.getInitialState(), true);
-    fakeImport.mockReset();
+    fakeRideHistory.reset();
   });
 
   it('shows each ride with its name, date, distance and elevation gain when available', async () => {
@@ -415,7 +418,7 @@ describe('BR-10: the heat map follows the filters without a reload', () => {
   beforeEach(() => {
     useActivitiesStore.setState(useActivitiesStore.getInitialState(), true);
     useFilterStore.setState(useFilterStore.getInitialState(), true);
-    fakeImport.mockReset();
+    fakeRideHistory.reset();
   });
 
   it('AC-11 / RULE-11: every filter change replaces the layer on the same map instance', async () => {

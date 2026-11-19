@@ -62,7 +62,9 @@ function validateMeta(meta: unknown, problems: string[]): NewUpload | null {
   const { fileName, fileSizeBytes, fileHash, skippedCount, excludedNonRideCount } = upload;
   const before = problems.length;
   if (!isText(fileName, UPLOAD_LIMITS.fileNameLength)) {
-    problems.push(`upload.fileName must be 1–${UPLOAD_LIMITS.fileNameLength} printable characters.`);
+    problems.push(
+      `upload.fileName must be 1–${UPLOAD_LIMITS.fileNameLength} printable characters.`,
+    );
   }
   if (!isCount(fileSizeBytes)) problems.push('upload.fileSizeBytes must be a whole number ≥ 0.');
   if (typeof fileHash !== 'string' || !SHA256_HEX.test(fileHash)) {
@@ -95,10 +97,14 @@ function validateDetails(
     details;
   const before = problems.length;
   if (!isText(activityId, UPLOAD_LIMITS.activityIdLength)) {
-    problems.push(`${at}.activityId must be 1–${UPLOAD_LIMITS.activityIdLength} printable characters.`);
+    problems.push(
+      `${at}.activityId must be 1–${UPLOAD_LIMITS.activityIdLength} printable characters.`,
+    );
   }
   if (!isText(activityName, UPLOAD_LIMITS.activityNameLength)) {
-    problems.push(`${at}.activityName must be 1–${UPLOAD_LIMITS.activityNameLength} printable characters.`);
+    problems.push(
+      `${at}.activityName must be 1–${UPLOAD_LIMITS.activityNameLength} printable characters.`,
+    );
   }
   if (typeof activityDate !== 'string' || !isIsoDateTime(activityDate)) {
     problems.push(`${at}.activityDate must be an ISO 8601 date-time.`);

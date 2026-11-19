@@ -254,7 +254,7 @@ validation, segment persistence and the segment UI. Component tests can't reach 
 | OD-16 | FIT files                          | BRD v1.1: supported (`@garmin/fitsdk`); TCX reported as unsupported                                                             |
 | OD-17 | Incomplete activities              | ADR-0007: skip and report; "Untitled ride" for a missing name                                                                   |
 | OD-19 | Mobile                             | ADR-0007: no native app; the responsive web layout stays                                                                        |
-| OD-20 | Filter persistence                 | ADR-0005: in session only; reset on a new ZIP                                                                                   |
+| OD-20 | Filter persistence                 | ADR-0005: in session only. ADR-0013 §4 (BRD v2.3): kept when an upload adds rides; no longer reset on a new ZIP                 |
 | OD-21 | App name                           | ADR-0007: "Strava Cycling Heat Map"                                                                                             |
 | OD-08 | Map library                        | ADR-0008: plain `maplibre-gl` + `@deck.gl/mapbox`, no React wrapper                                                             |
 | OD-22 | Base map provider                  | ADR-0008 (owner decision): MapLibre + OpenStreetMap tiles; no Google Maps, no key, no billing                                   |

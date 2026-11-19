@@ -20,7 +20,12 @@ describe('BR-33: GPS track encoding', () => {
   it('round-trips coordinates, elevation and time', () => {
     const track = [
       point(),
-      point({ latitude: 51.5017, longitude: -0.1236, elevation: 14, timestamp: '2024-03-10T07:00:05.250Z' }),
+      point({
+        latitude: 51.5017,
+        longitude: -0.1236,
+        elevation: 14,
+        timestamp: '2024-03-10T07:00:05.250Z',
+      }),
     ];
 
     expect(decodeTrack(encodeTrack(track))).toEqual(track);
@@ -33,7 +38,9 @@ describe('BR-33: GPS track encoding', () => {
   });
 
   it('keeps coordinates to about 1 cm', () => {
-    const [decoded] = decodeTrack(encodeTrack([point({ latitude: 12.345678912, longitude: 98.76543219 })]));
+    const [decoded] = decodeTrack(
+      encodeTrack([point({ latitude: 12.345678912, longitude: 98.76543219 })]),
+    );
 
     expect(decoded?.latitude).toBeCloseTo(12.345678912, 7);
     expect(decoded?.longitude).toBeCloseTo(98.76543219, 7);
