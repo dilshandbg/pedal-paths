@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { DatabaseSync, SQLInputValue } from 'node:sqlite';
 import type {
   EncodedRide,
+  StoredRideDetails,
   UploadDeletionResult,
   UploadId,
   UploadRecord,
@@ -41,8 +42,21 @@ export interface RideRepository {
   deleteUploads(uploadIds: readonly UploadId[]): DeleteUploadsResult;
   /** Deletes every upload and all ride data (BR-35, AC-39). */
   deleteAll(): UploadDeletionResult;
+  /** Every stored ride's details, without tracks, by start date (BR-38). */
+  listRideDetails(): StoredRideDetails[];
+  /** Rides whose track passes through any of these cell key ranges (ADR-0013 §5). */
+  ridesInCells(ranges: readonly (readonly [number, number])[]): string[];
+  /** The given rides with their encoded tracks, by start date. Unknown IDs are skipped. */
+  ridesWithTracks(activityIds: readonly string[]): EncodedRide[];
+  /** Every (cell, ride) pair of the location index inside these cell key ranges. */
+  cellVisits(
+    ranges: readonly (readonly [number, number])[],
+  ): { readonly cellKey: number; readonly activityId: string }[];
   close(): void;
 }
+
+/** Most IDs bound in one `IN (…)` query; well below SQLite's limit. */
+const ID_CHUNK = 500;
 
 interface UploadRow {
   upload_id: string;
@@ -80,6 +94,15 @@ const toUpload = (row: UploadRow): UploadRecord => ({
   totalDistanceKm: row.total_distance_km,
   skippedCount: row.skipped_count,
   excludedNonRideCount: row.excluded_non_ride_count,
+});
+
+const toDetails = (row: Omit<RideRow, 'track'>): StoredRideDetails => ({
+  activityId: row.activity_id,
+  activityName: row.name,
+  activityDate: row.start_date,
+  distanceKm: row.distance_km,
+  elevationGainM: row.elevation_gain_m,
+  movingTimeS: row.moving_time_s,
 });
 
 const placeholders = (count: number) => Array.from({ length: count }, () => '?').join(', ');
@@ -138,6 +161,13 @@ export function createRideRepository(db: DatabaseSync): RideRepository {
   const deleteOrphanRides = db.prepare(
     `DELETE FROM rides WHERE NOT EXISTS
        (SELECT 1 FROM upload_rides u WHERE u.activity_id = rides.activity_id)`,
+  );
+
+  const selectRidesInCellRange = db.prepare(
+    'SELECT DISTINCT activity_id FROM ride_cells WHERE cell_key BETWEEN ? AND ?',
+  );
+  const selectCellVisits = db.prepare(
+    'SELECT cell_key, activity_id FROM ride_cells WHERE cell_key BETWEEN ? AND ?',
   );
 
   const getUpload = (uploadId: UploadId): UploadRecord | null => {
@@ -246,17 +276,7 @@ export function createRideRepository(db: DatabaseSync): RideRepository {
            FROM rides ORDER BY start_date, activity_id`,
         )
         .all() as unknown as RideRow[];
-      return rows.map((row) => ({
-        details: {
-          activityId: row.activity_id,
-          activityName: row.name,
-          activityDate: row.start_date,
-          distanceKm: row.distance_km,
-          elevationGainM: row.elevation_gain_m,
-          movingTimeS: row.moving_time_s,
-        },
-        track: row.track,
-      }));
+      return rows.map((row) => ({ details: toDetails(row), track: row.track }));
     },
 
     deleteUploads(uploadIds) {
@@ -297,6 +317,62 @@ export function createRideRepository(db: DatabaseSync): RideRepository {
       });
       db.exec('VACUUM'); // give the space back: the user asked for the data to be gone
       return result;
+    },
+
+    listRideDetails() {
+      return (
+        db
+          .prepare(
+            `SELECT activity_id, name, start_date, distance_km, elevation_gain_m, moving_time_s
+             FROM rides ORDER BY start_date, activity_id`,
+          )
+          .all() as unknown as Omit<RideRow, 'track'>[]
+      ).map(toDetails);
+    },
+
+    ridesInCells(ranges) {
+      const found = new Set<string>();
+      for (const [first, last] of ranges) {
+        for (const row of selectRidesInCellRange.all(first, last) as { activity_id: string }[]) {
+          found.add(row.activity_id);
+        }
+      }
+      return [...found].sort();
+    },
+
+    ridesWithTracks(activityIds) {
+      const ids = [...new Set(activityIds)];
+      const rows: RideRow[] = [];
+      for (let i = 0; i < ids.length; i += ID_CHUNK) {
+        const chunk = ids.slice(i, i + ID_CHUNK);
+        rows.push(
+          ...(db
+            .prepare(
+              `SELECT activity_id, name, start_date, distance_km, elevation_gain_m, moving_time_s,
+                 track
+               FROM rides WHERE activity_id IN (${placeholders(chunk.length)})`,
+            )
+            .all(...(chunk as SQLInputValue[])) as unknown as RideRow[]),
+        );
+      }
+      rows.sort(
+        (a, b) =>
+          a.start_date.localeCompare(b.start_date) || a.activity_id.localeCompare(b.activity_id),
+      );
+      return rows.map((row) => ({ details: toDetails(row), track: row.track }));
+    },
+
+    cellVisits(ranges) {
+      const visits: { cellKey: number; activityId: string }[] = [];
+      for (const [first, last] of ranges) {
+        for (const row of selectCellVisits.all(first, last) as {
+          cell_key: number;
+          activity_id: string;
+        }[]) {
+          visits.push({ cellKey: row.cell_key, activityId: row.activity_id });
+        }
+      }
+      return visits;
     },
 
     close() {

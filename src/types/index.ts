@@ -42,3 +42,17 @@ export type {
   UploadRecord,
   UploadStatus,
 } from './rideHistory';
+export type {
+  AnalyticsRide,
+  AnalyticsTrack,
+  ComparisonMetric,
+  DateRange,
+  LocationQuery,
+  LocationVisits,
+  MonthTotals,
+  PeriodComparison,
+  RideTotals,
+  RoadFrequency,
+  RouteFrequencyQuery,
+  YearTotals,
+} from './analytics';
