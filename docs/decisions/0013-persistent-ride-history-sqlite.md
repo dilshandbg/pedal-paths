@@ -180,14 +180,19 @@ The analytics are pure functions in `src/features/analytics/services`. The backe
 repository queries, and they are exposed as `GET /api/analytics/*`, each with a validated, typed
 input and output:
 
-| Function               | Input                            | Output                                                       |
-| ---------------------- | -------------------------------- | ------------------------------------------------------------ |
-| `distanceByMonth`      | date range                       | per year-month: rides, distance, elevation gain, moving time |
-| `distanceByYear`       | date range                       | per year: the same                                           |
-| `countLocationVisits`  | point, radius (m), date range    | distinct rides passing within the radius, with their dates   |
-| `rankRouteFrequency`   | area (bounds), date range, limit | most-ridden road cells/segments, with their ride counts      |
-| `comparePeriods`       | metric, period A, period B       | both values and the difference                               |
-| `matchSegment` (OD-26) | catalog segment ID               | rides that rode the segment (RULE-24)                        |
+| Function (`GET /api/analytics/…`)         | Input                                     | Output                                                                  |
+| ----------------------------------------- | ----------------------------------------- | ----------------------------------------------------------------------- |
+| `distanceByMonth` (`distance-by-month`)   | date range                                | per month with rides: rides, distance, elevation gain, moving time      |
+| `distanceByYear` (`distance-by-year`)     | date range                                | per year: the same                                                      |
+| `countLocationVisits` (`location-visits`) | place, radius (default 100 m), date range | distinct rides within the radius, oldest first, with their closest pass |
+| `rankRoadFrequency` (`route-frequency`)   | area (≤ 1° a side), limit, date range     | the 0.001° road cells used by the most distinct rides                   |
+| `comparePeriods` (`compare-periods`)      | metric, period A, period B (place)        | both values, the difference and the change in percent                   |
+| `matchSegment` (phase 6)                  | catalog segment ID                        | rides that rode the segment (RULE-24)                                   |
+
+`GET /api/analytics` lists these functions and their parameters. Date ranges are calendar dates
+(`YYYY-MM-DD`, inclusive) in the history's time zone. Location visits use the location index for
+candidates, then measure each candidate's track exactly (§5). Totals count only known values
+(RULE-13).
 
 Year and month use the machine's local time zone, which is the browser's (ADR-0007), because the
 backend runs on the same machine. A future chatbot would call these endpoints or functions and

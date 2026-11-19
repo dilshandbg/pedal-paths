@@ -1,5 +1,6 @@
 import type { Month } from '@/types';
-import { isMonth } from '@/utils/month';
+// Relative, not `@/`: the local backend's analytics load this file without the alias (ADR-0013).
+import { isMonth } from './month';
 
 /**
  * Calendar year and month of a UTC instant in the given IANA time zone. When `timeZone` is

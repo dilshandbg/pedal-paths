@@ -55,10 +55,16 @@ traceability updated in the same change.
      history is read back after each deletion; a `not-found` failure refreshes the list.
    - Deleted rides leave the ride filter (`withoutRemovedRides`); uploads are disabled while a
      deletion runs.
-4. **Analytics** (BR-38, AC-42)
-   - `distanceByMonth`, `distanceByYear`, `countLocationVisits`, `rankRouteFrequency` and
-     `comparePeriods` as pure functions with unit tests on synthetic tracks.
-   - `/api/analytics/*` with input validation (NFR-08).
+4. **Analytics** (BR-38, AC-42). **Done** on `feature/ride-analytics`, except segment matching
+   (phase 6).
+   - Pure, in `src/features/analytics/services`: `distanceByMonth`, `distanceByYear`, `totalRides`,
+     `countLocationVisits` (exact distance to the track's lines, recording gaps excluded),
+     `rankRoadFrequency`, `comparePeriods`, `parseAnalyticsQuery`.
+   - Backend: `createRideAnalytics` over new repository queries (`listRideDetails`, `ridesInCells`,
+     `ridesWithTracks`, `cellVisits`); read-only `GET /api/analytics/*` with a function catalog at
+     `GET /api/analytics`.
+   - One-off timing at 2,000 rides × 3,000 points: location visits (100 m) 55–106 ms; a 2 km
+     radius over a dense area ~1.4 s (every ride is a candidate). For phase 5 to look at.
 5. **Performance** (NFR-10): extend `npm run perf` with restore and location-query timings at about
    2,000 synthetic rides; tune indexes or the cell size if needed.
 6. **Segment matching** (BR-38, RULE-24; definition approved in OD-28).

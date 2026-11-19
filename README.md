@@ -10,8 +10,9 @@ JSON catalog file. Nothing leaves your machine, and the app never connects to St
 ## Status
 
 [`docs/BRD.md`](docs/BRD.md) v2.2 is implemented and verified by automated tests. v2.3 (stored,
-cumulative ride history) is in progress: storage, cumulative uploads and the Uploads screen are
-done; analytics follow ([plan](docs/implementation-plan-v2.3.md)). See
+cumulative ride history) is in progress: storage, cumulative uploads, the Uploads screen and the
+analytics API are done; segment matching and the restore benchmark follow
+([plan](docs/implementation-plan-v2.3.md)). See
 [`docs/traceability.md`](docs/traceability.md) for the requirement-by-requirement matrix.
 
 - **Import:** upload the original Strava export ZIP (checked first: a `.zip`, at most 5 GB). It is processed in a background Web Worker,
@@ -20,6 +21,11 @@ done; analytics follow ([plan](docs/implementation-plan-v2.3.md)). See
 - **Ride history:** every upload adds its rides to a stored history that is shown again whenever
   the app starts. A ride in several exports is stored once; a file you already imported is
   recognised and not imported again.
+- **Analytics:** the local server answers questions about your stored rides with exact,
+  repeatable numbers: distance per month or year, how many rides passed a place, your most ridden
+  roads in an area, and a comparison of two periods. `GET /api/analytics` lists them (for
+  example `/api/analytics/location-visits?lat=51.5&lng=-0.12&radiusM=100`). There is no chatbot;
+  these are the functions one would call.
 - **Uploads:** the Uploads tab lists every export you uploaded (date and time, rides, distance,
   status). Delete one, several or all of them; rides that another upload also contains are kept.
 - **Heat map:** roads are coloured and sized by how many different rides used them, from 1 ride
