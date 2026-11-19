@@ -4,18 +4,22 @@ A personal, local web app that turns your **original Strava export ZIP** into an
 map of your rides. It shows how often each road was ridden, filtered by year, month and individual
 ride. You can also import details of Strava segments you care about from a file, browse your
 efforts and personal bests, and see the segments on the same map. Rides are processed in your
-browser; segments are stored in a local JSON catalog file. Nothing leaves your machine, and the app never
-connects to Strava.
+browser and kept, upload after upload, in a local SQLite database; segments are stored in a local
+JSON catalog file. Nothing leaves your machine, and the app never connects to Strava.
 
 ## Status
 
-All requirements in [`docs/BRD.md`](docs/BRD.md) v2.0 are implemented and verified by automated
-tests. See [`docs/traceability.md`](docs/traceability.md) for the requirement-by-requirement
-matrix.
+[`docs/BRD.md`](docs/BRD.md) v2.2 is implemented and verified by automated tests. v2.3 (stored,
+cumulative ride history) is in progress: storage and cumulative uploads are done; the Uploads
+screen and analytics follow ([plan](docs/implementation-plan-v2.3.md)). See
+[`docs/traceability.md`](docs/traceability.md) for the requirement-by-requirement matrix.
 
 - **Import:** upload the original Strava export ZIP (checked first: a `.zip`, at most 5 GB). It is processed in a background Web Worker,
-  with progress and a summary of loaded, excluded and skipped activities. Only **Ride** activities
-  with GPX or FIT tracks are kept.
+  with progress and a summary of the rides in the file, how many were new, and the excluded and
+  skipped activities. Only **Ride** activities with GPX or FIT tracks are kept.
+- **Ride history:** every upload adds its rides to a stored history that is shown again whenever
+  the app starts. A ride in several exports is stored once; a file you already imported is
+  recognised and not imported again.
 - **Heat map:** roads are coloured and sized by how many different rides used them, from 1 ride
   to the busiest road, with a legend. The base map is MapLibre + OpenStreetMap with pan and zoom.
 - **Filters:** years, months (combined, e.g. November across several years) and individual rides.
@@ -58,22 +62,23 @@ npm install
 npm run dev                         # http://localhost:5173
 ```
 
-`npm run dev` (and `npm run build && npm run preview`) also serves the local segment API at
-`/api/segments`. It only answers requests from your own machine. Serving `dist/` with any other
-static file server works for rides, but the Segments tab then reports that segment storage is
-unavailable.
+`npm run dev` (and `npm run build && npm run preview`) also serves the local APIs for segments
+(`/api/segments`) and the ride history (`/api/uploads`, `/api/rides`). They only answer requests
+from your own machine. Serving `dist/` with any other static file server is not enough: the app
+then reports that ride and segment storage is unavailable, and uploads are not imported.
 
 ## Configuration
 
 Nothing needs configuring: there are no API keys or secrets. Optional settings go in
 `.env.local` (copy `.env.example`; `.env.local` is git-ignored):
 
-| Variable               | Default                                        | Purpose                                          |
-| ---------------------- | ---------------------------------------------- | ------------------------------------------------ |
-| `VITE_MAP_STYLE_URL`   | `https://tiles.openfreemap.org/styles/liberty` | MapLibre style for the base map                  |
-| `SEGMENT_CATALOG_PATH` | `data/segment-catalog.json`                    | Segment catalog file (`:memory:` keeps nothing)  |
-| `SEGMENTS_DB_PATH`     | `data/segments.sqlite`                         | Older SQLite database, migrated once (see below) |
-| `STRAVA_ACCESS_TOKEN`  | none                                           | Only for `npm run fetch-segments` (see Segments) |
+| Variable               | Default                                        | Purpose                                                    |
+| ---------------------- | ---------------------------------------------- | ---------------------------------------------------------- |
+| `VITE_MAP_STYLE_URL`   | `https://tiles.openfreemap.org/styles/liberty` | MapLibre style for the base map                            |
+| `SEGMENT_CATALOG_PATH` | `data/segment-catalog.json`                    | Segment catalog file (`:memory:` keeps nothing)            |
+| `SEGMENTS_DB_PATH`     | `data/segments.sqlite`                         | Older SQLite database, migrated once (see below)           |
+| `RIDES_DB_PATH`        | `data/rides.sqlite`                            | Ride history database (ADR-0013; `:memory:` keeps nothing) |
+| `STRAVA_ACCESS_TOKEN`  | none                                           | Only for `npm run fetch-segments` (see Segments)           |
 
 Restart the dev or preview server after changing them.
 
@@ -115,7 +120,8 @@ starts `vite preview` with an in-memory segment catalog, so it never touches you
 docs/          BRD (source of truth), architecture, technical design, ADRs, traceability,
                segment import and catalog formats
 public/        Static assets
-server/        Local backend: JSON segment catalog, SQLite migration, /api/segments, Vite plugin
+server/        Local backend: JSON segment catalog, SQLite migration, /api/segments, ride history
+               database and /api/uploads, /api/rides (ADR-0013), Vite plugins
 data/          segment-catalog.json with your imported segments (git-ignored)
 src/
   app/         App root, routes, providers
@@ -142,11 +148,12 @@ See [`docs/architecture.md`](docs/architecture.md) for the layering and dependen
    the archive.
 3. Only activities classified as **Ride** are shown. Runs, swims, workouts and other types
    (including Virtual, E-Bike, Gravel and Mountain Bike rides) are excluded.
-4. To switch datasets, select a different ZIP. Data is not kept after a page reload.
+4. Later, upload a newer export the same way. Its new rides are added; rides you already have
+   are not duplicated, and the stored rides are shown again whenever you start the app.
 
 > Processing runs in a background Web Worker, so the page stays responsive even for large exports.
-> You get a summary of rides loaded, non-ride activities excluded, and any rides that could not be
-> processed (for example indoor rides without GPS, or TCX files).
+> You get a summary of the rides in the file and how many were new, non-ride activities excluded,
+> and any rides that could not be processed (for example indoor rides without GPS, or TCX files).
 
 Keep your own export in `test-data/`, which is git-ignored for privacy.
 
@@ -194,8 +201,12 @@ from `.env.local` when you are done; there is nothing to disconnect in the app.
 ## Where your data is and how to remove it
 
 - **Map style and heat colours:** only the names of your choices are kept in your browser's local storage.
-- **Rides** are read from the ZIP in your browser and kept in memory only. Reloading the page or
-  closing the tab removes them. The app never uploads them.
+- **Rides** are read from the ZIP in your browser, then stored with their GPS tracks in
+  `data/rides.sqlite` in the project folder (or at `RIDES_DB_PATH`), together with a list of your
+  uploads. The ZIP files themselves are not kept. Each upload adds its rides; a ride that is in
+  several exports is stored once, and a file you already imported is not imported again. The app
+  shows your stored rides whenever it starts. Rides only travel between your browser and the local
+  server on your machine.
 - **Segments** are stored in `data/segment-catalog.json` in the project folder (or at
   `SEGMENT_CATALOG_PATH`), with their routes, altitude and distance samples, and efforts
   ([format](docs/segment-catalog-format.md)). The app loads the catalog when it starts. Segments only
@@ -204,6 +215,10 @@ from `.env.local` when you are done; there is nothing to disconnect in the app.
   `data/segments.sqlite`. On the first start without a catalog file, the app copies all of them
   into the catalog, checks the copy, and renames the database to `segments.sqlite.migrated`. That
   file is no longer used; delete it once you have checked your segments.
+
+To remove ride data, stop the app and delete `data/rides.sqlite` (and any `rides.sqlite-wal`,
+`rides.sqlite-shm` or `rides.sqlite.v*.bak` next to it). Removing single uploads, or all of them,
+from inside the app is the next step of BRD v2.3 (BR-35).
 
 To remove segment data:
 

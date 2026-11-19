@@ -234,30 +234,36 @@ validation, segment persistence and the segment UI. Component tests can't reach 
 
 ### Closed
 
-| ID    | Topic                      | Resolution                                                                                                                      |
-| ----- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| OD-01 | BRD missing                | BRD v1.1 received and analysed                                                                                                  |
-| OD-02 | Year/month selection model | ADR-0005: opt-in, empty = unrestricted, Cartesian AND                                                                           |
-| OD-03 | Heat map intensity         | ADR-0006: grid-snapped segments, count of distinct activities                                                                   |
-| OD-04 | Data loading               | BRD v1.1 + ADR-0004: upload the original ZIP in the app; no persistence across reloads. BRD v2.0 confirms: rides are not stored |
-| OD-25 | Segment data source        | BRD v2.0 + ADR-0010 (owner decision): one-time manual file import; no OAuth, no Strava API                                      |
-| OD-05 | Time zone                  | ADR-0007: browser local time                                                                                                    |
-| OD-06 | Metrics source             | ADR-0007: `activities.csv` inside the ZIP, falling back to computing from the track                                             |
-| OD-07 | Activity ID                | ADR-0007: Strava `Activity ID`                                                                                                  |
-| OD-09 | Summary statistics         | ADR-0007: count, total distance, total elevation gain                                                                           |
-| OD-10 | Units                      | ADR-0007: metric                                                                                                                |
-| OD-11 | Performance target         | ADR-0006: about 2,000 rides, under 250 ms per filter update; Web Worker import (ADR-0004)                                       |
-| OD-12 | What counts as a ride      | BRD v1.1 + ADR-0007: `Activity Type` = `Ride` only                                                                              |
-| OD-13 | Deployment                 | Local use only                                                                                                                  |
-| OD-14 | Browsers                   | ADR-0007: latest desktop Chrome / Edge / Firefox; e2e on Chromium                                                               |
-| OD-15 | Ride filter semantics      | ADR-0005: exclusion list, scoped to year/month, narrows only                                                                    |
-| OD-16 | FIT files                  | BRD v1.1: supported (`@garmin/fitsdk`); TCX reported as unsupported                                                             |
-| OD-17 | Incomplete activities      | ADR-0007: skip and report; "Untitled ride" for a missing name                                                                   |
-| OD-19 | Mobile                     | ADR-0007: no native app; the responsive web layout stays                                                                        |
-| OD-20 | Filter persistence         | ADR-0005: in session only; reset on a new ZIP                                                                                   |
-| OD-21 | App name                   | ADR-0007: "Strava Cycling Heat Map"                                                                                             |
-| OD-08 | Map library                | ADR-0008: plain `maplibre-gl` + `@deck.gl/mapbox`, no React wrapper                                                             |
-| OD-22 | Base map provider          | ADR-0008 (owner decision): MapLibre + OpenStreetMap tiles; no Google Maps, no key, no billing                                   |
+| ID    | Topic                              | Resolution                                                                                                                      |
+| ----- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| OD-01 | BRD missing                        | BRD v1.1 received and analysed                                                                                                  |
+| OD-02 | Year/month selection model         | ADR-0005: opt-in, empty = unrestricted, Cartesian AND                                                                           |
+| OD-03 | Heat map intensity                 | ADR-0006: grid-snapped segments, count of distinct activities                                                                   |
+| OD-04 | Data loading                       | BRD v1.1 + ADR-0004: upload the original ZIP in the app; no persistence across reloads. BRD v2.0 confirms: rides are not stored |
+| OD-25 | Segment data source                | BRD v2.0 + ADR-0010 (owner decision): one-time manual file import; no OAuth, no Strava API                                      |
+| OD-05 | Time zone                          | ADR-0007: browser local time                                                                                                    |
+| OD-06 | Metrics source                     | ADR-0007: `activities.csv` inside the ZIP, falling back to computing from the track                                             |
+| OD-07 | Activity ID                        | ADR-0007: Strava `Activity ID`                                                                                                  |
+| OD-09 | Summary statistics                 | ADR-0007: count, total distance, total elevation gain                                                                           |
+| OD-10 | Units                              | ADR-0007: metric                                                                                                                |
+| OD-11 | Performance target                 | ADR-0006: about 2,000 rides, under 250 ms per filter update; Web Worker import (ADR-0004)                                       |
+| OD-12 | What counts as a ride              | BRD v1.1 + ADR-0007: `Activity Type` = `Ride` only                                                                              |
+| OD-13 | Deployment                         | Local use only                                                                                                                  |
+| OD-14 | Browsers                           | ADR-0007: latest desktop Chrome / Edge / Firefox; e2e on Chromium                                                               |
+| OD-15 | Ride filter semantics              | ADR-0005: exclusion list, scoped to year/month, narrows only                                                                    |
+| OD-16 | FIT files                          | BRD v1.1: supported (`@garmin/fitsdk`); TCX reported as unsupported                                                             |
+| OD-17 | Incomplete activities              | ADR-0007: skip and report; "Untitled ride" for a missing name                                                                   |
+| OD-19 | Mobile                             | ADR-0007: no native app; the responsive web layout stays                                                                        |
+| OD-20 | Filter persistence                 | ADR-0005: in session only. ADR-0013 §4 (BRD v2.3): kept when an upload adds rides; no longer reset on a new ZIP                 |
+| OD-21 | App name                           | ADR-0007: "Strava Cycling Heat Map"                                                                                             |
+| OD-08 | Map library                        | ADR-0008: plain `maplibre-gl` + `@deck.gl/mapbox`, no React wrapper                                                             |
+| OD-22 | Base map provider                  | ADR-0008 (owner decision): MapLibre + OpenStreetMap tiles; no Google Maps, no key, no billing                                   |
+| OD-26 | Segment matching and ride analysis | BRD v2.3 (owner decision): BR-38, defined by RULE-24 (see OD-28)                                                                |
+| OD-28 | Segment matching definition        | BRD v2.3 RULE-24: within 25 m of start, then end, and of every route point between, same direction                              |
+| OD-29 | Changed details of a stored ride   | BRD v2.3 RULE-22: newest upload's details win; stored track kept                                                                |
+| OD-30 | Ride history performance           | BRD v2.3 NFR-10: restore ~2,000 rides < 5 s; location query < 500 ms                                                            |
+| OD-31 | Ride database unavailable          | BRD v2.3 §10: uploads are refused, no in-memory fallback                                                                        |
+| OD-32 | Location visits, period comparison | BRD v2.3 RULE-24 (distinct rides, default 100 m); ADR-0013 §7 metrics                                                           |
 
 ### Open
 
@@ -265,6 +271,5 @@ validation, segment persistence and the segment UI. Component tests can't reach 
 | ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
 | OD-18 | Visualization modes (BRD §9) are deferred from the initial release. Revisit after the heat map ships.                                                                                                                                                                                         | —         |
 | OD-23 | `activities.csv` headers are assumed to be in English. If the export is localized, header mapping will need extending. Confirm with a real export.                                                                                                                                            | Ingestion |
-| OD-26 | The owner asked to use the segment catalog for segment matching and ride analysis, but neither is specified yet (what to match, and what to show). Not implemented; the catalog stores the route, altitude and distance samples such analysis would need. Owner to specify.                   | Matching  |
 | OD-27 | The owner asked for selectable map styles and approved: Colourful / Light grey / Dark base maps, a choice of heat colours (Magenta–purple default, Fire), both remembered in the browser (§6b, implemented as "BR-32" in code and tests). Not yet in the BRD: the owner to confirm adding it. | —         |
 | OD-24 | BR-17 and the segment import require size limits but the BRD gives no numbers. Provisional: ZIP ≤ 5 GB (`MAX_ARCHIVE_BYTES`), segment file ≤ 20 MB (`LIMITS.fileBytes`). Owner to confirm.                                                                                                    | —         |
