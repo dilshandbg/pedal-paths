@@ -55,7 +55,10 @@ Nothing in the ride storage, upload management, analytics or the NFR-10 benchmar
    - RTL integration tests (`tests/integration/assistant.test.tsx`: the screens, store and client
      against the real assistant API and service on a local HTTP server, with the fake provider),
      and unit tests for the event-stream reader and the screen texts.
-5. **End-to-end with a mocked Ollama** (AC-43 – AC-53):
+5. **End-to-end with a mocked Ollama** (AC-43 – AC-55), on `feature/assistant-e2e`. **Done**
+   (awaiting review): `tests/e2e/assistant.spec.ts` with `tests/e2e/mockOllama.ts` (a real HTTP
+   server answering like Ollama) behind the real APIs and the real Ollama adapter; `/verify`, all
+   e2e tests, `npm run perf` and `npm run perf:history` pass:
    - a Playwright journey on the real backend;
    - `/verify`, all e2e tests, `npm run perf` and `npm run perf:history`, to show that nothing
      regressed.
