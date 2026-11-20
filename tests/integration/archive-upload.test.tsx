@@ -43,7 +43,8 @@ const fileInput = () => screen.getByLabelText('Strava export ZIP file');
 async function renderApp() {
   const user = userEvent.setup();
   render(<App />);
-  await waitFor(() => expect(fileInput()).toBeEnabled());
+  // Uploads open once the stored history has loaded (BR-33); allow for a busy parallel run.
+  await waitFor(() => expect(fileInput()).toBeEnabled(), { timeout: 15_000 });
   return user;
 }
 
@@ -219,8 +220,14 @@ describe('BR-18 / BR-37: duplicate rides and files', () => {
     expect(
       await screen.findByText('Showing 4 rides on the map', {}, { timeout: 15_000 }),
     ).toBeInTheDocument();
-    const list = within(screen.getByRole('group', { name: 'Rides' }));
-    expect(list.getAllByRole('checkbox')).toHaveLength(4);
+    // The ride list renders after the map and statistics (useDeferredValue, NFR-10).
+    await waitFor(
+      () =>
+        expect(
+          within(screen.getByRole('group', { name: 'Rides' })).getAllByRole('checkbox'),
+        ).toHaveLength(4),
+      { timeout: 15_000 },
+    );
     const statistics = within(screen.getByRole('region', { name: 'Statistics' }));
     expect(statistics.getByText('4 rides')).toBeInTheDocument();
   });

@@ -1,6 +1,6 @@
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from '@/app/App';
 import { useMapStyleStore } from '@/features/heatmap/store/mapStyleStore';
 import { BASE_MAP_STORAGE_KEY, HEAT_PALETTE_STORAGE_KEY } from '@/features/heatmap/utils/baseMap';
@@ -9,6 +9,12 @@ import { FakeMap } from '../mocks/mapLibraries';
 // These tests wait for the lazy-loaded map (up to 15 s): give them room beyond the 5 s default,
 // which a cold map import can exceed while the whole suite runs in parallel.
 vi.setConfig({ testTimeout: 20_000 });
+
+// Load the lazily imported map module once before the tests: a cold import under a full parallel
+// run can take longer than a single wait, and only the first test would pay for it.
+beforeAll(async () => {
+  await import('@/components/map/MapView');
+}, 30_000);
 
 const mapInstance = async () => {
   // The map is lazily loaded; under a full parallel test run that can take a few seconds.

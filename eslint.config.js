@@ -92,5 +92,69 @@ export default tseslint.config(
       globals: globals.node,
     },
   },
+  // The assistant's provider isolation (BR-40, ADR-0014 §1, docs/architecture.md §5).
+  {
+    files: ['server/assistant/**/*.ts'],
+    ignores: ['server/assistant/llm/registry.ts', 'server/assistant/llm/providers/**'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['**/providers/*', '**/providers'],
+              message:
+                'Only server/assistant/llm/registry.ts may import provider adapters. Use the LLMProvider interface.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['server/assistant/llm/providers/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['./*', '!./*.json'],
+              message: 'Provider adapters must not import each other. Share code through llm/*.',
+            },
+            {
+              group: ['../../*', '!../../llm/*'],
+              message:
+                'Provider adapters depend only on server/assistant/llm (types, errors, streams).',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: [
+      'server/analytics/**/*.ts',
+      'server/rides/**/*.ts',
+      'server/catalog/**/*.ts',
+      'server/segments/**/*.ts',
+      'server/db/**/*.ts',
+      'server/strava/**/*.ts',
+    ],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['**/assistant/*', '**/assistant'],
+              message:
+                'Analytics, ride and segment code must not depend on the assistant (BR-40). The assistant depends on them.',
+            },
+          ],
+        },
+      ],
+    },
+  },
   prettier,
 );
