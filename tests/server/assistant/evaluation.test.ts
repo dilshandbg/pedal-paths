@@ -2,11 +2,9 @@
 import { describe, expect, it } from 'vitest';
 import type { ModelEvaluation } from '../../../src/types/assistant';
 import {
-  createEvaluationStore,
   EVALUATION_CASES,
+  EVALUATION_SUITE_VERSION,
   evaluateModel,
-  inventedNumbers,
-  numbersIn,
 } from '../../../server/assistant/evaluation';
 import {
   answerFrom,
@@ -50,6 +48,7 @@ describe('BR-43: model evaluation', () => {
     expect(evaluation).toMatchObject({
       model: 'qwen3:8b',
       revision: 'sha256:qwen3:8b',
+      suiteVersion: EVALUATION_SUITE_VERSION,
       passed: true,
       evaluatedAt: '2026-11-20T10:00:00.000Z',
     });
@@ -181,63 +180,5 @@ describe('BR-43: model evaluation', () => {
     });
     setTimeout(() => controller.abort(), 10);
     expect(await pending).toEqual({ ok: false, code: 'cancelled' });
-  });
-});
-
-describe('BR-43: detecting invented numbers', () => {
-  it('reads numbers but not dates or thousands separators', () => {
-    expect(numbersIn('On 2019-03-01 you rode 2,104.6 km in 7 rides (12.5%).')).toEqual([
-      2104.6, 7, 12.5,
-    ]);
-  });
-
-  it('allows numbers from tool results, also rounded, absolute or as a column total', () => {
-    const toolResults = [
-      JSON.stringify({
-        months: [{ distanceKm: 487.3 }, { distanceKm: 312.8 }],
-        difference: -649.4,
-        percentChange: -30.86,
-      }),
-    ];
-    const sources = { texts: ['How far in 2019?'], toolResults };
-    expect(
-      inventedNumbers(
-        '487.3 km and 312.8 km, together 800.1 km; 649.4 km less (31%), in 2019.',
-        sources,
-      ),
-    ).toEqual([]);
-    expect(inventedNumbers('About 487 km.', sources)).toEqual([]);
-    expect(inventedNumbers('You rode 1,234.5 km and burnt 900 kcal.', sources)).toEqual([
-      1234.5, 900,
-    ]);
-  });
-
-  it('allows small counts such as months, but not other numbers', () => {
-    expect(inventedNumbers('Over 3 months.', { texts: [], toolResults: [] })).toEqual([]);
-    expect(inventedNumbers('Over 13 weeks.', { texts: [], toolResults: [] })).toEqual([13]);
-  });
-});
-
-describe('BR-43: a model is suitable only after it passed, for that revision', () => {
-  const evaluation = (passed: boolean, revision = 'sha256:a'): ModelEvaluation => ({
-    model: 'qwen3:8b',
-    revision,
-    passed,
-    evaluatedAt: '2026-11-20T10:00:00.000Z',
-    cases: [],
-  });
-
-  it('is untested, then suitable or unsuitable, and untested again after the model changed', () => {
-    const store = createEvaluationStore();
-    const model = fakeModel('qwen3:8b', { revision: 'sha256:a' });
-    expect(store.suitability('ollama', model)).toBe('untested');
-    store.record('ollama', evaluation(true));
-    expect(store.suitability('ollama', model)).toBe('suitable');
-    expect(store.suitability('ollama', { ...model, id: 'qwen3:8B' })).toBe('suitable');
-    expect(store.suitability('ollama', { ...model, revision: 'sha256:b' })).toBe('untested');
-    expect(store.suitability('other', model)).toBe('untested');
-    store.record('ollama', evaluation(false));
-    expect(store.suitability('ollama', model)).toBe('unsuitable');
-    expect(store.get('ollama', 'qwen3:8b')?.passed).toBe(false);
   });
 });

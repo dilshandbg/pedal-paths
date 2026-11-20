@@ -243,16 +243,32 @@ oldest dropped first.
 
 ### 6. Model test (BR-43)
 
-The **Test model** action gives the model a fixed synthetic question with one synthetic tool,
-locally, and passes when the model calls that tool with valid arguments. The result is kept for
-the model's digest and shown next to the model. A model whose capabilities say `tools` but which
-fails the test is marked "tool calling unreliable", and the user decides whether to use it
-(OD-38).
+The **Test model** action (`evaluation.ts`) asks the model four fixed questions about a
+synthetic history, locally, through the real tools and the real turn loop: distance per month,
+visits to a place, a comparison of two years, and a question the analytics can't answer. Each case
+checks tool selection, arguments, use of the results, and numbers that can't be traced (below). A
+model is suitable only when every case passes. Untested and failed models are refused before
+anything is sent, with no override (OD-38).
+
+`evaluationStore.ts` saves each result in `data/assistant-settings.json`: provider, model, digest,
+suite version (`EVALUATION_SUITE_VERSION`, raised whenever a case changes), time, overall result
+and the result of each case. A result is valid only for the same digest and suite version; a model
+without a reported digest can't be confirmed and stays untested. A file that can't be read is left
+as it is, and nothing is saved over it.
+
+**Traceable numbers** (`numberCheck.ts`, RULE-25): a number in an answer is allowed when it is in
+the question, the system prompt, an earlier question or a tool result, or derives from one by
+rounding (0–2 decimals), absolute value, the total of a list column, the difference of two values
+in a list column, or a unit conversion given by the field's unit suffix (`…M` → km, `…Km` → m,
+`…S` → minutes and hours, `…H` → minutes); a number in a question followed by `m` or `km` converts
+too. Whole numbers up to 12 are allowed. The evaluation fails a case with any other number; in a
+normal answer they are flagged with an `unverified-numbers` event before `done` (AC-55). They are
+flagged rather than removed because the text has already been streamed.
 
 ### 7. Settings and local API
 
 `data/assistant-settings.json` (git-ignored, written by the backend) holds
-`{ provider: 'ollama', serverUrl, model }`. It contains no secrets, and the assistant needs none.
+`{ provider: 'ollama', serverUrl, model }` and the model evaluation results (§6). It contains no secrets, and the assistant needs none.
 
 All `/api/assistant` routes have the same loopback, Origin and validation checks as the other APIs.
 

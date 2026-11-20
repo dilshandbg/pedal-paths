@@ -14,6 +14,7 @@ import { createAnalyticsTools } from '../../../server/assistant/tools/analyticsT
 import { SYNTHETIC_ANALYTICS } from '../../../server/assistant/evaluation';
 import {
   analyst,
+  answerFrom,
   createFakeProvider,
   fakeModel,
   type FakeProvider,
@@ -443,5 +444,49 @@ describe('BR-40: the orchestrator is provider-neutral', () => {
       'another',
       expect.objectContaining<Partial<ModelInfo>>({ id: 'qwen3:8b' }),
     );
+  });
+});
+
+describe('RULE-25 / AC-55: untraceable numbers are flagged', () => {
+  it('flags numbers that no tool result or question contains, just before done', async () => {
+    const { orchestrator, id } = setup({
+      provider: createFakeProvider({
+        respond: analyst({ answer: () => 'March: 487.3 km, about 37% more than average.' }),
+      }),
+    });
+    const result = await ask(orchestrator, id, 'How far did I ride in each month of 2019?');
+    expect(result.events.slice(-2)).toEqual([
+      { type: 'unverified-numbers', numbers: [37] },
+      { type: 'done', reason: 'stop' },
+    ]);
+  });
+
+  it('flags nothing when every number comes from the analytics or a defined derivation', async () => {
+    const { orchestrator, id } = setup({
+      provider: createFakeProvider({
+        respond: analyst({
+          answer: (name, content) => `${answerFrom(name, content)} Together 1,455.2 km.`,
+        }),
+      }),
+    });
+    const result = await ask(orchestrator, id, 'How far did I ride in each month of 2019?');
+    expect(result.events.some((e) => e.type === 'unverified-numbers')).toBe(false);
+  });
+
+  it('trusts tool results of earlier questions, but not earlier answers', async () => {
+    const turns: FakeTurn[] = [
+      {
+        toolCalls: [
+          { name: 'distance_by_month', arguments: { from: '2019-01-01', to: '2019-12-31' } },
+        ],
+      },
+      { text: 'March: 487.3 km. Your friends rode 999 km.' },
+      { text: 'Again: March was 487.3 km, friends 999 km.' },
+    ];
+    const { orchestrator, id } = setup({ provider: createFakeProvider({ respond: turns }) });
+    const first = await ask(orchestrator, id, 'Months of 2019?');
+    expect(first.events.at(-2)).toEqual({ type: 'unverified-numbers', numbers: [999] });
+    const second = await ask(orchestrator, id, 'Say that again.');
+    expect(second.events.at(-2)).toEqual({ type: 'unverified-numbers', numbers: [999] });
   });
 });

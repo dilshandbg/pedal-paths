@@ -11,6 +11,7 @@ import { withTimeouts } from './llm/streams';
 import type { ChatMessage, LLMProvider, ModelInfo, ToolCall } from './llm/types';
 import { ASSISTANT_MESSAGES, codeForLLMError } from './messages';
 import { findModel, isLocalModel } from './modelRules';
+import { inventedNumbers } from './numberCheck';
 import { buildSystemPrompt, type HistorySummary } from './systemPrompt';
 import type { AssistantTool } from './tools/analyticsTools';
 
@@ -143,9 +144,10 @@ export interface TurnInput {
 
 /**
  * Runs one question against a model that passed `checkModel`. Yields text and tool uses as they
- * happen, then exactly one `done` or `error`. Nothing is kept unless the turn completes.
+ * happen, `unverified-numbers` when the answer has untraceable numbers, then exactly one `done` or
+ * `error`. Nothing is kept unless the turn completes.
  */
-// Implements: BR-39, BR-45, RULE-25, AC-43, AC-44, AC-52, AC-53
+// Implements: BR-39, BR-45, RULE-25, AC-43, AC-44, AC-52, AC-53, AC-55
 export async function* runTurn(input: TurnInput): AsyncGenerator<AssistantEvent> {
   const { provider, model, tools, system, limits, signal } = input;
   const definitions = tools.map((tool) => tool.definition);
@@ -202,6 +204,8 @@ export async function* runTurn(input: TurnInput): AsyncGenerator<AssistantEvent>
           return;
         }
         input.onComplete?.(turn);
+        const unverified = untraceable(text, system, [...history, ...turn]);
+        if (unverified.length > 0) yield { type: 'unverified-numbers', numbers: unverified };
         yield { type: 'done', reason: reason === 'length' ? 'length' : 'stop' };
         return;
       }
@@ -225,6 +229,17 @@ export async function* runTurn(input: TurnInput): AsyncGenerator<AssistantEvent>
       yield error('internal');
     }
   }
+}
+
+/**
+ * Numbers in an answer that cannot be traced (RULE-25, AC-55). Trusted: the system prompt, the
+ * user's questions and the tool results of the conversation the model saw; never its own answers.
+ */
+function untraceable(answer: string, system: string, messages: readonly ChatMessage[]): number[] {
+  return inventedNumbers(answer, {
+    texts: [system, ...messages.flatMap((m) => (m.role === 'user' ? [m.text] : []))],
+    toolResults: messages.flatMap((m) => (m.role === 'tool' ? [m.content] : [])),
+  });
 }
 
 /** Runs one tool call locally; unknown tools and failures go back to the model as tool errors. */

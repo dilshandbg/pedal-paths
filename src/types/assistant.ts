@@ -41,6 +41,11 @@ export type AssistantDoneReason = 'stop' | 'length' | 'cancelled';
 export type AssistantEvent =
   | { readonly type: 'text'; readonly delta: string }
   | { readonly type: 'tool'; readonly use: AssistantToolUse }
+  /**
+   * Numbers in the answer that cannot be traced to the question or an analytics result (RULE-25,
+   * AC-55). Sent once, just before `done`, only when there are any; the screen shows a warning.
+   */
+  | { readonly type: 'unverified-numbers'; readonly numbers: readonly number[] }
   | { readonly type: 'done'; readonly reason: AssistantDoneReason }
   | { readonly type: 'error'; readonly code: AssistantErrorCode; readonly message: string };
 
@@ -57,6 +62,8 @@ export interface ModelEvaluation {
   readonly model: string;
   /** The model revision (e.g. digest) the result belongs to. */
   readonly revision: string | null;
+  /** The evaluation suite version; a result of another version no longer counts (OD-38). */
+  readonly suiteVersion: number;
   /** True only when every required case passed: only then is the model suitable. */
   readonly passed: boolean;
   /** ISO 8601. */

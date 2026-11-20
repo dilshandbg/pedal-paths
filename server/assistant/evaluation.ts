@@ -1,13 +1,9 @@
 import { comparePeriods } from '../../src/features/analytics/services/comparePeriods';
-import type {
-  ModelEvaluation,
-  ModelEvaluationCase,
-  ModelSuitability,
-} from '../../src/types/assistant';
+import type { ModelEvaluation, ModelEvaluationCase } from '../../src/types/assistant';
 import type { DateRange, MonthTotals, YearTotals } from '../../src/types/analytics';
 import type { RideAnalytics } from '../analytics/rideAnalytics';
-import type { LLMProvider, ModelInfo } from './llm/types';
-import { modelKey } from './modelRules';
+import type { LLMProvider } from './llm/types';
+import { inventedNumbers, mentions } from './numberCheck';
 import {
   checkModel,
   DEFAULT_LIMITS,
@@ -30,6 +26,12 @@ import { createAnalyticsTools, type AssistantTool } from './tools/analyticsTools
  *
  * Everything runs locally on the user's model; the synthetic data is not the user's.
  */
+
+/**
+ * The version of the evaluation suite. Raise it whenever a case, its checks or the number rules
+ * change: saved results of another version no longer count (OD-38).
+ */
+export const EVALUATION_SUITE_VERSION = 1;
 
 // --- The synthetic history -----------------------------------------------------------------------
 
@@ -135,67 +137,6 @@ const EVALUATION_TODAY = '2020-01-15';
 const EVALUATION_TIME_ZONE = 'UTC';
 
 // --- Checking answers ----------------------------------------------------------------------------
-
-/** Numbers written in a text, without ISO dates (`2019-03-01`) and thousands separators. */
-export function numbersIn(text: string): number[] {
-  const cleaned = text.replace(/\b\d{4}-\d{2}-\d{2}\b/g, ' ').replace(/(\d),(?=\d{3}\b)/g, '$1');
-  return [...cleaned.matchAll(/\d+(?:\.\d+)?/g)].map((match) => Number(match[0]));
-}
-
-/** Every number in a JSON value, including the parts of date strings. */
-function numbersInJson(value: unknown, into: number[]): void {
-  if (typeof value === 'number') into.push(value);
-  else if (typeof value === 'string')
-    into.push(...(value.match(/\d+(?:\.\d+)?/g) ?? []).map(Number));
-  else if (Array.isArray(value)) {
-    value.forEach((item) => numbersInJson(item, into));
-    // Totals of a list, e.g. the months of a year, are results too.
-    const keys = new Set(
-      value.flatMap((item) => (item && typeof item === 'object' ? Object.keys(item) : [])),
-    );
-    for (const key of keys) {
-      const column = value.map((item) => (item as Record<string, unknown>)?.[key]);
-      if (column.every((v) => typeof v === 'number'))
-        into.push(column.reduce((a: number, b) => a + (b as number), 0));
-    }
-  } else if (value && typeof value === 'object')
-    Object.values(value).forEach((item) => numbersInJson(item, into));
-}
-
-const roundings = (v: number) => {
-  const a = Math.abs(v);
-  return [v, a, Math.round(a), Math.round(a * 10) / 10, Math.round(a * 100) / 100];
-};
-
-/**
- * Numbers in an answer that appear nowhere in the question, the context or the tool results (also
- * rounded or as an absolute value). Small whole numbers up to 12 are allowed (months, counts).
- */
-export function inventedNumbers(
-  answer: string,
-  sources: { texts: readonly string[]; toolResults: readonly string[] },
-): number[] {
-  const allowed = new Set<number>();
-  const add = (v: number) => roundings(v).forEach((r) => allowed.add(r));
-  sources.texts.forEach((text) => numbersIn(text).forEach(add));
-  for (const result of sources.toolResults) {
-    const found: number[] = [];
-    try {
-      numbersInJson(JSON.parse(result), found);
-    } catch {
-      numbersIn(result).forEach((v) => found.push(v));
-    }
-    found.forEach(add);
-  }
-  return [...new Set(numbersIn(answer))].filter(
-    (n) => !(Number.isInteger(n) && n <= 12) && !allowed.has(n),
-  );
-}
-
-const mentions = (answer: string, value: number) => {
-  const written = new Set(numbersIn(answer));
-  return roundings(value).some((r) => written.has(r));
-};
 
 interface Call {
   readonly name: string;
@@ -405,7 +346,8 @@ export async function evaluateModel(input: EvaluateInput): Promise<EvaluationOut
             : {};
         calls.push({ name: event.use.name, args, ok: event.use.ok });
       } else if (event.type === 'error') failed = `It failed: ${event.message}`;
-      else if (event.reason === 'cancelled') return { ok: false, code: 'cancelled' };
+      else if (event.type === 'done' && event.reason === 'cancelled')
+        return { ok: false, code: 'cancelled' };
     }
     cases.push(judge(spec, { calls, answer, toolResults: results, failed }, [system]));
   }
@@ -414,33 +356,10 @@ export async function evaluateModel(input: EvaluateInput): Promise<EvaluationOut
     evaluation: {
       model: check.model.id,
       revision: check.model.revision,
+      suiteVersion: EVALUATION_SUITE_VERSION,
       passed: cases.every((c) => c.passed),
       evaluatedAt: (input.clock ?? (() => new Date()))().toISOString(),
       cases,
-    },
-  };
-}
-
-// --- Results -------------------------------------------------------------------------------------
-
-export interface EvaluationStore {
-  record(providerId: string, evaluation: ModelEvaluation): void;
-  get(providerId: string, model: string): ModelEvaluation | null;
-  /** Suitable only when the latest evaluation of this revision passed (BR-43). */
-  suitability(providerId: string, model: ModelInfo): ModelSuitability;
-}
-
-export function createEvaluationStore(): EvaluationStore {
-  const results = new Map<string, ModelEvaluation>();
-  const key = (providerId: string, model: string) => `${providerId}\u0000${modelKey(model)}`;
-  return {
-    record: (providerId, evaluation) =>
-      void results.set(key(providerId, evaluation.model), evaluation),
-    get: (providerId, model) => results.get(key(providerId, model)) ?? null,
-    suitability(providerId, model) {
-      const result = results.get(key(providerId, model.id));
-      if (!result || result.revision !== model.revision) return 'untested';
-      return result.passed ? 'suitable' : 'unsuitable';
     },
   };
 }

@@ -71,7 +71,8 @@ The settings screen shows:
 ## 4. Behaviour and limits
 
 - **Before every question** (RULE-26), the app checks that Ollama is reachable and that the model
-  is installed, local and tool-capable. If any check fails, nothing is sent and the message says
+  is installed, local, tool-capable and has passed **Test model** for its current version and the
+  current test suite (results are saved in `data/assistant-settings.json`). If any check fails, nothing is sent and the message says
   why. The model is never changed by the app.
 - **Answers stream** as they are written. "Used: …" lists the analytics behind the answer.
   **Stop** cancels the request to Ollama.
