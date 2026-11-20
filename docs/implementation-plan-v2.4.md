@@ -29,10 +29,17 @@ Nothing in the ride storage, upload management, analytics or the NFR-10 benchmar
    - `tests/server/assistant/fakeProvider.ts` (permanent), the provider contract tests, and tests for the tools and the
      orchestrator;
    - the ESLint isolation rules.
-2. **Ollama adapter** (BR-41 – BR-44, RULE-27), on `feature/assistant-ollama`:
+2. **Ollama adapter** (BR-41 – BR-44, RULE-27), on `feature/assistant-ollama`. **Done** (awaiting
+   review):
    - `providers/ollama.ts`: connection, model discovery with capabilities, remote/cloud detection,
      streaming chat with tools, structured output, install and remove, error mapping and timeouts;
-   - every test on mocked Ollama HTTP (ai-assistant.md §6).
+   - every test on mocked Ollama HTTP (ai-assistant.md §6): `tests/server/assistant/providers/fakeOllama.ts`
+     (permanent, a stubbed `fetch`) and `ollama.test.ts`, including the provider contract and the model
+     evaluation through the adapter;
+   - the model-name rules moved to `llm/modelNames.ts`, so the adapter can use them (re-exported by
+     `modelRules.ts`);
+   - still to confirm against a real Ollama: the `tools` capability name and whether cancelling a
+     pull stops the download in Ollama (the adapter aborts the request either way).
 3. **Settings, model management and API** (BR-41 – BR-43, NFR-12), on `feature/assistant-api`:
    - `settings.ts`, `models.ts` (list, install, remove, model test), `server/http/assistantApi.ts`,
      mounted by a Vite plugin;

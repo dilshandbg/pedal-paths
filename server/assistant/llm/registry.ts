@@ -1,3 +1,4 @@
+import { createOllamaProvider, OLLAMA_DEFAULT_URL, OLLAMA_DESCRIPTOR } from './providers/ollama';
 import type { LLMProvider, ProviderDescriptor } from './types';
 
 /*
@@ -39,5 +40,13 @@ export function createProviderRegistry(factories: readonly ProviderFactory[]): P
   };
 }
 
-/** The application's providers. The Ollama adapter is added in phase 2 (implementation plan v2.4). */
-export const DEFAULT_PROVIDER_FACTORIES: readonly ProviderFactory[] = [];
+/** The application's providers: only local ones (BR-44). */
+export const DEFAULT_PROVIDER_FACTORIES: readonly ProviderFactory[] = [
+  {
+    descriptor: OLLAMA_DESCRIPTOR,
+    create: (settings) =>
+      createOllamaProvider({
+        serverUrl: settings.serverUrl ?? OLLAMA_DEFAULT_URL,
+      }),
+  },
+];
