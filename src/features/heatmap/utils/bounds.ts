@@ -1,10 +1,13 @@
-import type { CyclingActivity, GeoBounds } from '@/types';
+import type { GeoBounds } from '@/types';
+import type { LatLngLike } from '@/utils/geo';
 
 /**
  * Smallest bounding box containing every track point of the given activities, or null when there
  * are no points. Used to fit the map view to the loaded rides.
  */
-export function computeBounds(activities: readonly CyclingActivity[]): GeoBounds | null {
+export function computeBounds(
+  activities: readonly { readonly gpsTrack: readonly LatLngLike[] }[],
+): GeoBounds | null {
   let west = Infinity;
   let south = Infinity;
   let east = -Infinity;

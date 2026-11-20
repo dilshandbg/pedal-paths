@@ -1,4 +1,5 @@
 import type { DateRange } from '@/types';
+import { dateFormatter } from '../../../utils/date';
 
 /*
  * Date ranges of the analytics (BR-38). A ride belongs to the calendar date it started on in the
@@ -13,12 +14,10 @@ export const ALL_TIME: DateRange = Object.freeze({ from: null, to: null });
 export function localDate(isoDate: string, timeZone?: string): string | null {
   const date = new Date(isoDate);
   if (Number.isNaN(date.getTime())) return null;
-  const parts = new Intl.DateTimeFormat('en-US', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    ...(timeZone === undefined ? {} : { timeZone }),
-  }).formatToParts(date);
+  const parts = dateFormatter(
+    { year: 'numeric', month: '2-digit', day: '2-digit' },
+    timeZone,
+  ).formatToParts(date);
   const part = (type: string) => parts.find((p) => p.type === type)?.value ?? '';
   return `${part('year')}-${part('month')}-${part('day')}`;
 }

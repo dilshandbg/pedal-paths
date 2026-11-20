@@ -1,7 +1,7 @@
-import type { CyclingActivity } from '@/types';
+import type { RideSummary } from '@/types';
 
 /** The years that occur in the loaded rides, newest first: the year filter's options (ADR-0005). */
-export function availableYears(activities: readonly CyclingActivity[]): readonly number[] {
+export function availableYears(activities: readonly RideSummary[]): readonly number[] {
   return [...new Set(activities.map((activity) => activity.year))].sort((a, b) => b - a);
 }
 

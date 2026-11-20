@@ -1,4 +1,4 @@
-import type { ActivityId, CyclingActivity } from '@/types';
+import type { ActivityId, RideSummary } from '@/types';
 import { formatShortDate } from '@/utils/date';
 import { formatDistanceKm, formatElevationM } from '@/utils/units';
 
@@ -14,7 +14,7 @@ export interface RideDescription {
  * when available (ADR-0007). Metric units.
  */
 // Implements: BR-13
-export function describeRide(activity: CyclingActivity, timeZone?: string): RideDescription {
+export function describeRide(activity: RideSummary, timeZone?: string): RideDescription {
   const parts = [formatShortDate(activity.activityDate, timeZone)];
   if (activity.distanceKm !== null) {
     parts.push(formatDistanceKm(activity.distanceKm));

@@ -1,5 +1,5 @@
-import type { ActivityId, CyclingActivity } from './activity';
-import type { SegmentIndex } from './heatmap';
+import type { ActivityId, CyclingActivity, RideSummary } from './activity';
+import type { GeoBounds, SegmentIndex } from './heatmap';
 import type { UploadRecord } from './rideHistory';
 
 /** Why a single activity was skipped. Skips never abort the import (DATA-05, ADR-0004). */
@@ -61,7 +61,10 @@ export type ArchiveUploadResult =
 
 /** The stored ride history, decoded and indexed for the heat map (BR-33, ADR-0006). */
 export interface RestoredHistory {
-  readonly activities: readonly CyclingActivity[];
+  /** The stored rides without their tracks: the page never needs the points (NFR-10). */
+  readonly activities: readonly RideSummary[];
+  /** Bounding box of every stored track point, to fit the map; null when there are none. */
+  readonly bounds: GeoBounds | null;
   /** Road-segment index over all `activities`, built in the import worker (ADR-0006). */
   readonly segmentIndex: SegmentIndex;
   /** Stored rides that could not be shown (an unreadable entry); normally 0. */
