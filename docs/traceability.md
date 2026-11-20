@@ -1,13 +1,15 @@
 # Requirements Traceability Matrix
 
-> Source: `docs/BRD.md` **v2.3**. Updated 2026-11-19. v2.0 kept every v1.1 ID and added BR-17 –
+> Source: `docs/BRD.md` **v2.4** (draft for owner review). Updated 2026-11-20. v2.0 kept every v1.1 ID and added BR-17 –
 > BR-28, AC-17 – AC-29, RULE-12 – RULE-18, NFR-07 – NFR-09 and US-01 – US-06. v2.1 changes BR-23
 > (JSON segment catalog, ADR-0011) and adds BR-29, BR-30, AC-30, AC-31 and RULE-19. v2.2 revises
 > BR-26 and BR-28 and adds BR-31, AC-32, AC-33 and RULE-20. v2.3 (ADR-0013) revises BR-16, BR-18,
 > RULE-12, AC-15, AC-18, NFR-05 and NFR-09 and adds BR-33 – BR-38, AC-34 – AC-42, RULE-21 – RULE-24,
-> US-07, US-08 and NFR-10. BR-32 stays reserved for map styles (OD-27).
+> US-07, US-08 and NFR-10. BR-32 stays reserved for map styles (OD-27). v2.4 (ADR-0014, local
+> AI assistant on Ollama) revises NFR-03, NFR-05 and NFR-07 and adds BR-39 – BR-45,
+> AC-43 – AC-53, RULE-25 – RULE-27, US-09, US-10, NFR-11 and NFR-12.
 >
-> `BR`, `AC`, `NFR`, `US` and RULE-12 – RULE-24 IDs come **from the BRD**. RULE-01 – RULE-11, `UX`
+> `BR`, `AC`, `NFR`, `US` and RULE-12 – RULE-27 IDs come **from the BRD**. RULE-01 – RULE-11, `UX`
 > and `DATA` IDs were **assigned here**, because the BRD lists those items without IDs. They are
 > stable: never renumber them.
 >
@@ -59,6 +61,13 @@ The Tests columns name test files without their suffix: unit and integration tes
 | BR-36  | Deleting uploads removes only rides no remaining upload contains; atomic                             | ADR-0013           | Verified    | `rideRepository.deleteUploads` / `deleteAll` (one transaction), `ridesApi`, `activitiesStore.deleteUploads`, `withoutRemovedRides` (ride filter)                                                                                      | rideRepository, ridesApi, activitiesStore, filterActivities, uploads (integration), e2e uploads                                                                                                 |
 | BR-37  | Hash each file; warn about and do not re-import a file already imported                              | ADR-0013           | Verified    | `sha256` (incremental, in the import worker), `prepareUpload`, 409 `duplicate-file`, `describeUploadFailure`, `ImportStatusView`                                                                                                      | sha256, prepareUpload, rideRepository, ridesApi, rideHistoryClient, importMessages, activitiesStore, archive-upload, e2e zip-upload                                                             |
 | BR-38  | Deterministic analytics: distance by month/year, location visits, route frequency, periods, segments | ADR-0013 §7        | In progress | Done: `distanceByMonth`, `distanceByYear`, `totalRides`, `countLocationVisits`, `rankRoadFrequency`, `comparePeriods`, `parseAnalyticsQuery`, `createRideAnalytics`, `analyticsApi` (GET /api/analytics/*). Segment matching: phase 6 | rideTotals, locationAnalytics, parseAnalyticsQuery, rideAnalytics, analyticsApi                                                                                                                 |
+| BR-39  | Assistant answers ride questions through the BR-38 analytics as tools (read-only)                    | ADR-0014           | Not started | —                                                                                                                                                                                                                                     | —                                                                                                                                                                                               |
+| BR-40  | One `LLMProvider` interface; Ollama the first and only provider in v2.4                              | ADR-0014           | Not started | —                                                                                                                                                                                                                                     | —                                                                                                                                                                                               |
+| BR-41  | Ollama connection: address (default 127.0.0.1:11434), status, version, test                          | ADR-0014           | Not started | —                                                                                                                                                                                                                                     | —                                                                                                                                                                                               |
+| BR-42  | Model management: installed models with details, download, cancel, remove, select, find              | ADR-0014           | Not started | —                                                                                                                                                                                                                                     | —                                                                                                                                                                                               |
+| BR-43  | Capability detection (tools, streaming, structured output, context) and a model test                 | ADR-0014           | Not started | —                                                                                                                                                                                                                                     | —                                                                                                                                                                                               |
+| BR-44  | Local-only inference: no cloud service, cloud model or API key                                       | ADR-0014           | Not started | —                                                                                                                                                                                                                                     | —                                                                                                                                                                                               |
+| BR-45  | Streamed answers, analytics used shown, Stop, plain error messages                                   | ADR-0014           | Not started | —                                                                                                                                                                                                                                     | —                                                                                                                                                                                               |
 
 ### Owner-approved, not yet in the BRD
 
@@ -112,6 +121,17 @@ The Tests columns name test files without their suffix: unit and integration tes
 | AC-40  | BR-36               | A deletion that fails part-way removes nothing                                                       | Verified                             | rideRepository, activitiesStore, uploads (integration)                                            |
 | AC-41  | BR-37               | Re-uploading an imported file warns, naming the earlier upload; nothing imported                     | Verified                             | rideRepository, ridesApi, importMessages, activitiesStore, archive-upload, e2e zip-upload         |
 | AC-42  | BR-38               | Analytics return the expected, reproducible results on a synthetic history                           | Verified (segment matching: phase 6) | rideTotals, locationAnalytics, parseAnalyticsQuery, rideAnalytics, analyticsApi                   |
+| AC-43  | BR-39, RULE-25      | Distance-per-month answer equals the analytics result; analytics used shown                          | Not started                          | —                                                                                                 |
+| AC-44  | BR-39, RULE-25      | Invalid tool arguments compute nothing; unanswerable questions are not estimated                     | Not started                          | —                                                                                                 |
+| AC-45  | BR-40               | Ollama adapter and mocked provider pass the same contract tests; no Ollama code elsewhere            | Not started                          | —                                                                                                 |
+| AC-46  | BR-41               | Ollama unreachable → explained, rest works; connection test shows the version                        | Not started                          | —                                                                                                 |
+| AC-47  | BR-42, RULE-26      | Installed models with details; selected model gone → reported, not sent                              | Not started                          | —                                                                                                 |
+| AC-48  | BR-42               | Download with progress and cancel; listed when done; failure reported                                | Not started                          | —                                                                                                 |
+| AC-49  | BR-42               | Remove after confirming; selected model removed → selection cleared, user told                       | Not started                          | —                                                                                                 |
+| AC-50  | BR-43, RULE-26      | No tool calling → marked, explained, nothing sent; model test; no streaming → one piece              | Not started                          | —                                                                                                 |
+| AC-51  | BR-44, RULE-27      | Cloud models not offered, downloaded or selected; non-local address rejected                         | Not started                          | —                                                                                                 |
+| AC-52  | BR-45               | Streaming text; Stop cancels the request to Ollama                                                   | Not started                          | —                                                                                                 |
+| AC-53  | BR-45, NFR-12       | Timeout, invalid response, model error → plain message; rest keeps working                           | Not started                          | —                                                                                                 |
 
 **Coverage gaps:** BR-06 (pan/zoom) and BR-13 (activity details) have no acceptance criterion.
 Their tests are derived from the requirement text.
@@ -144,36 +164,43 @@ Their tests are derived from the requirement text.
 | RULE-22 | A newer upload replaces a stored ride's details and keeps its track                              | BR-18           |
 | RULE-23 | Same file = same SHA-256; a failed upload does not count as imported                             | BR-37           |
 | RULE-24 | Analytics only from stored data; visit and segment-match definitions                             | BR-38           |
+| RULE-25 | Assistant numbers only from analytics tool results; never estimated                              | BR-39           |
+| RULE-26 | Send only if Ollama reachable and model installed, local, tool-capable; never switch             | BR-42, BR-43    |
+| RULE-27 | Local model = no remote host/model, no cloud suffix; server address on this machine              | BR-44           |
 
 ## User experience (BRD §6; IDs assigned)
 
-| Req ID | Summary                                                                       | Related         | Status   |
-| ------ | ----------------------------------------------------------------------------- | --------------- | -------- |
-| UX-01  | ZIP file upload control                                                       | BR-01, AC-01    | Verified |
-| UX-02  | Processing status while the archive is inspected and parsed                   | BR-02           | Verified |
-| UX-03  | Show the number of Ride activities loaded successfully                        | BR-03           | Verified |
-| UX-04  | Clearly indicate activities that could not be processed                       | RULE-07, AC-16  | Verified |
-| UX-05  | Year, month and ride filter controls                                          | BR-07–09        | Verified |
-| UX-06  | Show the currently active filters                                             | BR-11           | Verified |
-| UX-07  | Reset-to-all option                                                           | BR-15           | Verified |
-| UX-08  | Show the activity count and relevant summary statistics                       | BR-14, ADR-0007 | Verified |
-| UX-09  | The map stays responsive while filters change                                 | NFR-02          | Verified |
-| UX-10  | Reject unsupported or oversized files before processing                       | BR-17, BR-21    | Verified |
-| UX-11  | Segments section: upload, validation, review, list, detail, confirmed removal | BR-20 – BR-27   | Verified |
-| UX-12  | Segment routes on the same map, distinct style, selection highlighted         | BR-26           | Verified |
+| Req ID | Summary                                                                               | Related         | Status      |
+| ------ | ------------------------------------------------------------------------------------- | --------------- | ----------- |
+| UX-01  | ZIP file upload control                                                               | BR-01, AC-01    | Verified    |
+| UX-02  | Processing status while the archive is inspected and parsed                           | BR-02           | Verified    |
+| UX-03  | Show the number of Ride activities loaded successfully                                | BR-03           | Verified    |
+| UX-04  | Clearly indicate activities that could not be processed                               | RULE-07, AC-16  | Verified    |
+| UX-05  | Year, month and ride filter controls                                                  | BR-07–09        | Verified    |
+| UX-06  | Show the currently active filters                                                     | BR-11           | Verified    |
+| UX-07  | Reset-to-all option                                                                   | BR-15           | Verified    |
+| UX-08  | Show the activity count and relevant summary statistics                               | BR-14, ADR-0007 | Verified    |
+| UX-09  | The map stays responsive while filters change                                         | NFR-02          | Verified    |
+| UX-10  | Reject unsupported or oversized files before processing                               | BR-17, BR-21    | Verified    |
+| UX-11  | Segments section: upload, validation, review, list, detail, confirmed removal         | BR-20 – BR-27   | Verified    |
+| UX-12  | Segment routes on the same map, distinct style, selection highlighted                 | BR-26           | Verified    |
+| UX-13  | Assistant section: chat, streamed answers, analytics used, Stop                       | BR-39, BR-45    | Not started |
+| UX-14  | Assistant settings: Ollama address and status, models, download, remove, select, test | BR-41 – BR-43   | Not started |
 
 ## User stories (BRD §6)
 
-| Req ID | Story (short)                                                              | Covered by                  | Status   |
-| ------ | -------------------------------------------------------------------------- | --------------------------- | -------- |
-| US-01  | Upload the export ZIP and see where I ride most                            | BR-01 – BR-05, BR-12        | Verified |
-| US-02  | Narrow to years, months or rides, with matching statistics                 | BR-07 – BR-11, BR-14, BR-19 | Verified |
-| US-03  | Upload a segment file, check what will be imported and confirm             | BR-20 – BR-23               | Verified |
-| US-04  | Upload a newer file to update segments and add efforts without duplicates  | BR-24                       | Verified |
-| US-05  | Find a segment, see efforts and PB, see it on the map next to the heat map | BR-25, BR-26                | Verified |
-| US-06  | Remove segment data I no longer want stored                                | BR-27, NFR-09               | Verified |
-| US-07  | Upload a newer export later; history keeps earlier rides, no duplicates    | BR-16, BR-18, BR-33         | Verified |
-| US-08  | See which files I uploaded and remove one, several or all                  | BR-34 – BR-36               | Verified |
+| Req ID | Story (short)                                                                   | Covered by                  | Status      |
+| ------ | ------------------------------------------------------------------------------- | --------------------------- | ----------- |
+| US-01  | Upload the export ZIP and see where I ride most                                 | BR-01 – BR-05, BR-12        | Verified    |
+| US-02  | Narrow to years, months or rides, with matching statistics                      | BR-07 – BR-11, BR-14, BR-19 | Verified    |
+| US-03  | Upload a segment file, check what will be imported and confirm                  | BR-20 – BR-23               | Verified    |
+| US-04  | Upload a newer file to update segments and add efforts without duplicates       | BR-24                       | Verified    |
+| US-05  | Find a segment, see efforts and PB, see it on the map next to the heat map      | BR-25, BR-26                | Verified    |
+| US-06  | Remove segment data I no longer want stored                                     | BR-27, NFR-09               | Verified    |
+| US-07  | Upload a newer export later; history keeps earlier rides, no duplicates         | BR-16, BR-18, BR-33         | Verified    |
+| US-08  | See which files I uploaded and remove one, several or all                       | BR-34 – BR-36               | Verified    |
+| US-09  | Ask about my riding history in plain language; answers from my rides            | BR-39, BR-45                | Not started |
+| US-10  | Choose, download and remove the local model; ride data never leaves the machine | BR-41 – BR-44               | Not started |
 
 ## Data (BRD §7; IDs assigned)
 
@@ -190,26 +217,31 @@ Their tests are derived from the requirement text.
 
 ## Non-functional, security and privacy (BRD §10)
 
-| Req ID | Summary                                                                           | Status                                                                                                                                                                                                                                                                 |
-| ------ | --------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| NFR-01 | Runs locally as a personal application                                            | Verified: Vite dev or preview server on the local machine; no hosted service                                                                                                                                                                                           |
-| NFR-02 | Map responsive on filter change (~2,000 rides, under 250 ms)                      | Verified: 34–169 ms from filter change to frame for 2,000 rides (ADR-0006 amendment); `npm run perf`                                                                                                                                                                   |
-| NFR-03 | No hardcoded or committed secrets; configuration via `.env.example`               | Verified: no secrets needed (ADR-0008); `VITE_MAP_STYLE_URL`, `SEGMENT_CATALOG_PATH`, `SEGMENTS_DB_PATH` and `STRAVA_ACCESS_TOKEN` (fetch command only, `.env.local`) documented; `.env*` and `data/` git-ignored                                                      |
-| NFR-04 | No Google Maps billing or paid mapping services                                   | Verified: MapLibre and OpenFreeMap (ADR-0008)                                                                                                                                                                                                                          |
-| NFR-05 | Tests cover ZIP, classification, GPS, filtering, heat map, segments, ride history | Verified: unit, integration, backend (`tests/server`) and e2e tests, including ride persistence, cumulative uploads, upload management and analytics                                                                                                                   |
-| NFR-06 | Setup instructions                                                                | Verified: README "Getting started" and "Segments"                                                                                                                                                                                                                      |
-| NFR-07 | Data stays on the machine; backend local only                                     | Verified: the segment and ride APIs answer loopback peers only (`isLoopbackAddress`), check Origin and Sec-Fetch-Site, and Vite binds to localhost; rides are stored only in the local `data/rides.sqlite`. Tests: segmentsApi, ridesApi                               |
-| NFR-08 | Backend validates every request, limits size, hides internals                     | Verified: `validateSegmentPayload` and `validateUploadBundle` on the server; 64 MB (segments) and 1 GiB (ride uploads) body limits; content types, Origin and Sec-Fetch-Site checks; error codes only. Tests: segmentsApi, catalogRepository, ridesApi, validateUpload |
-| NFR-09 | Remove all segment and ride data; docs explain where they are stored              | Verified: "Remove all segment data" (BR-27) and "Delete all uploads" (BR-35); README "Where your data is and how to remove it"                                                                                                                                         |
-| NFR-10 | Restore ~2,000 stored rides in under 5 s; location query under 500 ms             | Verified: `npm run perf:history` (2,000 synthetic rides × 3,600 points): restore and show, median of 5 cold loads ~2.5–2.7 s (slowest ~3.1–3.6 s); location visits (100 m) at 10 places ≤ ~100 ms                                                                      |
+| Req ID | Summary                                                                                                           | Status                                                                                                                                                                                                                                                                         |
+| ------ | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| NFR-01 | Runs locally as a personal application                                                                            | Verified: Vite dev or preview server on the local machine; no hosted service                                                                                                                                                                                                   |
+| NFR-02 | Map responsive on filter change (~2,000 rides, under 250 ms)                                                      | Verified: 34–169 ms from filter change to frame for 2,000 rides (ADR-0006 amendment); `npm run perf`                                                                                                                                                                           |
+| NFR-03 | No hardcoded or committed secrets; configuration via `.env.example`; the assistant needs none                     | Verified for v2.3 (no secrets needed, ADR-0008; `VITE_MAP_STYLE_URL`, `SEGMENT_CATALOG_PATH`, `SEGMENTS_DB_PATH`, `RIDES_DB_PATH`, `STRAVA_ACCESS_TOKEN` documented; `.env*` and `data/` git-ignored). v2.4 assistant: Not started                                             |
+| NFR-04 | No Google Maps billing or paid mapping services                                                                   | Verified: MapLibre and OpenFreeMap (ADR-0008)                                                                                                                                                                                                                                  |
+| NFR-05 | Tests cover ZIP, classification, GPS, filtering, heat map, segments, ride history, assistant (mocked Ollama HTTP) | Verified for v2.3: unit, integration, backend (`tests/server`) and e2e tests, including ride persistence, cumulative uploads, upload management and analytics. Assistant: Not started                                                                                          |
+| NFR-06 | Setup instructions                                                                                                | Verified: README "Getting started" and "Segments"                                                                                                                                                                                                                              |
+| NFR-07 | Data stays on the machine; backend local only; the assistant talks only to the local Ollama                       | Verified for v2.3: the segment and ride APIs answer loopback peers only (`isLoopbackAddress`), check Origin and Sec-Fetch-Site, and Vite binds to localhost; rides are stored only in the local `data/rides.sqlite`. Tests: segmentsApi, ridesApi. v2.4 assistant: Not started |
+| NFR-08 | Backend validates every request, limits size, hides internals                                                     | Verified: `validateSegmentPayload` and `validateUploadBundle` on the server; 64 MB (segments) and 1 GiB (ride uploads) body limits; content types, Origin and Sec-Fetch-Site checks; error codes only. Tests: segmentsApi, catalogRepository, ridesApi, validateUpload         |
+| NFR-09 | Remove all segment and ride data; docs explain where they are stored                                              | Verified: "Remove all segment data" (BR-27) and "Delete all uploads" (BR-35); README "Where your data is and how to remove it"                                                                                                                                                 |
+| NFR-10 | Restore ~2,000 stored rides in under 5 s; location query under 500 ms                                             | Verified: `npm run perf:history` (2,000 synthetic rides × 3,600 points): restore and show, median of 5 cold loads ~2.5–2.7 s (slowest ~3.1–3.6 s); location visits (100 m) at 10 places ≤ ~100 ms                                                                              |
+| NFR-11 | No API key, account or cloud AI service; only the local Ollama is contacted                                       | Not started                                                                                                                                                                                                                                                                    |
+| NFR-12 | Ollama requests time-limited; failures shown plainly and isolated; no retry on another model                      | Not started                                                                                                                                                                                                                                                                    |
 
 ## Out of scope (BRD §2), to guard against scope creep
 
 Strava OAuth and any Strava API access (BR-28) · automatic or background sync · automatic segment discovery from rides · social sharing · mobile application support (native app; the
 responsive web layout stays, see ADR-0007) · live GPS tracking · heart-rate / power analysis ·
-heat map vs. individual-route modes (BRD §9: deferred, see OD-18) · an AI chatbot or any
-language-model integration (BR-38 only prepares analytics for one) · uploading single GPX/FIT
-files outside an export ZIP.
+heat map vs. individual-route modes (BRD §9: deferred, see OD-18) · uploading single GPX/FIT
+files outside an export ZIP · cloud AI providers and Ollama cloud models (a later version may add
+providers through the interface) · an Ollama server on another machine (provisional, OD-36) ·
+assistant actions that change data · automatic model switching · segment matching in the
+assistant (until BR-38's segment part is delivered) · geocoding place names (provisional, OD-34) ·
+keeping conversations after the app stops.
 
 ## Conventions
 

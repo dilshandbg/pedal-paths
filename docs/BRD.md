@@ -1,8 +1,8 @@
 # Business Requirements Document (BRD)
 ## Strava Cycling Ride Analyzer — Personal Heatmap and Segments
 
-**Version:** 2.3  
-**Status:** Draft — approved for implementation by the owner (2026-11-19)
+**Version:** 2.4  
+**Status:** Draft — v2.4 approved for implementation by the owner (2026-11-20)
 
 ### Change History
 
@@ -14,6 +14,7 @@
 | 2.1 | 2026-11-15 | Segment data is stored in a local **JSON segment catalog** file instead of SQLite (BR-23, ADR-0011). Segments can include altitude and distance samples along the route (BR-29, RULE-19). Segments stored in SQLite by version 2.0 are migrated into the catalog once, without loss (BR-30). Ride data is still not persisted. Segment matching and ride analysis against the catalog are recorded as an open decision (OD-26) until specified. |
 | 2.2 | 2026-11-15 | Adds an optional, separate command that downloads the user's segment details, names and route streams from Strava with the user's own access token into an upload file (BR-31); the application itself still never contacts Strava (BR-28 revised). Segments without route geometry are shown by their start and end only, never as a straight line (BR-26 revised). Missing segment statistics are derived from altitude and distance samples, never estimated otherwise (RULE-20). |
 | 2.3 | 2026-11-19 | Rides are **stored** in a local SQLite database and restored at startup (BR-33). Each Strava export ZIP upload is **added** to the ride history instead of replacing it (BR-16, BR-18 revised). An upload registry and an Uploads screen let the user delete one, several or all uploads (BR-34 – BR-36). Files already imported are detected by their hash (BR-37). Deterministic analytics over the stored tracks are added for later use by an assistant; no chatbot is built (BR-38). The segment catalog, BR-30 and BR-31 are unchanged. BR-32 is reserved for map styles (pending, OD-27). |
+| 2.4 | 2026-11-20 | Adds an optional, **local** AI assistant that answers questions about the stored ride history through the BR-38 analytics, which the model calls as tools (BR-39, BR-45). It runs on the user's own **Ollama** server, behind a provider interface that later providers can implement (BR-40). Ollama connection settings (BR-41), model management: installed models, download, removal, selection (BR-42), capability detection and a model test (BR-43). All inference is local; no cloud provider, cloud model or API key is used (BR-44). Conversations are kept in memory only. NFR-03, NFR-05 and NFR-07 revised; NFR-11 and NFR-12 added. Segment matching (the segment part of BR-38) stays deferred. |
 
 ## 1. Business Objective
 
@@ -24,6 +25,8 @@ The application must automatically extract the ZIP archive, identify activities 
 In addition, users can manually import details of Strava segments they care about (metadata, route geometry and their own efforts and personal bests), keep them in a local database, browse them, and see their routes on the same map. The application never connects to Strava.
 
 Rides from every uploaded export are kept on the user's machine and build up a ride history over time. The user can see and delete the uploads they came from, and the application provides deterministic analytics over that history.
+
+An optional assistant answers questions about the ride history in plain language. It uses the application's own analytics, so its numbers are computed, not estimated, and it runs on a language model on the user's own machine, so no ride data leaves it.
 
 ## 2. Scope
 
@@ -42,6 +45,8 @@ Rides from every uploaded export are kept on the user's machine and build up a r
 - Allow users to upload Strava export ZIP archives over time; each upload adds its rides to a stored ride history.
 - Store the ride history and an upload registry in a local SQLite database; list and delete uploads.
 - Provide deterministic analytics over the stored ride history.
+- Provide an assistant that answers questions about the stored ride history using those analytics, with a language model running locally in Ollama.
+- Provide assistant settings: the Ollama server, connection status and test, installed models, model download and removal, and model selection.
 - Manually import Strava segment details from JSON, CSV or GeoJSON files.
 - Store imported segment data locally in a JSON segment catalog file; browse, search, filter, inspect and remove it.
 - Display segment routes on the map.
@@ -51,7 +56,13 @@ Rides from every uploaded export are kept on the user's machine and build up a r
 - Strava OAuth authentication and any Strava API access by the application, including segment discovery or retrieval. (The separate, optional download command of BR-31 is the only exception.)
 - Automatic synchronization or refresh of activities or segments from Strava; background sync.
 - Automatic discovery of segments from the imported rides.
-- An AI chatbot or any language-model integration (the analytics of BR-38 are built so one can use them later).
+- Cloud AI providers (such as OpenAI, Anthropic, Google Gemini or OpenRouter) and Ollama cloud models. The provider interface allows adding providers in a later version.
+- An Ollama server on another machine (provisional, OD-36).
+- Assistant actions that change data: the assistant only reads analytics results; it never changes rides, uploads, segments or settings.
+- Automatic switching between models.
+- Segment matching in the assistant, until the segment part of BR-38 is delivered.
+- Looking up place names (geocoding); the assistant works with coordinates (provisional, OD-34).
+- Keeping assistant conversations after the application stops.
 - Uploading individual GPX or FIT files outside an export ZIP.
 - Social sharing.
 - Mobile application support (native app).
@@ -65,6 +76,7 @@ Rides from every uploaded export are kept on the user's machine and build up a r
 | Heatmap, filters, ride details, statistics | Strava export ZIP (activities.csv + GPX/FIT files) | No |
 | Segments | Files the user prepares and uploads (JSON, CSV, GeoJSON) | No |
 | Segment names and routes for the upload file (optional) | The user's own Strava access token, used by the download command (BR-31) | Yes, outside the application |
+| Assistant (optional) | BR-38 analytics over the stored ride history; answers written by a model in the user's local Ollama | No |
 
 ## 3. Business Requirements
 
@@ -107,6 +119,13 @@ Rides from every uploaded export are kept on the user's machine and build up a r
 | BR-36 | Upload Deletion | Deleting uploads removes only the rides and GPS tracks that no remaining upload contains; rides and tracks that another upload also contains are kept. A deletion is atomic: either all selected uploads are removed or none is. |
 | BR-37 | Duplicate File Detection | Calculate a hash of each uploaded file. If a file with the same hash was already imported, warn the user and do not import it again. A different file is imported even if its rides overlap stored rides; overlapping rides are not duplicated (BR-18). |
 | BR-38 | Ride Analytics | Provide deterministic analytics over the stored ride history: distance by month and by year, how many rides passed a given location, the most frequently ridden roads, comparison between two periods, and rides that rode a stored segment. Results are computed by the application's own functions from stored tracks, never estimated, and are available through the local API for later use by an assistant. |
+| BR-39 | Ride Assistant | Provide an assistant in which the user asks questions in plain language about the stored ride history. Answers are based on the BR-38 analytics, which the language model calls as tools: distance by month and by year, location visits, the most frequently ridden roads, and comparison between two periods. Segment matching is offered to the assistant only once it is delivered. The assistant only reads data. |
+| BR-40 | AI Provider Interface | Connect the assistant to language models through one common provider interface. Ollama is the first and, in this version, the only provider. A later provider can be added without changing the assistant's orchestration, the analytics, GPS processing, the database repositories or the chat screen. |
+| BR-41 | Ollama Connection | Provide settings for the Ollama server address (default `http://127.0.0.1:11434`), show whether Ollama is reachable and its version, and let the user test the connection. When Ollama is not reachable, the assistant explains how to start or install it; all other features keep working. |
+| BR-42 | Model Management | Show the models installed in Ollama with their size, parameter size, quantization, context window and capabilities. Let the user download a model by name with progress shown and the option to cancel, remove an installed model after confirming, select the preferred model, and find models to download (OD-35). A selected model that is no longer installed is reported and must be selected again. |
+| BR-43 | Model Capabilities | Detect, for each model, whether it supports tool calling, streaming and structured output, and its context window. Let the user test a model to check that it calls the analytics tools correctly. A model without tool calling is marked and not used for ride questions; the limitation is explained and the user can select another model. |
+| BR-44 | Local-Only Inference | All language-model inference runs in the local Ollama server. Prompts, ride data, coordinates and analytics results are never sent to a cloud service. Ollama cloud models are not offered, downloaded or used. No API key or cloud account is needed. |
+| BR-45 | Assistant Answers | Stream answers as they are written, show which analytics each answer used, and let the user stop an answer. Timeouts, invalid responses and model errors are shown as plain messages. |
 
 ## 4. Business Rules
 
@@ -134,6 +153,9 @@ Rides from every uploaded export are kept on the user's machine and build up a r
 - When an activity already stored arrives in a new upload, its details (name, date, distance, elevation gain, moving time) are replaced by the new upload's values and its stored GPS track is kept (RULE-22).
 - Two files are the same file when their SHA-256 hashes are equal. A failed upload does not count as imported (RULE-23).
 - Analytics results come only from stored data and are reproducible. A location visit is a distinct ride passing within the given radius of the location (default 100 m). A ride rode a segment when it passes within 25 m of the segment's start, later within 25 m of its end, and stays within 25 m of every route point between them, in that direction; only segments with route geometry can be matched. Statistics without a known value follow RULE-13 (RULE-24).
+- Numbers and facts about the user's rides in an assistant answer come only from analytics tool results; the assistant never calculates them from GPS data or estimates them, and says when the analytics cannot answer a question (RULE-25).
+- A question is sent only when Ollama is reachable and the selected model is installed, local and supports tool calling. Otherwise nothing is sent; the user is told why and selects again. The model is never changed without the user (RULE-26).
+- A model is local when Ollama lists it without a remote host or remote model and its name has no cloud suffix (`:cloud`, `-cloud`). Only local models are listed as usable, downloaded or used. The Ollama server address must be on the user's machine (RULE-27).
 
 ## 5. Acceptance Criteria
 
@@ -181,6 +203,17 @@ Rides from every uploaded export are kept on the user's machine and build up a r
 | AC-40 | If a deletion fails part-way, no upload, ride or track is removed. |
 | AC-41 | Uploading a file that was already imported shows a warning naming the earlier upload, and nothing is imported. |
 | AC-42 | For a synthetic ride history, each analytics function returns the expected result, and repeated calls return the same result. |
+| AC-43 | For a synthetic history, a question about distance per month is answered with numbers equal to the analytics result, and the answer shows which analytics were used. |
+| AC-44 | When the model calls an analytics function with invalid arguments, nothing is computed from them and the model is told what was wrong. When the analytics cannot answer a question, the assistant says so instead of estimating. |
+| AC-45 | The Ollama adapter and a mocked provider pass the same provider tests (text, streaming, tool calls, errors), and the orchestration, analytics and chat screen contain no Ollama-specific code. |
+| AC-46 | When Ollama is not running or the address is wrong, the settings and the assistant say it is not reachable and how to start it; testing the connection shows the version when it is reachable. The map, uploads and analytics keep working. |
+| AC-47 | Installed models are listed with size, parameter size, quantization, context window and capabilities. A selected model that is no longer installed is reported, and the question is not sent. |
+| AC-48 | Downloading a model shows progress and can be cancelled; a completed download appears in the installed list; a failed download is reported. |
+| AC-49 | Removing a model asks for confirmation and removes it from the list; if it was selected, the selection is cleared and the user is told. |
+| AC-50 | A model without tool calling is marked; asking with it explains the limitation and sends nothing. Testing a model reports whether it called an analytics tool correctly. A model without streaming still answers, in one piece. |
+| AC-51 | Cloud models are not offered, cannot be downloaded or selected, and an Ollama address that is not on the user's machine is rejected. |
+| AC-52 | Answer text appears as it is written; Stop ends the answer and cancels the request to Ollama. |
+| AC-53 | A timeout, an invalid response or a model error shows a plain message; the map, uploads and analytics keep working. |
 
 ## 6. User Experience
 
@@ -197,6 +230,7 @@ Rides from every uploaded export are kept on the user's machine and build up a r
 - Provide a dedicated Segments section with: file upload, validation results, an import review step with confirm and cancel, a searchable, filterable and sortable segment list, a segment detail view with effort history and personal best, and remove actions that ask for confirmation.
 - Show segment routes on the same map as the heatmap, in a distinct style, with the selected segment highlighted.
 - Provide an Uploads section listing the upload registry, with a checkbox per upload, "Delete selected", "Delete all", a confirmation step for each deletion, and a warning when a file was already imported.
+- Provide an Assistant section with a chat (streamed answers, the analytics used, Stop) and settings: Ollama address, connection status and test, installed models with details, model download with progress and cancel, model removal with confirmation, model selection, and a model test.
 
 ### User Stories
 
@@ -210,6 +244,8 @@ Rides from every uploaded export are kept on the user's machine and build up a r
 | US-06 | As a cyclist, I remove segment data I no longer want stored on my machine. |
 | US-07 | As a cyclist, I upload a newer export later, and my history keeps every earlier ride without duplicates. |
 | US-08 | As a cyclist, I see which files I uploaded, and I remove one, several or all of them. |
+| US-09 | As a cyclist, I ask questions about my riding history in plain language and get answers computed from my own rides. |
+| US-10 | As a cyclist, I choose, download and remove the local model that answers me, and my ride data never leaves my machine. |
 
 ## 7. Data Requirements
 
@@ -265,7 +301,8 @@ Accepted file types:
 ### Data Storage
 - Ride data is processed in the browser. Ride details, GPS tracks and the upload registry are stored in a local SQLite database file on the user's machine (ADR-0013). The uploaded ZIP files themselves are not kept.
 - Segment data is stored in a local JSON segment catalog file on the user's machine (format: `docs/segment-catalog-format.md`). It is never sent to any external service.
-- No other data is persisted: no ZIP files and no Strava connection details (the application has no Strava connection, BR-28). The download command reads the user's access token from the environment or `.env.local` and does not save it (BR-31).
+- Assistant settings (Ollama address, selected model) are stored in a local settings file written by the local backend. Assistant conversations are kept in the backend's memory only and are lost when it stops. Downloaded models are stored by Ollama in its own model folder; removing a model in the application deletes it there.
+- No other data is persisted: no ZIP files, no API keys, and no Strava connection details (the application has no Strava connection, BR-28). The download command reads the user's access token from the environment or `.env.local` and does not save it (BR-31).
 
 ## 8. Technical Direction
 
@@ -281,6 +318,7 @@ Recorded in the ADRs (`docs/decisions/`):
 - Local backend: Node.js, serving a small JSON API on the local machine only (ADR-0009).
 - Segment storage: a local JSON catalog file written by the local backend (ADR-0011). SQLite (ADR-0009) is read only once, to migrate segments stored by version 2.0 (BR-30).
 - Ride storage: a local SQLite database (`node:sqlite`) written by the local backend (ADR-0013).
+- Language models: Ollama on the user's machine, called through its native HTTP API with `fetch` from the local backend, behind a common `LLMProvider` interface; no SDKs (ADR-0014).
 - Testing: Vitest and Playwright.
 - No Google Maps APIs or paid mapping services.
 
@@ -297,20 +335,24 @@ Consider supporting:
 |---|---|
 | NFR-01 | The application runs locally as a personal application. |
 | NFR-02 | The map stays responsive while filters change (about 2,000 rides, under 250 ms per filter change). |
-| NFR-03 | No credentials, tokens or secrets are hardcoded or committed. Configuration uses environment variables, documented in `.env.example`. |
+| NFR-03 | No credentials, tokens or secrets are hardcoded or committed. Configuration uses environment variables, documented in `.env.example`. The assistant needs no credentials (NFR-11). |
 | NFR-04 | No Google Maps billing or paid mapping services are required. |
-| NFR-05 | Automated tests cover ZIP processing, classification, GPS parsing, filtering, visualization data preparation, segment validation, segment persistence, the segment UI, ride persistence, upload management and analytics. |
+| NFR-05 | Automated tests cover ZIP processing, classification, GPS parsing, filtering, visualization data preparation, segment validation, segment persistence, the segment UI, ride persistence, upload management, analytics and the assistant. Assistant tests use mocked Ollama HTTP responses and need no running Ollama. |
 | NFR-06 | Setup instructions explain how to run the application locally. |
-| NFR-07 | Ride and segment data are processed and stored only on the user's machine. The local backend listens only on the local machine. |
+| NFR-07 | Ride and segment data are processed and stored only on the user's machine. The local backend listens only on the local machine. The assistant sends data only to the Ollama server on the same machine (BR-44). |
 | NFR-08 | The backend validates every request independently of the UI, limits request size, and returns errors without internal details. |
 | NFR-09 | The user can remove all stored segment data and all stored ride data from the application. The documentation explains where the segment catalog and the ride database are, and that deleting them while the application is stopped removes that data. |
 | NFR-10 | With about 2,000 stored rides, the stored history is restored and shown in under 5 s after the application starts, and a location-visit query answers in under 500 ms. NFR-02 still applies to filter changes. |
+| NFR-11 | The assistant requires no API key, account or cloud service, and the application contacts no AI service other than the local Ollama server. Model downloads are performed by Ollama from its own registry and contain no user data. |
+| NFR-12 | Requests to Ollama have time limits. Unavailability, timeouts, invalid responses and model errors are shown as plain messages and never affect the map, uploads or analytics. No request is retried with another model. |
 
 ### Dependencies and Limitations
 - Segment data is only as complete and current as the files the user uploads; the application never refreshes it from Strava.
 - Encoded polylines are decoded with the common encoded polyline algorithm (precision 5) used by Strava. Other encodings are not supported; GeoJSON is the recommended geometry format.
 - Personal best and effort history reflect only the efforts included in the uploaded files.
 - The segment features and the ride history need the local backend to be running.
+- The assistant needs Ollama installed and running on the same machine, and a downloaded model that supports tool calling. Answer speed and quality depend on the model and the machine; the numbers come from the analytics (RULE-25).
+- Models are large downloads (typically several GB) and use disk space and memory.
 
 ### Error Scenarios
 | Scenario | Expected behaviour |
@@ -322,6 +364,10 @@ Consider supporting:
 | Ride database unavailable, unreadable or newer than the application | The application says ride history is unavailable and does not import uploads; segment features keep working. Such a file is never overwritten. |
 | Upload fails while its rides are stored | Nothing from it is stored; the registry shows it as failed. |
 | Same file uploaded again | A warning names the earlier upload; nothing is imported. |
+| Ollama not installed, not running or not reachable | The assistant and its settings say Ollama is not reachable and how to start it; everything else keeps working. |
+| Selected model not installed, removed, or without tool calling | The question is not sent; the user is asked to select or download a model. |
+| Model download fails or is cancelled | The failure is reported; a partial download is not listed as installed. |
+| Ollama times out or returns an invalid response | A plain message; the question can be asked again. |
 | Catalog with missing or malformed entries or fields | The usable segments load; invalid values are treated as unknown and unusable entries are skipped, each reported in the server log; the original file is kept as a backup before it is next rewritten. |
 
 ## 11. Definition of Done
@@ -339,4 +385,5 @@ Consider supporting:
 - Setup instructions explain how to run the application locally, where segment data is stored and how to remove it.
 - Rides persist across restarts; uploads accumulate without duplicate rides; uploads can be listed and deleted (one, several, all) atomically; files already imported are detected.
 - Analytics return deterministic results from the stored ride history.
+- The assistant answers ride questions through the analytics with a local Ollama model behind the common provider interface; models can be listed, downloaded, removed, selected and tested; nothing is sent to a cloud service.
 - No API secrets are committed to the repository.

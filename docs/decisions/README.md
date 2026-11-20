@@ -17,6 +17,7 @@ Significant, hard-to-reverse technical decisions are recorded here as ADRs.
 | [0011](0011-json-segment-catalog.md)               | JSON segment catalog replaces SQLite            | Accepted                   |
 | [0012](0012-strava-segment-download-command.md)    | Optional Strava segment download command        | Accepted                   |
 | [0013](0013-persistent-ride-history-sqlite.md)     | Persistent, cumulative ride history in SQLite   | Accepted                   |
+| [0014](0014-llm-agnostic-assistant.md)             | Local, provider-neutral ride assistant (Ollama) | Accepted                   |
 
 ## Template
 
