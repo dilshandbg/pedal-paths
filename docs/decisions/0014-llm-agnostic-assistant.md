@@ -270,20 +270,27 @@ flagged rather than removed because the text has already been streamed.
 `data/assistant-settings.json` (git-ignored, written by the backend) holds
 `{ provider: 'ollama', serverUrl, model }` and the model evaluation results (§6). It contains no secrets, and the assistant needs none.
 
-All `/api/assistant` routes have the same loopback, Origin and validation checks as the other APIs.
+All `/api/assistant` routes (`server/http/assistantApi.ts`) have the same loopback, Origin and
+validation checks as the other APIs. Bodies are JSON objects of at most 16 KB with no unknown
+fields; a question has at most 2,000 characters. Errors are `{ error: { code, message } }`, with
+the plain message of the code (NFR-12) and never a provider's own text. `server/assistant/service.ts`
+assembles the core for the API; `settings.ts` validates the settings, and `settingsFile.ts` is the
+one shared, atomically written settings file.
 
-| Method and path                    | Purpose                                                                 |
-| ---------------------------------- | ----------------------------------------------------------------------- |
-| `GET /status`                      | Provider, reachable, version, selected model and its state              |
-| `GET/PUT /settings`                | Server address (validated as loopback), selected model                  |
-| `POST /test-connection`            | Connection check against the given or saved address                     |
-| `GET /models`                      | Installed models with details, capabilities, location, last test result |
-| `POST /models/install`             | `{ name }`; answers with an SSE progress stream; closing it cancels     |
-| `DELETE /models/:name`             | Remove a model (the UI confirms first)                                  |
-| `POST /models/:name/test`          | Run the model test                                                      |
-| `POST /conversations`              | Start a conversation                                                    |
-| `POST /conversations/:id/messages` | Ask; answers with a `text/event-stream`                                 |
-| `DELETE /conversations/:id`        | Forget it                                                               |
+| Method and path                    | Purpose                                                                                                                                  |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /status`                      | Provider, address, reachable, version, selected model, `ready`, and the `problem` code and message that stops a question (RULE-26)       |
+| `GET/PUT /settings`                | GET: settings and the providers with their settings. PUT `{ serverUrl?, model? }`: the address is validated as local, the model name too |
+| `POST /test-connection`            | `{ serverUrl? }`: connection check against the given (validated) or saved address                                                        |
+| `GET /models`                      | Installed models with details, capabilities, `local`, `selected`, suitability, last valid test result; and the downloads                 |
+| `POST /models/install`             | `{ name }`; an SSE stream of the download's state. A second request joins the running download; closing the last stream cancels it       |
+| `DELETE /models/:name`             | Remove a model (the UI confirms first); answers `selectionCleared` when it was selected (AC-49)                                          |
+| `POST /models/:name/test`          | Run the model test and save the result; one test per model at a time (`model-test-running`)                                              |
+| `POST /conversations`              | Start a conversation                                                                                                                     |
+| `POST /conversations/:id/messages` | `{ question }`; answers with a `text/event-stream` of `AssistantEvent`s. Closing it stops the answer (Stop)                              |
+| `DELETE /conversations/:id`        | Forget it                                                                                                                                |
+
+Model names in paths are URL-encoded (`qwen3%3A8b`).
 
 ## Adding a provider later
 

@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import type { AssistantErrorCode } from '../../src/types/assistant';
 import type { RideHistoryApiErrorCode } from '../../src/types/rideHistory';
 
 /*
@@ -7,7 +8,7 @@ import type { RideHistoryApiErrorCode } from '../../src/types/rideHistory';
  */
 
 /** Every error code a local API answers with (`{ error: { code } }`). */
-export type ApiErrorCode = RideHistoryApiErrorCode;
+export type ApiErrorCode = RideHistoryApiErrorCode | AssistantErrorCode;
 
 export type Next = (error?: unknown) => void;
 export type Middleware = (req: IncomingMessage, res: ServerResponse, next: Next) => void;

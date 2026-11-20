@@ -21,6 +21,7 @@ export type AssistantErrorCode =
   | 'round-limit'
   | 'conversation-not-found'
   | 'conversation-busy'
+  | 'model-test-running'
   | 'internal';
 
 /** One analytics call behind an answer ("Used: distance by month, 2024-01-01 – 2024-12-31"). */
@@ -86,4 +87,75 @@ export interface ModelDownload {
   /** ISO 8601. */
   readonly startedAt: string;
   readonly finishedAt: string | null;
+}
+
+/** The assistant settings (BR-41, BR-42). The model is only ever changed by the user (RULE-26). */
+export interface AssistantSettings {
+  readonly provider: string;
+  /** The provider's server on this computer, e.g. `http://127.0.0.1:11434`. */
+  readonly serverUrl: string;
+  readonly model: string | null;
+}
+
+/** A setting a provider needs, as the settings screen shows it. */
+export interface AssistantProviderSetting {
+  readonly key: string;
+  readonly label: string;
+  readonly kind: 'local-url';
+  readonly defaultValue: string;
+  readonly help: string;
+}
+
+export interface AssistantProviderInfo {
+  readonly id: string;
+  readonly displayName: string;
+  readonly settings: readonly AssistantProviderSetting[];
+}
+
+/** Whether a question can be asked now (RULE-26), and if not, why. */
+export interface AssistantStatus {
+  readonly provider: AssistantProviderInfo;
+  readonly serverUrl: string;
+  readonly reachable: boolean;
+  readonly version: string | null;
+  readonly model: string | null;
+  readonly ready: boolean;
+  /** Why no question can be asked; null when ready. */
+  readonly problem: AssistantErrorCode | null;
+  readonly message: string | null;
+}
+
+export interface ConnectionTestResult {
+  readonly reachable: boolean;
+  readonly version: string | null;
+  readonly problem: AssistantErrorCode | null;
+  readonly message: string | null;
+}
+
+/** An installed model as the settings list shows it (AC-47, AC-50, AC-51). */
+export interface AssistantModel {
+  readonly id: string;
+  readonly sizeBytes: number | null;
+  readonly parameterSize: string | null;
+  readonly quantization: string | null;
+  /** In tokens. */
+  readonly contextWindow: number | null;
+  readonly toolCalling: boolean | 'unknown';
+  readonly streaming: boolean | 'unknown';
+  readonly structuredOutput: boolean | 'unknown';
+  readonly otherCapabilities: readonly string[];
+  /** False for a cloud model: listed as not used, and never selected or tested (RULE-27). */
+  readonly local: boolean;
+  readonly selected: boolean;
+  readonly suitability: ModelSuitability;
+  /** The latest valid test result (this digest and test suite), or null. */
+  readonly evaluation: ModelEvaluation | null;
+  readonly testing: boolean;
+}
+
+/** The result of removing a model (AC-49). */
+export interface ModelRemoval {
+  readonly model: string;
+  /** True when the removed model was selected: the selection is cleared and the user told. */
+  readonly selectionCleared: boolean;
 }

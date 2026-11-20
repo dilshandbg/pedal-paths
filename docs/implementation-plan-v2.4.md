@@ -40,9 +40,13 @@ Nothing in the ride storage, upload management, analytics or the NFR-10 benchmar
      `modelRules.ts`);
    - still to confirm against a real Ollama: the `tools` capability name and whether cancelling a
      pull stops the download in Ollama (the adapter aborts the request either way).
-3. **Settings, model management and API** (BR-41 – BR-43, NFR-12), on `feature/assistant-api`:
-   - `settings.ts`, `models.ts` (list, install, remove, model test), `server/http/assistantApi.ts`,
-     mounted by a Vite plugin;
+3. **Settings, model management and API** (BR-41 – BR-43, NFR-12), on `feature/assistant-api`.
+   **Done** (awaiting review):
+   - `settingsFile.ts` (one shared settings file), `settings.ts`, `service.ts` (status, connection,
+     models, downloads, model test, conversations; there is no separate `models.ts`),
+     `server/http/assistantApi.ts`, mounted with the rides and analytics APIs in `vitePlugin.ts`;
+   - tests: `tests/server/assistant/settings.test.ts`, `tests/server/http/assistantApi.test.ts`
+     (a real local HTTP server with the fake provider);
    - README and `.env.example` (no new secrets; the settings file location; `OLLAMA_NO_CLOUD`).
 4. **Chat UI** (BR-39, BR-41 – BR-43, BR-45, UX-13, UX-14), on `feature/assistant-ui`:
    - `src/types/assistant.ts`, `services/assistant-api` (fetch and SSE reader), and

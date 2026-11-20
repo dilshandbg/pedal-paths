@@ -9,6 +9,7 @@ import {
   createEvaluationStore,
   readStoredEvaluation,
 } from '../../../server/assistant/evaluationStore';
+import { openSettingsFile } from '../../../server/assistant/settingsFile';
 import { fakeModel } from './fakeProvider';
 
 const evaluation = (passed: boolean, patch: Partial<ModelEvaluation> = {}): ModelEvaluation => ({
@@ -50,7 +51,7 @@ describe('BR-43 / OD-38: a model is suitable only after it passed, for that dige
   });
 });
 
-describe('BR-43 / AC-50: evaluation results are saved in the settings file', () => {
+describe('BR-43 / AC-50: evaluation results are saved in the settings file (settingsFile)', () => {
   let dir: string;
   let path: string;
   const logs: string[] = [];
@@ -65,46 +66,46 @@ describe('BR-43 / AC-50: evaluation results are saved in the settings file', () 
   const file = () => JSON.parse(readFileSync(path, 'utf8')) as Record<string, unknown>;
 
   it('saves every field of a result and loads it after a restart', () => {
-    createEvaluationStore({ path, log }).record('ollama', evaluation(true));
+    createEvaluationStore({ file: openSettingsFile(path, log) }).record('ollama', evaluation(true));
     expect(file()).toEqual({ evaluations: [{ provider: 'ollama', ...evaluation(true) }] });
 
-    const restarted = createEvaluationStore({ path, log });
+    const restarted = createEvaluationStore({ file: openSettingsFile(path, log) });
     expect(restarted.suitability('ollama', model)).toBe('suitable');
     expect(restarted.get('ollama', 'qwen3:8b')).toEqual(evaluation(true));
     expect(logs).toEqual([]);
   });
 
   it('replaces the earlier result of the same model', () => {
-    const store = createEvaluationStore({ path, log });
+    const store = createEvaluationStore({ file: openSettingsFile(path, log) });
     store.record('ollama', evaluation(true));
     store.record('ollama', evaluation(false, { evaluatedAt: '2026-11-21T10:00:00.000Z' }));
     expect(file().evaluations).toHaveLength(1);
-    expect(createEvaluationStore({ path, log }).suitability('ollama', model)).toBe('unsuitable');
+    expect(createEvaluationStore({ file: openSettingsFile(path, log) }).suitability('ollama', model)).toBe('unsuitable');
   });
 
   it('keeps the other settings in the file', () => {
-    createEvaluationStore({ path, log }).record('ollama', evaluation(true)); // creates data/
+    createEvaluationStore({ file: openSettingsFile(path, log) }).record('ollama', evaluation(true)); // creates data/
     writeFileSync(path, JSON.stringify({ serverUrl: 'http://127.0.0.1:11434', model: 'x' }));
-    createEvaluationStore({ path, log }).record('ollama', evaluation(true));
+    createEvaluationStore({ file: openSettingsFile(path, log) }).record('ollama', evaluation(true));
     expect(file()).toMatchObject({ serverUrl: 'http://127.0.0.1:11434', model: 'x' });
     expect(file().evaluations).toHaveLength(1);
   });
 
   it('drops results of an older suite version when loading', () => {
-    createEvaluationStore({ path, suiteVersion: 1, log }).record(
+    createEvaluationStore({ file: openSettingsFile(path, log), suiteVersion: 1 }).record(
       'ollama',
       evaluation(true, { suiteVersion: 1 }),
     );
-    const newer = createEvaluationStore({ path, suiteVersion: 2, log });
+    const newer = createEvaluationStore({ file: openSettingsFile(path, log), suiteVersion: 2 });
     expect(newer.suitability('ollama', model)).toBe('untested');
     newer.record('ollama', evaluation(true, { model: 'llama3.2', suiteVersion: 2 }));
     expect((file().evaluations as unknown[]).length).toBe(1);
   });
 
   it('leaves a file that is not valid JSON unchanged and keeps results in memory', () => {
-    createEvaluationStore({ path, log }).record('ollama', evaluation(true)); // creates data/
+    createEvaluationStore({ file: openSettingsFile(path, log) }).record('ollama', evaluation(true)); // creates data/
     writeFileSync(path, '{ not json', 'utf8');
-    const store = createEvaluationStore({ path, log });
+    const store = createEvaluationStore({ file: openSettingsFile(path, log) });
     store.record('ollama', evaluation(true));
     expect(store.suitability('ollama', model)).toBe('suitable');
     expect(readFileSync(path, 'utf8')).toBe('{ not json');

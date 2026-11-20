@@ -80,13 +80,14 @@ then reports that ride and segment storage is unavailable, and uploads are not i
 Nothing needs configuring: there are no API keys or secrets. Optional settings go in
 `.env.local` (copy `.env.example`; `.env.local` is git-ignored):
 
-| Variable               | Default                                        | Purpose                                                    |
-| ---------------------- | ---------------------------------------------- | ---------------------------------------------------------- |
-| `VITE_MAP_STYLE_URL`   | `https://tiles.openfreemap.org/styles/liberty` | MapLibre style for the base map                            |
-| `SEGMENT_CATALOG_PATH` | `data/segment-catalog.json`                    | Segment catalog file (`:memory:` keeps nothing)            |
-| `SEGMENTS_DB_PATH`     | `data/segments.sqlite`                         | Older SQLite database, migrated once (see below)           |
-| `RIDES_DB_PATH`        | `data/rides.sqlite`                            | Ride history database (ADR-0013; `:memory:` keeps nothing) |
-| `STRAVA_ACCESS_TOKEN`  | none                                           | Only for `npm run fetch-segments` (see Segments)           |
+| Variable                  | Default                                        | Purpose                                                                                 |
+| ------------------------- | ---------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `VITE_MAP_STYLE_URL`      | `https://tiles.openfreemap.org/styles/liberty` | MapLibre style for the base map                                                         |
+| `SEGMENT_CATALOG_PATH`    | `data/segment-catalog.json`                    | Segment catalog file (`:memory:` keeps nothing)                                         |
+| `SEGMENTS_DB_PATH`        | `data/segments.sqlite`                         | Older SQLite database, migrated once (see below)                                        |
+| `RIDES_DB_PATH`           | `data/rides.sqlite`                            | Ride history database (ADR-0013; `:memory:` keeps nothing)                              |
+| `ASSISTANT_SETTINGS_PATH` | `data/assistant-settings.json`                 | Local AI assistant settings and model test results (ADR-0014; `:memory:` keeps nothing) |
+| `STRAVA_ACCESS_TOKEN`     | none                                           | Only for `npm run fetch-segments` (see Segments)                                        |
 
 Restart the dev or preview server after changing them.
 
@@ -219,6 +220,13 @@ from `.env.local` when you are done; there is nothing to disconnect in the app.
   `SEGMENT_CATALOG_PATH`), with their routes, altitude and distance samples, and efforts
   ([format](docs/segment-catalog-format.md)). The app loads the catalog when it starts. Segments only
   travel between your browser and the local server on your machine.
+- **Local AI assistant** (BRD v2.4, in progress): its settings (the Ollama address on this
+  computer and the selected model) and the model test results are kept in
+  `data/assistant-settings.json` (or at `ASSISTANT_SETTINGS_PATH`). The file holds no ride data and
+  no secrets; the assistant needs no API key. Conversations are kept in memory only and are gone
+  when the app stops. Questions, analytics results and coordinates go only to Ollama on this
+  computer ([details](docs/ai-assistant.md)). Stop the app and delete the file to reset the
+  assistant; models are removed in Ollama (`ollama rm <model>`) or in the assistant settings.
 - **Upgrading from SQLite:** if you used an earlier version, your segments are in
   `data/segments.sqlite`. On the first start without a catalog file, the app copies all of them
   into the catalog, checks the copy, and renames the database to `segments.sqlite.migrated`. That

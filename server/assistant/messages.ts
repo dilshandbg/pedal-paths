@@ -33,6 +33,7 @@ export const ASSISTANT_MESSAGES: Readonly<Record<AssistantErrorCode, string>> = 
     'The model kept calling the analytics without answering, so the answer was stopped. Try a simpler question.',
   'conversation-not-found': 'This conversation has ended. Start a new one.',
   'conversation-busy': 'Wait for the current answer to finish, or stop it, before asking again.',
+  'model-test-running': 'This model is being tested already. Wait for the result.',
   internal: 'Something went wrong in the assistant. Try again.',
 };
 
