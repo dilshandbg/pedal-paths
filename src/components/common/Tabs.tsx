@@ -16,7 +16,8 @@ interface TabsProps<K extends string> {
 
 /**
  * WAI-ARIA tabs with arrow-key navigation. Only the selected panel is rendered. Presentational:
- * the selection is controlled by the parent.
+ * the selection is controlled by the parent. Tabs share the row but are never narrower than their
+ * label: in a narrow container they form two columns, otherwise one row that wraps if needed.
  */
 export function Tabs<K extends string>({ label, tabs, selected, onSelect }: TabsProps<K>) {
   const baseId = useId();
@@ -35,11 +36,12 @@ export function Tabs<K extends string>({ label, tabs, selected, onSelect }: Tabs
   };
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="@container flex flex-col gap-4">
+      {/* Two columns when narrow; otherwise one row that wraps rather than overlapping labels. */}
       <div
         role="tablist"
         aria-label={label}
-        className="grid auto-cols-fr grid-flow-col rounded-lg bg-slate-200/70 p-1"
+        className="grid grid-cols-2 gap-0.5 rounded-lg bg-slate-200/70 p-1 @min-[17.5rem]:flex @min-[17.5rem]:flex-wrap"
       >
         {tabs.map((tab, index) => {
           const isSelected = tab.key === active?.key;
@@ -58,7 +60,7 @@ export function Tabs<K extends string>({ label, tabs, selected, onSelect }: Tabs
               tabIndex={isSelected ? 0 : -1}
               onClick={() => onSelect(tab.key)}
               onKeyDown={(event) => handleKeyDown(event, index)}
-              className={`rounded-md px-3 py-1.5 text-sm font-medium focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:outline-none ${
+              className={`flex-1 rounded-md px-1.5 py-1.5 text-sm font-medium whitespace-nowrap focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:outline-none ${
                 isSelected
                   ? 'bg-white text-slate-900 shadow-sm'
                   : 'text-slate-600 hover:text-slate-900'

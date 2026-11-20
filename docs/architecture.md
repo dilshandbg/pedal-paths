@@ -1,6 +1,7 @@
 # Architecture
 
-> Status: **Accepted**, aligned with `docs/BRD.md` v2.0 (2026-11-15).
+> Status: **Accepted**, aligned with `docs/BRD.md` v2.3. The local AI assistant of BRD v2.4
+> (§4, "Assistant") is accepted (ADR-0014) and being implemented in phases.
 
 ## 1. Goals
 
@@ -20,6 +21,10 @@
   servers, keeps imported segments in a local JSON segment catalog file
   ([ADR-0009](decisions/0009-local-backend-sqlite.md), [ADR-0011](decisions/0011-json-segment-catalog.md)). Segment data is uploaded by the user; the
   application never contacts Strava ([ADR-0010](decisions/0010-manual-segment-import.md), BR-28).
+- **The assistant is local and behind one interface (BRD v2.4,
+  [ADR-0014](decisions/0014-llm-agnostic-assistant.md)).** The backend runs the analytics as tools
+  for a model in the user's own Ollama. The Ollama adapter is the only code that knows Ollama, and
+  no analytics, ride or GPS code knows the assistant exists.
 - **Traceability**: every feature can be traced back to a BRD requirement.
 
 ## 2. Layers
@@ -170,6 +175,31 @@ segment overlay) is **computed, not stored**. It is recomputed from source state
 selectors, so the different views can't drift out of sync. Segment state never feeds the ride
 filters, heat map or statistics (RULE-18).
 
+### Assistant (BRD v2.4, ADR-0014)
+
+```mermaid
+flowchart LR
+    subgraph Browser
+        CHAT["features/assistant<br/>chat · settings · models"] --> CL["services/assistant-api<br/>fetch + SSE"]
+    end
+    CL -- "/api/assistant/*" --> API["server/http/assistantApi"]
+    subgraph Backend["server/assistant"]
+        API --> ORC["orchestrator<br/>prompt · tool loop · context · stream · errors"]
+        API --> CFG["settings (address, model)<br/>model management"]
+        ORC --> TOOLS["tools/analyticsTools"]
+        ORC --> REG["llm/registry"] --> IF{{"LLMProvider"}}
+        CFG --> REG
+        IF -.- A1["providers/ollama"]
+        IF -.- A2["later providers"]
+    end
+    TOOLS --> RA["server/analytics/rideAnalytics<br/>(unchanged)"] --> DB[("rides.sqlite")]
+    A1 -- "127.0.0.1:11434<br/>chat, tags, show, pull, delete" --> OL[("Ollama on this machine")]
+```
+
+The model asks for analytics; the backend runs them on the stored history and returns the results
+to the model. The answer streams to the browser with the analytics it used. Nothing goes to a
+cloud service. Details: [ai-assistant.md](ai-assistant.md).
+
 ### Local API
 
 | Method and path              | Purpose                                                           | Responses               |
@@ -187,6 +217,7 @@ filters, heat map or statistics (RULE-18).
 | `GET /api/rides`             | Every stored ride with its track, as a binary ride bundle         | 200                     |
 | `GET /api/analytics`         | The analytics functions and their parameters                      | 200                     |
 | `GET /api/analytics/:name`   | One analytics result (`{ result }`), from validated query params  | 200, 400, 404           |
+| `/api/assistant/*`           | Assistant, settings, Ollama models (ADR-0014 §7)                  | SSE for answers, pulls  |
 | any                          | Not from this machine, or from another site                       | 403                     |
 | any                          | Database cannot be opened / unexpected failure                    | 503 / 500 (code only)   |
 
@@ -213,11 +244,17 @@ These conventions are not enforced by tooling:
   types through `@/` (type imports are erased); their value imports must be relative, so the Vite
   config bundler can load them.
 - Nothing in `src/` imports from `server/`; the browser talks to it only over HTTP.
+- Assistant (enforced by ESLint): only `server/assistant/llm/registry.ts` imports
+  `llm/providers/*`; adapters don't import each other; `server/analytics`, `server/rides`,
+  `server/catalog` and `src/` never import `server/assistant`. The chat UI uses only the
+  provider-neutral API types.
 
 ## 6. Folder reference
 
 ```text
 server/             Local backend (Node 22.13+): JSON segment catalog, SQLite migration, API, Vite plugin
+server/assistant/   Local AI assistant (ADR-0014): llm/ (LLMProvider interface, errors, streams, loopback-only
+                    localEndpoint, registry), tools/, orchestrator, evaluation, downloads, conversations
 src/
 ├── app/            Composition root: App, routes (screens), providers, app config
 ├── components/     Domain-agnostic UI: layout, common, map, filters, statistics, segments
@@ -242,6 +279,7 @@ data/               segment-catalog.json (git-ignored; created on the first impo
 ## 7. Related documents
 
 - [Technical design](technical-design.md): domain model, algorithms, open decisions
+- [AI assistant](ai-assistant.md): interface, Ollama integration, model management, privacy, tests
 - [Segment import format](segment-import-format.md)
 - [BRD v2.0 gap analysis and implementation plan](implementation-plan-v2.md)
 - [Architecture decision records](decisions/README.md)
