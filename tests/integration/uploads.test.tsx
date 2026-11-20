@@ -40,7 +40,7 @@ async function withUploads(...exports: [name: string, activityIds: string[]][]) 
   const user = userEvent.setup();
   render(<App />);
   const input = screen.getByLabelText('Strava export ZIP file');
-  await waitFor(() => expect(input).toBeEnabled());
+  await waitFor(() => expect(input).toBeEnabled(), { timeout: 15_000 });
   let stored = new Set<string>();
   for (const [name, ids] of exports) {
     fakeRideHistory.queueArchive({ activities: rides(...ids) });

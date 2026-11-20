@@ -61,9 +61,17 @@ async function loadRides(activities: CyclingActivity[]) {
   render(<App />);
   // Uploads open once the stored history has loaded (BR-33).
   const input = screen.getByLabelText('Strava export ZIP file');
-  await waitFor(() => expect(input).toBeEnabled());
+  await waitFor(() => expect(input).toBeEnabled(), { timeout: 15_000 });
   await user.upload(input, zipFile());
   await screen.findByText(`Showing ${activities.length} rides on the map`, {}, { timeout: 15_000 });
+  // The ride list renders after the map and statistics (useDeferredValue, NFR-10): wait for it.
+  await waitFor(
+    () =>
+      expect(
+        within(screen.getByRole('group', { name: 'Rides' })).getAllByRole('checkbox'),
+      ).toHaveLength(activities.length),
+    { timeout: 15_000 },
+  );
   return user;
 }
 

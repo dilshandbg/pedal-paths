@@ -36,12 +36,15 @@ beforeEach(() => {
       ride('2', { activityDate: '2023-06-15T08:00:00.000Z', distanceKm: 30 }, NEAR),
       ride('3', { activityDate: '2024-06-01T08:00:00.000Z', distanceKm: 40 }, FAR),
     ]),
+    // Distinct upload times: uploads imported in the same millisecond have no defined order.
+    new Date('2026-01-01T10:00:00.000Z'),
   );
   repository.importUpload(
     upload(2, [
       ride('3', { activityDate: '2024-06-01T08:00:00.000Z', distanceKm: 40 }, FAR), // shared
       ride('4', { activityDate: '2024-07-01T08:00:00.000Z', distanceKm: null }, NEAR),
     ]),
+    new Date('2026-01-02T10:00:00.000Z'),
   );
   analytics = createRideAnalytics(repository, 'UTC');
 });
@@ -145,6 +148,7 @@ describe('BR-38 / AC-42: analytics over the stored history', () => {
 
   it('follows deletions: a deleted upload no longer counts', () => {
     const [newest] = repository.listUploads();
+    expect(newest?.fileName).toBe(upload(2, []).upload.fileName); // newest first
     repository.deleteUploads([newest!.uploadId]); // ! safe: two uploads were stored
 
     expect(analytics.locationVisits({ ...PLACE, radiusM: 100, range: ALL }).visitCount).toBe(2);
