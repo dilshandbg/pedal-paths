@@ -142,6 +142,18 @@ describe('BR-43: model evaluation', () => {
     ]);
   });
 
+  it('asks the model for temperature 0 in every request, so a test gives the same result each time', async () => {
+    const provider = createFakeProvider({ respond: analyst() });
+    const outcome = await evaluateModel({
+      provider,
+      model: 'qwen3:8b',
+      signal: new AbortController().signal,
+    });
+    expect(outcome.ok).toBe(true);
+    expect(provider.requests.length).toBeGreaterThan(0);
+    expect(provider.requests.map((r) => r.temperature)).toEqual(provider.requests.map(() => 0));
+  });
+
   it('fails a model whose answers fail', async () => {
     const evaluation = await passedEvaluation({ answer: () => '' });
     expect(caseResult(evaluation, 'monthly-distance')?.problems[0]).toMatch(/^It failed:/);

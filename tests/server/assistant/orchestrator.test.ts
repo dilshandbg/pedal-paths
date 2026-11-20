@@ -84,6 +84,8 @@ describe('AC-43: a ride question is answered from the analytics', () => {
     const toolMessage = provider.requests[1]?.messages.at(-1);
     expect(toolMessage).toMatchObject({ role: 'tool', name: 'distance_by_month', isError: false });
     expect(provider.requests[1]?.tools.map((t) => t.name)).toContain('distance_by_month');
+    // Ride questions keep the model's own sampling; only the model test fixes the temperature.
+    expect(provider.requests.map((r) => r.temperature)).toEqual([undefined, undefined]);
   });
 
   it('instructs the model to use only tool results, with today and the history', async () => {

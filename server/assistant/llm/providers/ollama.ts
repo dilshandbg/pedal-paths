@@ -332,7 +332,11 @@ export function createOllamaProvider(options: OllamaOptions): LLMProvider {
             : {}),
           ...(request.responseSchema ? { format: request.responseSchema } : {}),
           stream: true,
-          options: { num_ctx: request.contextTokens, num_predict: request.maxOutputTokens },
+          options: {
+            num_ctx: request.contextTokens,
+            num_predict: request.maxOutputTokens,
+            ...(request.temperature !== undefined ? { temperature: request.temperature } : {}),
+          },
         },
       },
       signal,

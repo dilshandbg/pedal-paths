@@ -31,7 +31,13 @@ import { createAnalyticsTools, type AssistantTool } from './tools/analyticsTools
  * The version of the evaluation suite. Raise it whenever a case, its checks or the number rules
  * change: saved results of another version no longer count (OD-38).
  */
-export const EVALUATION_SUITE_VERSION = 1;
+export const EVALUATION_SUITE_VERSION = 2; // 2: runs at temperature 0
+
+/**
+ * The test asks for temperature 0 (greedy sampling), so testing the same model version again gives
+ * the same result instead of passing or failing by chance. Ride questions keep the model's default.
+ */
+export const EVALUATION_TEMPERATURE = 0;
 
 // --- The synthetic history -----------------------------------------------------------------------
 
@@ -337,6 +343,7 @@ export async function evaluateModel(input: EvaluateInput): Promise<EvaluationOut
       question: spec.question,
       limits,
       signal: input.signal,
+      temperature: EVALUATION_TEMPERATURE,
     })) {
       if (event.type === 'text') answer += event.delta;
       else if (event.type === 'tool') {

@@ -102,6 +102,8 @@ export interface GenerateRequest {
   /** Context window to use, in tokens. */
   readonly contextTokens: number;
   readonly maxOutputTokens: number;
+  /** Sampling temperature; omitted, the model's own default applies. 0 makes the output repeatable. */
+  readonly temperature?: number;
 }
 
 export interface TokenUsage {
