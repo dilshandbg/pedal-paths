@@ -1,4 +1,4 @@
-import type { ActivityFilter, CyclingActivity } from '@/types';
+import type { ActivityFilter, RideSummary } from '@/types';
 
 type PeriodSelection = Pick<ActivityFilter, 'selectedYears' | 'selectedMonths'>;
 
@@ -8,10 +8,10 @@ type PeriodSelection = Pick<ActivityFilter, 'selectedYears' | 'selectedMonths'>;
  * {2022, 2023} with month {11} match November 2022 and November 2023 (ADR-0005, AC-10). This is
  * what the ride list offers: a ride outside the selected period never appears.
  */
-export function activitiesInScope(
-  activities: readonly CyclingActivity[],
+export function activitiesInScope<T extends RideSummary>(
+  activities: readonly T[],
   filter: PeriodSelection,
-): readonly CyclingActivity[] {
+): readonly T[] {
   if (filter.selectedYears.length === 0 && filter.selectedMonths.length === 0) {
     return activities;
   }
@@ -30,10 +30,10 @@ export function activitiesInScope(
  * array itself when nothing is filtered, so memoized consumers see no change.
  */
 // Implements: BR-07, BR-08, BR-09, AC-07, AC-08, AC-09, AC-10
-export function filterActivities(
-  activities: readonly CyclingActivity[],
+export function filterActivities<T extends RideSummary>(
+  activities: readonly T[],
   filter: ActivityFilter,
-): readonly CyclingActivity[] {
+): readonly T[] {
   const inScope = activitiesInScope(activities, filter);
   if (filter.excludedActivityIds.length === 0) {
     return inScope;

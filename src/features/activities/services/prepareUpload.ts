@@ -1,15 +1,11 @@
 import { importStravaArchive } from '@/features/activities/services/importStravaArchive';
-import {
-  decodeRideHistory,
-  encodeUploadBundle,
-} from '@/features/activities/services/rideHistoryBundle';
-import { buildSegmentIndex } from '@/features/heatmap/services/buildSegmentIndex';
+import { encodeUploadBundle } from '@/features/activities/services/rideHistoryBundle';
 import { createSha256 } from '@/services/ride-history/sha256';
-import type { ArchiveUploadResult, ImportStatus, RestoredHistory } from '@/types';
+import type { ArchiveUploadResult, ImportStatus } from '@/types';
 
 /*
- * The two jobs of the import worker (ADR-0004, ADR-0013 §4), as plain async functions so they can
- * be tested without a worker.
+ * The import worker's job (ADR-0004, ADR-0013 §4), as a plain async function so it can be tested
+ * without a worker. Restoring the stored history is `restoreHistory`, in its own smaller worker.
  */
 
 /** Passes a stream through unchanged while hashing every chunk (BR-37). */
@@ -60,15 +56,4 @@ export async function prepareUpload(
     issues: result.issues,
     excludedNonRideCount: result.excludedNonRideCount,
   };
-}
-
-/** Decodes the stored history and indexes it for the heat map (BR-33, ADR-0006). */
-// Implements: BR-33, AC-34
-export function restoreHistory(
-  bundle: Uint8Array,
-  onStatus?: (status: ImportStatus) => void,
-): RestoredHistory {
-  const { activities, skippedCount } = decodeRideHistory(bundle);
-  onStatus?.({ stage: 'indexing' });
-  return { activities, segmentIndex: buildSegmentIndex(activities), skippedCount };
 }

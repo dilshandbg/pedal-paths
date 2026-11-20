@@ -1,6 +1,7 @@
 import { vi } from 'vitest';
 import type { RideHistoryServices } from '@/features/activities/store/rideHistoryServices';
 import { buildSegmentIndex } from '@/features/heatmap/services/buildSegmentIndex';
+import { computeBounds } from '@/features/heatmap/utils/bounds';
 import { RideHistoryApiError } from '@/services/ride-history-api/rideHistoryClient';
 import type {
   ArchiveUploadResult,
@@ -177,15 +178,19 @@ export function createFakeRideHistory(): FakeRideHistory {
     }),
   };
 
-  const restoreHistory = vi.fn(
-    async (_bundle: Uint8Array, onStatus: (status: ImportStatus) => void) => {
-      onStatus({ stage: 'indexing' });
-      const activities = [...rides.values()].sort((a, b) =>
-        b.activityDate.localeCompare(a.activityDate),
-      );
-      return { activities, segmentIndex: buildSegmentIndex(activities), skippedCount: 0 };
-    },
-  );
+  const restoreHistory = vi.fn(async (onStatus: (status: ImportStatus) => void) => {
+    await client.fetchRides(); // the real restorer downloads the history first
+    onStatus({ stage: 'indexing' });
+    const activities = [...rides.values()].sort((a, b) =>
+      b.activityDate.localeCompare(a.activityDate),
+    );
+    return {
+      activities: activities.map(({ gpsTrack: _track, ...summary }) => summary),
+      segmentIndex: buildSegmentIndex(activities),
+      bounds: computeBounds(activities),
+      skippedCount: 0,
+    };
+  });
 
   return {
     services: { importArchive, restoreHistory, client },

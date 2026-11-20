@@ -92,6 +92,31 @@ export function decodeTrack(bytes: Uint8Array): GPSPoint[] {
   return points;
 }
 
+/**
+ * Decodes only a track's coordinates, for work that needs nothing else (the heat map index and
+ * bounds when the history is restored). Skips elevation and timestamps, which for millions of
+ * points would cost seconds (NFR-10).
+ *
+ * @throws TrackFormatError when the version, length or a coordinate is invalid.
+ */
+export function decodeTrackPositions(
+  bytes: Uint8Array,
+): { readonly latitude: number; readonly longitude: number }[] {
+  const count = readHeader(bytes);
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const lngOffset = HEADER_BYTES + 4 * count;
+  const positions = new Array<{ latitude: number; longitude: number }>(count);
+  for (let i = 0; i < count; i += 1) {
+    const latitude = view.getInt32(HEADER_BYTES + 4 * i, true) / COORDINATE_SCALE;
+    const longitude = view.getInt32(lngOffset + 4 * i, true) / COORDINATE_SCALE;
+    if (!isValidLatitude(latitude) || !isValidLongitude(longitude)) {
+      throw new TrackFormatError(`Track point ${i} has invalid coordinates.`);
+    }
+    positions[i] = { latitude, longitude };
+  }
+  return positions;
+}
+
 function readHeader(bytes: Uint8Array): number {
   if (bytes.byteLength < HEADER_BYTES) {
     throw new TrackFormatError('Track is too short.');

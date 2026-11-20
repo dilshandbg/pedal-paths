@@ -258,3 +258,13 @@ npm run perf -- --scenario explorer --rides 500 --budget 200 --headed
 
 Your export is read from disk into a local test browser. Nothing is uploaded, and the base map is a
 blank local style. Run it on the machine you use the app on: timings depend on its GPU.
+
+`npm run perf:history` measures the stored ride history (NFR-10). It stores 2,000 synthetic rides in
+a temporary database, times location-visit queries (500 ms budget each), and times five cold starts
+of the real app until the map shows every ride (median within 5 s). The database is deleted
+afterwards.
+
+```bash
+npm run perf:history                               # 2,000 rides, commuter scenario
+npm run perf:history -- --rides 500 --scenario explorer --headed
+```

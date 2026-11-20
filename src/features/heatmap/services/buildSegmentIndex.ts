@@ -9,10 +9,17 @@ import {
   stepCells,
   type Grid,
 } from '@/features/heatmap/utils/grid';
-import type { CyclingActivity, SegmentIndex } from '@/types';
+import type { ActivityId, SegmentIndex } from '@/types';
+import type { LatLngLike } from '@/utils/geo';
+
+/** What the index reads of a ride: its ID and its track's positions, in order. */
+export interface IndexableRide {
+  readonly activityId: ActivityId;
+  readonly gpsTrack: readonly LatLngLike[];
+}
 
 /** Mean latitude of all track points, used to make grid cells square on the ground. */
-function referenceLatitude(activities: readonly CyclingActivity[]): number {
+function referenceLatitude(activities: readonly IndexableRide[]): number {
   let sum = 0;
   let count = 0;
   for (const activity of activities) {
@@ -24,36 +31,44 @@ function referenceLatitude(activities: readonly CyclingActivity[]): number {
   return count === 0 ? 0 : sum / count;
 }
 
-/** Undirected edge key between two 8-neighbour cells: lower cell key × 4 + direction. */
-function edgeKey(i0: number, j0: number, i1: number, j1: number): number {
+/**
+ * Undirected edge key between two 8-neighbour cells: the canonical end's cell id × 4 + direction.
+ * Cell ids are small dense integers, so the key stays a small integer and map lookups stay fast
+ * for millions of points (NFR-10).
+ */
+function edgeKey(i0: number, j0: number, i1: number, j1: number, id0: number, id1: number) {
   let di = i1 - i0;
   let dj = j1 - j0;
-  let i = i0;
-  let j = j0;
+  let start = id0;
   // Canonical direction is one of E (0,1), NE (1,1), N (1,0), NW (1,-1).
   if (di < 0 || (di === 0 && dj < 0)) {
-    i = i1;
-    j = j1;
+    start = id1;
     di = -di;
     dj = -dj;
   }
   const direction = di === 0 ? 0 : dj === 1 ? 1 : dj === 0 ? 2 : 3;
-  return cellKey(i, j) * 4 + direction;
+  return start * 4 + direction;
 }
 
 class CellTable {
-  readonly index = new Map<number, number>();
+  /** Cell id by row, then column: both small integers, unlike the packed cell key. */
+  readonly rows = new Map<number, Map<number, number>>();
   readonly sumLng: number[] = [];
   readonly sumLat: number[] = [];
   readonly hits: number[] = [];
   readonly keys: number[] = [];
 
-  idOf(key: number): number {
-    let id = this.index.get(key);
+  idOf(i: number, j: number): number {
+    let row = this.rows.get(i);
+    if (row === undefined) {
+      row = new Map();
+      this.rows.set(i, row);
+    }
+    let id = row.get(j);
     if (id === undefined) {
       id = this.keys.length;
-      this.index.set(key, id);
-      this.keys.push(key);
+      row.set(j, id);
+      this.keys.push(cellKey(i, j));
       this.sumLng.push(0);
       this.sumLat.push(0);
       this.hits.push(0);
@@ -78,47 +93,83 @@ class CellTable {
  */
 // Implements: BR-12, RULE-10
 export function buildSegmentIndex(
-  activities: readonly CyclingActivity[],
+  activities: readonly IndexableRide[],
   cellSizeM: number = DEFAULT_CELL_SIZE_M,
 ): SegmentIndex {
   const grid: Grid = createGrid(referenceLatitude(activities), cellSizeM);
   const cells = new CellTable();
-  const segmentIdByKey = new Map<number, number>();
+  // Segment id by edge key (canonical cell id × 4 + direction), −1 when not stored yet. Edge keys
+  // are dense small integers, so a flat array replaces a map: millions of lookups (NFR-10).
+  let segmentIdByKey = new Int32Array(1 << 16).fill(-1);
   const segmentEnds: number[] = [];
   const activitySegments = new Map<string, Uint32Array>();
 
-  const segmentId = (i0: number, j0: number, i1: number, j1: number): number => {
-    const key = edgeKey(i0, j0, i1, j1);
-    let id = segmentIdByKey.get(key);
-    if (id === undefined) {
+  /** Segment between two neighbouring cells whose ids are known; stored on first use. */
+  const segmentId = (
+    i0: number,
+    j0: number,
+    i1: number,
+    j1: number,
+    id0: number,
+    id1: number,
+  ): number => {
+    const key = edgeKey(i0, j0, i1, j1, id0, id1);
+    if (key >= segmentIdByKey.length) {
+      const grown = new Int32Array(Math.max(key + 1, segmentIdByKey.length * 2)).fill(-1);
+      grown.set(segmentIdByKey);
+      segmentIdByKey = grown;
+    }
+    let id = segmentIdByKey[key] ?? -1;
+    if (id < 0) {
       id = segmentEnds.length / 2;
-      segmentIdByKey.set(key, id);
-      segmentEnds.push(cells.idOf(cellKey(i0, j0)), cells.idOf(cellKey(i1, j1)));
+      segmentIdByKey[key] = id;
+      segmentEnds.push(id0, id1);
     }
     return id;
   };
 
   for (const activity of activities) {
     const traversed = new Set<number>();
-    let previous: [number, number] | null = null;
+    // The previous point's cell. Consecutive points usually share a cell (25 m cells, a few
+    // metres apart), so its id is reused instead of looked up again: this loop runs once per GPS
+    // point, millions of times for a large history (NFR-10).
+    let hasPrevious = false;
+    let pi = 0;
+    let pj = 0;
+    let previousCellId = 0;
 
     for (const { latitude, longitude } of activity.gpsTrack) {
       const i = cellRow(grid, latitude);
       const j = cellColumn(grid, longitude);
-      cells.addPoint(cells.idOf(cellKey(i, j)), longitude, latitude);
+      const sameCell = hasPrevious && i === pi && j === pj;
+      const cellId = sameCell ? previousCellId : cells.idOf(i, j);
+      cells.addPoint(cellId, longitude, latitude);
 
-      if (previous && (previous[0] !== i || previous[1] !== j)) {
-        const path = stepCells(previous[0], previous[1], i, j);
-        if (path) {
-          let [pi, pj] = previous;
-          for (const [ci, cj] of path) {
-            traversed.add(segmentId(pi, pj, ci, cj));
-            pi = ci;
-            pj = cj;
+      if (hasPrevious && !sameCell) {
+        if (Math.abs(i - pi) <= 1 && Math.abs(j - pj) <= 1) {
+          // A neighbour: one step, as stepCells gives, with both ids already known.
+          traversed.add(segmentId(pi, pj, i, j, previousCellId, cellId));
+        } else {
+          const path = stepCells(pi, pj, i, j);
+          if (path) {
+            let si = pi;
+            let sj = pj;
+            let sid = previousCellId;
+            for (const [ci, cj] of path) {
+              // Ids in path order, as they were given when the segment was first stored.
+              const cid = cells.idOf(ci, cj);
+              traversed.add(segmentId(si, sj, ci, cj, sid, cid));
+              si = ci;
+              sj = cj;
+              sid = cid;
+            }
           }
         }
       }
-      previous = [i, j];
+      hasPrevious = true;
+      pi = i;
+      pj = j;
+      previousCellId = cellId;
     }
 
     if (traversed.size > 0) {

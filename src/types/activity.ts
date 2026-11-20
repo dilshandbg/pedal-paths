@@ -46,3 +46,9 @@ export interface CyclingActivity {
   /** Ordered track points; contains at least 2 valid points. */
   readonly gpsTrack: readonly GPSPoint[];
 }
+
+/**
+ * A ride without its GPS track: what the screen needs once the heat map index is built (filters,
+ * statistics, the ride list). Restoring a large history sends only this to the page (NFR-10).
+ */
+export type RideSummary = Omit<CyclingActivity, 'gpsTrack'>;
