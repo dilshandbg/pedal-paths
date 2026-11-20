@@ -253,6 +253,8 @@ These conventions are not enforced by tooling:
 
 ```text
 server/             Local backend (Node 22.13+): JSON segment catalog, SQLite migration, API, Vite plugin
+server/assistant/   Local AI assistant (ADR-0014): llm/ (LLMProvider interface, errors, streams, loopback-only
+                    localEndpoint, registry), tools/, orchestrator, evaluation, downloads, conversations
 src/
 ├── app/            Composition root: App, routes (screens), providers, app config
 ├── components/     Domain-agnostic UI: layout, common, map, filters, statistics, segments

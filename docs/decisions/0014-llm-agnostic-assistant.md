@@ -200,8 +200,8 @@ later provider doesn't change the UI code.
 `analyticsTools.ts` turns each `RideAnalytics` function into a tool. The JSON arguments are
 converted to `URLSearchParams` and validated by the same parsers as `/api/analytics`, so a model
 can't pass anything the HTTP API would refuse. When validation fails, the model gets a tool error
-listing the problems (AC-44). The descriptions move from `ANALYTICS_CATALOG` to a shared
-`src/features/analytics/services/analyticsCatalog.ts`.
+listing the problems (AC-44). The tools have their own JSON Schemas and descriptions, written for a
+model, built from the shared limits in `parseAnalyticsQuery.ts`; `/api/analytics` is unchanged.
 
 | Tool                | Function                                          |
 | ------------------- | ------------------------------------------------- |
@@ -231,8 +231,8 @@ injected.
 3. **Context:** `num_ctx` is the model's context window, capped at 16,384 (Ollama's own default
    of 4,096 is too small for tool results). The conversation is trimmed to fit, oldest whole turns
    first, and the newest question is always kept.
-4. **Tool loop:** `generate`, then execute the tool calls in order (10 s limit each), then send
-   the results. At most 6 rounds per question.
+4. **Tool loop:** `generate`, then execute the tool calls in order, then send the results. The
+   tools are synchronous and local, bounded by NFR-10, so they have no separate time limit. At most 6 rounds per question.
 5. **Streaming to the browser:** `text`, `tool` (name and arguments, shown as "Used: distance by
    month, 2024"), `done` and `error` events. Stop, or a closed tab, aborts the Ollama request.
 6. **Errors:** each `LLMError` becomes a plain message (NFR-12). Nothing is retried with another

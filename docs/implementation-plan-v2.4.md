@@ -17,12 +17,15 @@ Nothing in the ride storage, upload management, analytics or the NFR-10 benchmar
 
 ## 2. Phases (each on its own feature branch, merged into `dev`, then `main`)
 
-1. **Core** (BR-39, BR-40, RULE-25, RULE-26), on `feature/assistant-core`:
+1. **Core** (BR-39, BR-40, RULE-25, RULE-26, RULE-28), on `feature/assistant-core`. **Done**
+   (awaiting review), including the provider-neutral parts of BR-41 – BR-43: loopback endpoint
+   checks (`llm/localEndpoint.ts`), the download manager (`downloads.ts`) and the model
+   evaluation (`evaluation.ts`):
    - `llm/types.ts`, `llm/errors.ts`, `llm/streams.ts` (NDJSON and SSE line readers),
      `llm/registry.ts`;
    - `tools/analyticsTools.ts` (validated through `parseAnalyticsQuery`), `systemPrompt.ts`,
      `conversations.ts` and `orchestrator.ts`;
-   - `tests/mocks/fakeProvider.ts`, the provider contract tests, and tests for the tools and the
+   - `tests/server/assistant/fakeProvider.ts` (permanent), the provider contract tests, and tests for the tools and the
      orchestrator;
    - the ESLint isolation rules.
 2. **Ollama adapter** (BR-41 – BR-44, RULE-27), on `feature/assistant-ollama`:
