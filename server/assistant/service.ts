@@ -183,9 +183,12 @@ export function createAssistantService(deps: AssistantServiceDeps): AssistantSer
 
   return {
     providers: () =>
-      deps.registry
-        .list()
-        .map((d) => ({ id: d.id, displayName: d.displayName, settings: d.settings })),
+      deps.registry.list().map((d) => ({
+        id: d.id,
+        displayName: d.displayName,
+        settings: d.settings,
+        modelLibrary: d.modelLibrary ?? null,
+      })),
     settings: () => settings.get(),
     updateSettings: (patch) => settings.update(patch),
 
@@ -197,6 +200,7 @@ export function createAssistantService(deps: AssistantServiceDeps): AssistantSer
           id: current.provider,
           displayName: info?.displayName ?? current.provider,
           settings: info?.settings ?? [],
+          modelLibrary: info?.modelLibrary ?? null,
         },
         serverUrl: current.serverUrl,
         model: current.model,

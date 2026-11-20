@@ -48,10 +48,13 @@ Nothing in the ride storage, upload management, analytics or the NFR-10 benchmar
    - tests: `tests/server/assistant/settings.test.ts`, `tests/server/http/assistantApi.test.ts`
      (a real local HTTP server with the fake provider);
    - README and `.env.example` (no new secrets; the settings file location; `OLLAMA_NO_CLOUD`).
-4. **Chat UI** (BR-39, BR-41 – BR-43, BR-45, UX-13, UX-14), on `feature/assistant-ui`:
+4. **Chat UI** (BR-39, BR-41 – BR-43, BR-45, UX-13, UX-14), on `feature/assistant-ui`. **Done**
+   (awaiting review): an **Assistant** sidebar tab with **Chat** and **Settings**;
    - `src/types/assistant.ts`, `services/assistant-api` (fetch and SSE reader), and
      `features/assistant` (store, chat, settings, model list, download, remove, test);
-   - RTL integration tests.
+   - RTL integration tests (`tests/integration/assistant.test.tsx`: the screens, store and client
+     against the real assistant API and service on a local HTTP server, with the fake provider),
+     and unit tests for the event-stream reader and the screen texts.
 5. **End-to-end with a mocked Ollama** (AC-43 – AC-53):
    - a Playwright journey on the real backend;
    - `/verify`, all e2e tests, `npm run perf` and `npm run perf:history`, to show that nothing

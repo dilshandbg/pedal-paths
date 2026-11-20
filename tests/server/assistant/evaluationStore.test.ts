@@ -80,7 +80,9 @@ describe('BR-43 / AC-50: evaluation results are saved in the settings file (sett
     store.record('ollama', evaluation(true));
     store.record('ollama', evaluation(false, { evaluatedAt: '2026-11-21T10:00:00.000Z' }));
     expect(file().evaluations).toHaveLength(1);
-    expect(createEvaluationStore({ file: openSettingsFile(path, log) }).suitability('ollama', model)).toBe('unsuitable');
+    expect(
+      createEvaluationStore({ file: openSettingsFile(path, log) }).suitability('ollama', model),
+    ).toBe('unsuitable');
   });
 
   it('keeps the other settings in the file', () => {

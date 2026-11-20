@@ -37,6 +37,8 @@ export interface ProviderDescriptor {
   /** Where inference runs. BRD v2.4 allows only local providers (BR-44). */
   readonly location: 'local';
   readonly settings: readonly ProviderSetting[];
+  /** Where to browse models to download, opened in the user's browser (OD-35). */
+  readonly modelLibrary?: { readonly url: string; readonly label: string };
 }
 
 export interface ModelCapabilities {

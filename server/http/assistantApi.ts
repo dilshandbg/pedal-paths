@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { MAX_QUESTION_LENGTH } from '../../src/features/assistant/utils/limits';
 import type { AssistantErrorCode } from '../../src/types/assistant';
 import { isLLMError } from '../assistant/llm/errors';
 import { parseLocalEndpoint } from '../assistant/llm/localEndpoint';
@@ -28,8 +29,7 @@ export const ASSISTANT_PREFIX = '/api/assistant';
 
 /** Request bodies are small JSON objects. */
 const MAX_BODY_BYTES = 16 * 1024;
-/** Longest question, in characters (NFR-08). */
-export const MAX_QUESTION_LENGTH = 2_000;
+export { MAX_QUESTION_LENGTH };
 
 const STATUS_FOR: Partial<Record<AssistantErrorCode, number>> = {
   'provider-unavailable': 503,

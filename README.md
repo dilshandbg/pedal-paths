@@ -207,6 +207,23 @@ is a separate command; the app itself still never contacts Strava.
 The token is sent only to the Strava API and is never printed or saved by the command. Delete it
 from `.env.local` when you are done; there is nothing to disconnect in the app.
 
+## Local AI assistant (optional, BRD v2.4)
+
+The **Assistant** tab answers questions about your stored rides, such as "How far did I ride each
+month in 2024?". The model runs in [Ollama](https://ollama.com) on your own computer and computes
+nothing itself: it calls the app's ride analytics, and the answer quotes their results. The app
+contacts no cloud AI service and needs no API key.
+
+1. Install and start Ollama (recommended: set `OLLAMA_NO_CLOUD=1` for Ollama).
+2. In **Assistant → Settings**, check the connection, then download a model that supports tool
+   calling (for example `qwen3:8b`, about 5 GB).
+3. **Select** the model and run **Test model**. Only a model that passes the test answers ride
+   questions.
+4. Ask in **Assistant → Chat**. **Stop** ends an answer; "Used:" lists the analytics behind it.
+
+Details: [`docs/ai-assistant.md`](docs/ai-assistant.md). Without Ollama, the rest of the app works
+as before.
+
 ## Where your data is and how to remove it
 
 - **Map style and heat colours:** only the names of your choices are kept in your browser's local storage.

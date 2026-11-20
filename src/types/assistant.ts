@@ -110,6 +110,8 @@ export interface AssistantProviderInfo {
   readonly id: string;
   readonly displayName: string;
   readonly settings: readonly AssistantProviderSetting[];
+  /** Where to browse models to download, opened in the browser (OD-35). */
+  readonly modelLibrary: { readonly url: string; readonly label: string } | null;
 }
 
 /** Whether a question can be asked now (RULE-26), and if not, why. */

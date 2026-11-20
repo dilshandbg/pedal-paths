@@ -33,6 +33,11 @@ export const OLLAMA_DESCRIPTOR: ProviderDescriptor = {
   id: OLLAMA_PROVIDER_ID,
   displayName: 'Ollama (on this computer)',
   location: 'local',
+  // Opened in the user's browser; the app itself never fetches it (OD-35).
+  modelLibrary: {
+    url: 'https://ollama.com/search?c=tools',
+    label: 'Browse models with tool calling on ollama.com',
+  },
   settings: [
     {
       key: 'serverUrl',

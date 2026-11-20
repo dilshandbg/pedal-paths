@@ -16,6 +16,7 @@ import { useFilteredActivities } from '@/features/filters/hooks/useFilteredActiv
 import { useFilterStore } from '@/features/filters/store/filterStore';
 import { withoutRemovedRides } from '@/features/filters/utils/rideFilter';
 import { HeatMapView } from '@/features/heatmap/components/HeatMapView';
+import { AssistantSection } from '@/features/assistant/components/AssistantSection';
 import { SegmentsSection } from '@/features/segments/components/SegmentsSection';
 import { useSegmentOverlay } from '@/features/segments/hooks/useSegmentOverlay';
 
@@ -30,7 +31,9 @@ export function DashboardRoute() {
   const dataBounds = useActivitiesStore((state) => state.dataset?.bounds ?? null);
   const selectedActivities = useFilteredActivities(activities);
   const segmentMap = useSegmentOverlay();
-  const [sidebarTab, setSidebarTab] = useState<'rides' | 'segments' | 'uploads'>('rides');
+  const [sidebarTab, setSidebarTab] = useState<'rides' | 'segments' | 'uploads' | 'assistant'>(
+    'rides',
+  );
 
   // Show the stored ride history when the app starts (BR-33, AC-34).
   useEffect(() => {
@@ -72,6 +75,7 @@ export function DashboardRoute() {
             },
             { key: 'segments', label: 'Segments', content: <SegmentsSection /> },
             { key: 'uploads', label: 'Uploads', content: <UploadsSection /> },
+            { key: 'assistant', label: 'Assistant', content: <AssistantSection /> },
           ]}
         />
       }
