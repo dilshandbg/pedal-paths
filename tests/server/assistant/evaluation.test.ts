@@ -100,7 +100,20 @@ describe('BR-43: model evaluation', () => {
     expect(caseResult(evaluation, 'location-visits')?.passed).toBe(false);
   });
 
-  it('fails a model that calls an unrelated tool', async () => {
+  it('accepts an extra, valid call to another analytics tool next to the expected one', async () => {
+    const evaluation = await passedEvaluation({
+      extraCall: (q) =>
+        /each month/i.test(q)
+          ? { name: 'distance_by_year', arguments: { from: '2019-01-01', to: '2019-12-31' } }
+          : null,
+    });
+    expect(caseResult(evaluation, 'monthly-distance')).toMatchObject({
+      passed: true,
+      problems: [],
+    });
+  });
+
+  it('fails a model that calls an unrelated tool instead of the expected one', async () => {
     const evaluation = await passedEvaluation({
       call: (q) =>
         /each month/i.test(q)
@@ -110,9 +123,31 @@ describe('BR-43: model evaluation', () => {
             }
           : callFor(q),
     });
-    expect(caseResult(evaluation, 'monthly-distance')?.problems).toContain(
-      'It called unrelated tools: route_frequency.',
-    );
+    expect(caseResult(evaluation, 'monthly-distance')?.problems).toEqual([
+      'It did not call distance_by_month with valid arguments.',
+      'The answer does not give the monthly distances from the tool result.',
+    ]);
+  });
+
+  it('fails a model that makes an extra call to a tool that does not exist', async () => {
+    const evaluation = await passedEvaluation({
+      extraCall: (q) => (/each month/i.test(q) ? { name: 'heart_rate', arguments: {} } : null),
+    });
+    expect(caseResult(evaluation, 'monthly-distance')?.problems).toEqual([
+      'It used tools incorrectly (unknown tool or invalid arguments): heart_rate.',
+    ]);
+  });
+
+  it('fails a model that makes an extra call with invalid arguments', async () => {
+    const evaluation = await passedEvaluation({
+      extraCall: (q) =>
+        /each month/i.test(q)
+          ? { name: 'distance_by_year', arguments: { from: 'last year' } }
+          : null,
+    });
+    expect(caseResult(evaluation, 'monthly-distance')?.problems).toEqual([
+      'It used tools incorrectly (unknown tool or invalid arguments): distance_by_year.',
+    ]);
   });
 
   it('fails a model that ignores the tool result', async () => {

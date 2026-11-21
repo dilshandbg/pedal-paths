@@ -286,6 +286,8 @@ export function answerFrom(name: string, content: string): string {
 export interface AnalystBehaviour {
   /** Which tool to call for a question; default: `callFor`. */
   readonly call?: (question: string) => Call | null;
+  /** A second tool call made in the same round as `call`; default: none. */
+  readonly extraCall?: (question: string) => Call | null;
   /** The final answer from a tool result; default: `answerFrom`. */
   readonly answer?: (name: string, content: string) => string;
   /** The answer when no tool fits; default: a refusal without numbers. */
@@ -309,6 +311,7 @@ export function analyst(behaviour: AnalystBehaviour = {}): FakeResponder {
     }
     const question = lastUser(request.messages)?.text ?? '';
     const next = call(question);
-    return next ? { toolCalls: [next] } : { text: noTool(question) };
+    const extra = behaviour.extraCall?.(question) ?? null;
+    return next ? { toolCalls: extra ? [next, extra] : [next] } : { text: noTool(question) };
   };
 }

@@ -19,7 +19,8 @@ import { createAnalyticsTools, type AssistantTool } from './tools/analyticsTools
  * case. Each case asks a fixed question about a SYNTHETIC history through the real tools and the
  * real turn loop, then checks:
  *
- * - tool selection: the expected analytics were called, and no unrelated ones;
+ * - tool selection: the expected analytics were called; an extra call to another tool is accepted
+ *   only when it is valid (a known tool with valid arguments);
  * - argument generation: the arguments match the question and pass validation;
  * - use of results: the answer contains the tool results the question asked for;
  * - invented results: the answer contains no number that is not in the question or a tool result.
@@ -31,7 +32,8 @@ import { createAnalyticsTools, type AssistantTool } from './tools/analyticsTools
  * The version of the evaluation suite. Raise it whenever a case, its checks or the number rules
  * change: saved results of another version no longer count (OD-38).
  */
-export const EVALUATION_SUITE_VERSION = 2; // 2: runs at temperature 0
+// 2: runs at temperature 0. 3: valid extra tool calls are accepted.
+export const EVALUATION_SUITE_VERSION = 3;
 
 /**
  * The test asks for temperature 0 (greedy sampling), so testing the same model version again gives
@@ -161,7 +163,7 @@ interface EvaluationCaseSpec {
   readonly id: string;
   readonly title: string;
   readonly question: string;
-  /** Tools a correct answer may use; any other call is incorrect tool usage. */
+  /** Tools a correct answer uses; a call to any other tool must at least be valid. */
   readonly allowedTools: readonly string[];
   /** Problems with the calls (selection and arguments); empty when right. */
   checkCalls(calls: readonly Call[]): string[];
@@ -270,10 +272,17 @@ function judge(
 ): ModelEvaluationCase {
   const problems: string[] = [];
   if (trace.failed !== null) problems.push(trace.failed);
-  const unrelated = [
-    ...new Set(trace.calls.filter((c) => !spec.allowedTools.includes(c.name)).map((c) => c.name)),
+  // Extra calls to other analytics are accepted when valid: the tools only read (owner decision
+  // 2026-11-20, OD-38). A failed extra call (unknown tool, invalid arguments) is incorrect use.
+  const incorrect = [
+    ...new Set(
+      trace.calls.filter((c) => !c.ok && !spec.allowedTools.includes(c.name)).map((c) => c.name),
+    ),
   ];
-  if (unrelated.length > 0) problems.push(`It called unrelated tools: ${unrelated.join(', ')}.`);
+  if (incorrect.length > 0)
+    problems.push(
+      `It used tools incorrectly (unknown tool or invalid arguments): ${incorrect.join(', ')}.`,
+    );
   // Tool selection and arguments are judged even when the answer then failed.
   problems.push(...spec.checkCalls(trace.calls));
   if (trace.failed === null) {

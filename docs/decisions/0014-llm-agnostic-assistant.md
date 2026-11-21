@@ -248,8 +248,11 @@ synthetic history, locally, through the real tools and the real turn loop: dista
 visits to a place, a comparison of two years, and a question the analytics can't answer. Each case
 checks tool selection, arguments, use of the results, and numbers that can't be traced (below). A
 model is suitable only when every case passes. Untested and failed models are refused before
-anything is sent, with no override (OD-38). The test runs at temperature 0, so testing the same
-model version again gives the same result; ride questions keep the model's default temperature.
+anything is sent, with no override (OD-38). An extra call to another analytics tool next to the
+expected one is accepted when it is valid; an extra call to an unknown tool or with invalid
+arguments is incorrect tool use and fails the case. The test runs at temperature 0, so testing the
+same model version again gives the same result; ride questions keep the model's default
+temperature.
 
 `evaluationStore.ts` saves each result in `data/assistant-settings.json`: provider, model, digest,
 suite version (`EVALUATION_SUITE_VERSION`, raised whenever a case or the way the cases run changes), time, overall result
