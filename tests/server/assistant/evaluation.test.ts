@@ -100,7 +100,20 @@ describe('BR-43: model evaluation', () => {
     expect(caseResult(evaluation, 'location-visits')?.passed).toBe(false);
   });
 
-  it('fails a model that calls an unrelated tool', async () => {
+  it('accepts an extra, valid call to another analytics tool next to the expected one', async () => {
+    const evaluation = await passedEvaluation({
+      extraCall: (q) =>
+        /each month/i.test(q)
+          ? { name: 'distance_by_year', arguments: { from: '2019-01-01', to: '2019-12-31' } }
+          : null,
+    });
+    expect(caseResult(evaluation, 'monthly-distance')).toMatchObject({
+      passed: true,
+      problems: [],
+    });
+  });
+
+  it('fails a model that calls an unrelated tool instead of the expected one', async () => {
     const evaluation = await passedEvaluation({
       call: (q) =>
         /each month/i.test(q)
@@ -110,9 +123,62 @@ describe('BR-43: model evaluation', () => {
             }
           : callFor(q),
     });
-    expect(caseResult(evaluation, 'monthly-distance')?.problems).toContain(
-      'It called unrelated tools: route_frequency.',
-    );
+    expect(caseResult(evaluation, 'monthly-distance')?.problems).toEqual([
+      'It did not call distance_by_month with valid arguments.',
+      'The answer does not give the monthly distances from the tool result.',
+    ]);
+  });
+
+  it('accepts a rejected extra call (unknown tool) when the model also makes the expected call', async () => {
+    const evaluation = await passedEvaluation({
+      extraCall: (q) => (/each month/i.test(q) ? { name: 'heart_rate', arguments: {} } : null),
+    });
+    expect(caseResult(evaluation, 'monthly-distance')).toMatchObject({
+      passed: true,
+      problems: [],
+    });
+  });
+
+  it('accepts a rejected extra call (invalid arguments) when the model also makes the expected call', async () => {
+    const evaluation = await passedEvaluation({
+      extraCall: (q) =>
+        /each month/i.test(q)
+          ? { name: 'distance_by_year', arguments: { from: 'last year' } }
+          : null,
+    });
+    expect(caseResult(evaluation, 'monthly-distance')).toMatchObject({
+      passed: true,
+      problems: [],
+    });
+  });
+
+  it('recovers when a rejected call comes first and the expected call follows in the next round', async () => {
+    const evaluation = await passedEvaluation({
+      // First round: a call the tool rejects; after the error, the expected call.
+      call: (q) =>
+        /each month/i.test(q)
+          ? { name: 'distance_by_year', arguments: { from: '2018-01-06', year: '2019' } }
+          : callFor(q),
+      retry: (q) => callFor(q),
+    });
+    expect(caseResult(evaluation, 'monthly-distance')).toMatchObject({
+      passed: true,
+      problems: [],
+    });
+  });
+
+  it('fails a model whose rejected call is not followed by the expected call', async () => {
+    const evaluation = await passedEvaluation({
+      call: (q) =>
+        /each month/i.test(q)
+          ? { name: 'distance_by_year', arguments: { from: 'last year' } }
+          : callFor(q),
+    });
+    expect(caseResult(evaluation, 'monthly-distance')?.problems).toEqual([
+      'It used tools incorrectly (unknown tool or invalid arguments): distance_by_year.',
+      'It did not call distance_by_month with valid arguments.',
+      'The answer does not give the monthly distances from the tool result.',
+    ]);
   });
 
   it('fails a model that ignores the tool result', async () => {
@@ -140,6 +206,18 @@ describe('BR-43: model evaluation', () => {
     expect(caseResult(evaluation, 'unanswerable')?.problems).toEqual([
       'The answer contains numbers that are not in any tool result: 142.',
     ]);
+  });
+
+  it('asks the model for temperature 0 in every request, so a test gives the same result each time', async () => {
+    const provider = createFakeProvider({ respond: analyst() });
+    const outcome = await evaluateModel({
+      provider,
+      model: 'qwen3:8b',
+      signal: new AbortController().signal,
+    });
+    expect(outcome.ok).toBe(true);
+    expect(provider.requests.length).toBeGreaterThan(0);
+    expect(provider.requests.map((r) => r.temperature)).toEqual(provider.requests.map(() => 0));
   });
 
   it('fails a model whose answers fail', async () => {

@@ -137,6 +137,8 @@ export interface TurnInput {
   readonly question: string;
   readonly limits: AssistantLimits;
   readonly signal: AbortSignal;
+  /** Sampling temperature for every round; omitted, the model's own default applies. */
+  readonly temperature?: number;
   /** Receives the turn's messages (question, answers, tool results) when it completes. */
   readonly onComplete?: (messages: readonly ChatMessage[]) => void;
   readonly log?: (message: string) => void;
@@ -173,6 +175,7 @@ export async function* runTurn(input: TurnInput): AsyncGenerator<AssistantEvent>
             tools: definitions,
             contextTokens,
             maxOutputTokens: limits.maxOutputTokens,
+            ...(input.temperature !== undefined ? { temperature: input.temperature } : {}),
           },
           AbortSignal.any([signal, inner.signal]),
         ),

@@ -308,6 +308,13 @@ describe('BR-39 / BR-45: chat', () => {
     });
   });
 
+  it('sends a requested temperature with the other options', async () => {
+    const fake = createFakeOllama();
+    await collect(make(fake), request({ temperature: 0 }));
+    const body = fake.to('/api/chat')[0]?.body as Record<string, unknown>;
+    expect(body.options).toEqual({ num_ctx: 8192, num_predict: 1024, temperature: 0 });
+  });
+
   it('asks for structured output with a JSON Schema, and sends no tools when there are none', async () => {
     const fake = createFakeOllama();
     const schema = request().tools[0]!.parameters; // the request has one tool

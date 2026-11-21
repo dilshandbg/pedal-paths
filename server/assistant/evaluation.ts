@@ -19,7 +19,8 @@ import { createAnalyticsTools, type AssistantTool } from './tools/analyticsTools
  * case. Each case asks a fixed question about a SYNTHETIC history through the real tools and the
  * real turn loop, then checks:
  *
- * - tool selection: the expected analytics were called, and no unrelated ones;
+ * - tool selection: the expected analytics were called; an extra call to another tool is accepted,
+ *   and a rejected one (unknown tool, invalid arguments) only when the expected call also succeeded;
  * - argument generation: the arguments match the question and pass validation;
  * - use of results: the answer contains the tool results the question asked for;
  * - invented results: the answer contains no number that is not in the question or a tool result.
@@ -31,7 +32,15 @@ import { createAnalyticsTools, type AssistantTool } from './tools/analyticsTools
  * The version of the evaluation suite. Raise it whenever a case, its checks or the number rules
  * change: saved results of another version no longer count (OD-38).
  */
-export const EVALUATION_SUITE_VERSION = 1;
+// 2: runs at temperature 0. 3: valid extra tool calls are accepted. 4: a rejected extra call is
+// accepted when the model recovers with the expected call.
+export const EVALUATION_SUITE_VERSION = 4;
+
+/**
+ * The test asks for temperature 0 (greedy sampling), so testing the same model version again gives
+ * the same result instead of passing or failing by chance. Ride questions keep the model's default.
+ */
+export const EVALUATION_TEMPERATURE = 0;
 
 // --- The synthetic history -----------------------------------------------------------------------
 
@@ -155,7 +164,7 @@ interface EvaluationCaseSpec {
   readonly id: string;
   readonly title: string;
   readonly question: string;
-  /** Tools a correct answer may use; any other call is incorrect tool usage. */
+  /** Tools a correct answer uses; a rejected call to any other tool counts only without recovery. */
   readonly allowedTools: readonly string[];
   /** Problems with the calls (selection and arguments); empty when right. */
   checkCalls(calls: readonly Call[]): string[];
@@ -264,12 +273,22 @@ function judge(
 ): ModelEvaluationCase {
   const problems: string[] = [];
   if (trace.failed !== null) problems.push(trace.failed);
-  const unrelated = [
-    ...new Set(trace.calls.filter((c) => !spec.allowedTools.includes(c.name)).map((c) => c.name)),
-  ];
-  if (unrelated.length > 0) problems.push(`It called unrelated tools: ${unrelated.join(', ')}.`);
   // Tool selection and arguments are judged even when the answer then failed.
-  problems.push(...spec.checkCalls(trace.calls));
+  const callProblems = spec.checkCalls(trace.calls);
+  // Extra calls to other analytics are accepted: the tools only read (owner decision 2026-11-20,
+  // OD-38). A rejected extra call (unknown tool, invalid arguments) goes back to the model to
+  // correct (AC-44); it is accepted when the model recovers with the expected call (owner decision
+  // 2026-11-21, OD-38), and reported as incorrect use when it does not.
+  const incorrect = [
+    ...new Set(
+      trace.calls.filter((c) => !c.ok && !spec.allowedTools.includes(c.name)).map((c) => c.name),
+    ),
+  ];
+  if (incorrect.length > 0 && callProblems.length > 0)
+    problems.push(
+      `It used tools incorrectly (unknown tool or invalid arguments): ${incorrect.join(', ')}.`,
+    );
+  problems.push(...callProblems);
   if (trace.failed === null) {
     if (trace.answer.trim() === '') problems.push('It gave no answer.');
     else problems.push(...spec.checkAnswer(trace.answer));
@@ -337,6 +356,7 @@ export async function evaluateModel(input: EvaluateInput): Promise<EvaluationOut
       question: spec.question,
       limits,
       signal: input.signal,
+      temperature: EVALUATION_TEMPERATURE,
     })) {
       if (event.type === 'text') answer += event.delta;
       else if (event.type === 'tool') {
