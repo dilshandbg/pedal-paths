@@ -129,24 +129,55 @@ describe('BR-43: model evaluation', () => {
     ]);
   });
 
-  it('fails a model that makes an extra call to a tool that does not exist', async () => {
+  it('accepts a rejected extra call (unknown tool) when the model also makes the expected call', async () => {
     const evaluation = await passedEvaluation({
       extraCall: (q) => (/each month/i.test(q) ? { name: 'heart_rate', arguments: {} } : null),
     });
-    expect(caseResult(evaluation, 'monthly-distance')?.problems).toEqual([
-      'It used tools incorrectly (unknown tool or invalid arguments): heart_rate.',
-    ]);
+    expect(caseResult(evaluation, 'monthly-distance')).toMatchObject({
+      passed: true,
+      problems: [],
+    });
   });
 
-  it('fails a model that makes an extra call with invalid arguments', async () => {
+  it('accepts a rejected extra call (invalid arguments) when the model also makes the expected call', async () => {
     const evaluation = await passedEvaluation({
       extraCall: (q) =>
         /each month/i.test(q)
           ? { name: 'distance_by_year', arguments: { from: 'last year' } }
           : null,
     });
+    expect(caseResult(evaluation, 'monthly-distance')).toMatchObject({
+      passed: true,
+      problems: [],
+    });
+  });
+
+  it('recovers when a rejected call comes first and the expected call follows in the next round', async () => {
+    const evaluation = await passedEvaluation({
+      // First round: a call the tool rejects; after the error, the expected call.
+      call: (q) =>
+        /each month/i.test(q)
+          ? { name: 'distance_by_year', arguments: { from: '2018-01-06', year: '2019' } }
+          : callFor(q),
+      retry: (q) => callFor(q),
+    });
+    expect(caseResult(evaluation, 'monthly-distance')).toMatchObject({
+      passed: true,
+      problems: [],
+    });
+  });
+
+  it('fails a model whose rejected call is not followed by the expected call', async () => {
+    const evaluation = await passedEvaluation({
+      call: (q) =>
+        /each month/i.test(q)
+          ? { name: 'distance_by_year', arguments: { from: 'last year' } }
+          : callFor(q),
+    });
     expect(caseResult(evaluation, 'monthly-distance')?.problems).toEqual([
       'It used tools incorrectly (unknown tool or invalid arguments): distance_by_year.',
+      'It did not call distance_by_month with valid arguments.',
+      'The answer does not give the monthly distances from the tool result.',
     ]);
   });
 

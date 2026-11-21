@@ -249,8 +249,9 @@ visits to a place, a comparison of two years, and a question the analytics can't
 checks tool selection, arguments, use of the results, and numbers that can't be traced (below). A
 model is suitable only when every case passes. Untested and failed models are refused before
 anything is sent, with no override (OD-38). An extra call to another analytics tool next to the
-expected one is accepted when it is valid; an extra call to an unknown tool or with invalid
-arguments is incorrect tool use and fails the case. The test runs at temperature 0, so testing the
+expected one is accepted. An extra call the tools reject (unknown tool, invalid arguments) goes
+back to the model to correct, as in a ride question; it is accepted when the model then makes the
+expected call correctly, and reported as incorrect tool use when it does not. The test runs at temperature 0, so testing the
 same model version again gives the same result; ride questions keep the model's default
 temperature.
 

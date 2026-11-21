@@ -288,6 +288,8 @@ export interface AnalystBehaviour {
   readonly call?: (question: string) => Call | null;
   /** A second tool call made in the same round as `call`; default: none. */
   readonly extraCall?: (question: string) => Call | null;
+  /** The call to make next when every tool result so far is an error; default: answer anyway. */
+  readonly retry?: (question: string) => Call | null;
   /** The final answer from a tool result; default: `answerFrom`. */
   readonly answer?: (name: string, content: string) => string;
   /** The answer when no tool fits; default: a refusal without numbers. */
@@ -306,10 +308,13 @@ export function analyst(behaviour: AnalystBehaviour = {}): FakeResponder {
     (() => "I can't answer that from your rides: the analytics don't include it.");
   return (request) => {
     const results = resultsSinceQuestion(request.messages);
+    const question = lastUser(request.messages)?.text ?? '';
+    const retried = results.length > 0 && results.every((r) => r.isError) && behaviour.retry;
+    const again = retried ? behaviour.retry?.(question) : null;
+    if (again) return { toolCalls: [again] };
     if (results.length > 0) {
       return { text: results.map((r) => answer(r.name, r.content)).join(' ') };
     }
-    const question = lastUser(request.messages)?.text ?? '';
     const next = call(question);
     const extra = behaviour.extraCall?.(question) ?? null;
     return next ? { toolCalls: extra ? [next, extra] : [next] } : { text: noTool(question) };

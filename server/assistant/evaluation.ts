@@ -19,8 +19,8 @@ import { createAnalyticsTools, type AssistantTool } from './tools/analyticsTools
  * case. Each case asks a fixed question about a SYNTHETIC history through the real tools and the
  * real turn loop, then checks:
  *
- * - tool selection: the expected analytics were called; an extra call to another tool is accepted
- *   only when it is valid (a known tool with valid arguments);
+ * - tool selection: the expected analytics were called; an extra call to another tool is accepted,
+ *   and a rejected one (unknown tool, invalid arguments) only when the expected call also succeeded;
  * - argument generation: the arguments match the question and pass validation;
  * - use of results: the answer contains the tool results the question asked for;
  * - invented results: the answer contains no number that is not in the question or a tool result.
@@ -32,8 +32,9 @@ import { createAnalyticsTools, type AssistantTool } from './tools/analyticsTools
  * The version of the evaluation suite. Raise it whenever a case, its checks or the number rules
  * change: saved results of another version no longer count (OD-38).
  */
-// 2: runs at temperature 0. 3: valid extra tool calls are accepted.
-export const EVALUATION_SUITE_VERSION = 3;
+// 2: runs at temperature 0. 3: valid extra tool calls are accepted. 4: a rejected extra call is
+// accepted when the model recovers with the expected call.
+export const EVALUATION_SUITE_VERSION = 4;
 
 /**
  * The test asks for temperature 0 (greedy sampling), so testing the same model version again gives
@@ -163,7 +164,7 @@ interface EvaluationCaseSpec {
   readonly id: string;
   readonly title: string;
   readonly question: string;
-  /** Tools a correct answer uses; a call to any other tool must at least be valid. */
+  /** Tools a correct answer uses; a rejected call to any other tool counts only without recovery. */
   readonly allowedTools: readonly string[];
   /** Problems with the calls (selection and arguments); empty when right. */
   checkCalls(calls: readonly Call[]): string[];
@@ -272,19 +273,22 @@ function judge(
 ): ModelEvaluationCase {
   const problems: string[] = [];
   if (trace.failed !== null) problems.push(trace.failed);
-  // Extra calls to other analytics are accepted when valid: the tools only read (owner decision
-  // 2026-11-20, OD-38). A failed extra call (unknown tool, invalid arguments) is incorrect use.
+  // Tool selection and arguments are judged even when the answer then failed.
+  const callProblems = spec.checkCalls(trace.calls);
+  // Extra calls to other analytics are accepted: the tools only read (owner decision 2026-11-20,
+  // OD-38). A rejected extra call (unknown tool, invalid arguments) goes back to the model to
+  // correct (AC-44); it is accepted when the model recovers with the expected call (owner decision
+  // 2026-11-21, OD-38), and reported as incorrect use when it does not.
   const incorrect = [
     ...new Set(
       trace.calls.filter((c) => !c.ok && !spec.allowedTools.includes(c.name)).map((c) => c.name),
     ),
   ];
-  if (incorrect.length > 0)
+  if (incorrect.length > 0 && callProblems.length > 0)
     problems.push(
       `It used tools incorrectly (unknown tool or invalid arguments): ${incorrect.join(', ')}.`,
     );
-  // Tool selection and arguments are judged even when the answer then failed.
-  problems.push(...spec.checkCalls(trace.calls));
+  problems.push(...callProblems);
   if (trace.failed === null) {
     if (trace.answer.trim() === '') problems.push('It gave no answer.');
     else problems.push(...spec.checkAnswer(trace.answer));
